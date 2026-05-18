@@ -129,42 +129,75 @@ input[type=date] { }
 input:not([type=date]):not([type=time]):not([type=number]):not([type=search]):not([type=password]):not([type=file]):not([type=checkbox]):not([type=radio]),textarea{text-transform:uppercase}
 input[type=search],#lg-nm,#s3add-cari,#ml-q,#gm-q,#lt-q,#tk-q,#iv-q,#mlpk-q{text-transform:none}
 
-<!-- Firebase Compat SDK v9 -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<!-- Firebase via REST API (no SDK needed) -->
 <script>
 var FB_KEYS=['vu_g','vu_p','vu_rb','vu_rk','vu_ug','vu_ts','vu_ltj','vu_lt','vu_tkp','vu_tkt','vu_ivi','vu_ivp','vu_kw','vu_sp03','vu_ml','vu_ltk_ov','vu_submit_log','vu_import_hist'];
-var firebaseConfig={apiKey:"AIzaSyDjlfU18uFbXMmRkErVtVgdFsN1nXOmwxY",authDomain:"laporanvetec-e0eec.firebaseapp.com",projectId:"laporanvetec-e0eec",storageBucket:"laporanvetec-e0eec.firebasestorage.app",messagingSenderId:"592985099511",appId:"1:592985099511:web:dbf734981fa0ee89d957f2"};
-firebase.initializeApp(firebaseConfig);
-var fbDB=firebase.firestore();
-window.FB_READY=false;
 var _lsOrig=localStorage.setItem.bind(localStorage);
-function fbSetStatus(msg,bg,col){var el=document.getElementById('fb-status');if(el){el.textContent=msg;el.style.background=bg;el.style.color=col;}}
+window.FB_READY=false;
+var FB_URL='https://firestore.googleapis.com/v1/projects/laporanvetec-e0eec/databases/(default)/documents/vetec/';
+var FB_KEY='AIzaSyDjlfU18uFbXMmRkErVtVgdFsN1nXOmwxY';
+
+function fbSetStatus(msg,bg,col){
+  var el=document.getElementById('fb-status');
+  if(el){el.textContent=msg;el.style.background=bg;el.style.color=col;}
+}
+
+function fbWrite(key,value){
+  return fetch(FB_URL+key+'?key='+FB_KEY,{
+    method:'PATCH',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({fields:{value:{stringValue:value},updated:{stringValue:new Date().toISOString()}}})
+  });
+}
+
+function fbRead(key){
+  return fetch(FB_URL+key+'?key='+FB_KEY)
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.fields&&d.fields.value&&d.fields.value.stringValue)
+        return d.fields.value.stringValue;
+      return null;
+    }).catch(function(){return null;});
+}
+
 window.fbLoadAll=function(){
   fbSetStatus('☁️ Memuatkan...','#fffbeb','#744210');
   var tasks=FB_KEYS.map(function(k){
-    return fbDB.collection('vetec').doc(k).get().then(function(d){
-      if(d.exists&&d.data()&&d.data().value!==undefined){
+    return fbRead(k).then(function(val){
+      if(val){
         var local=localStorage.getItem(k);
-        if(!local||local==='[]'||local==='{}') _lsOrig(k,d.data().value);
+        if(!local||local==='[]'||local==='{}') _lsOrig(k,val);
       }
-    }).catch(function(){});
+    });
   });
   Promise.all(tasks).then(function(){
     window.FB_READY=true;
     fbSetStatus('☁️ Firebase ✅','#c6f6d5','#276749');
     if(typeof ld==='function') ld();
-  }).catch(function(){fbSetStatus('☁️ Offline','#fff5f5','#c53030');});
+  }).catch(function(e){
+    console.error('FB load error:',e);
+    fbSetStatus('☁️ Offline','#fff5f5','#c53030');
+  });
 };
+
 localStorage.setItem=function(key,value){
   _lsOrig(key,value);
   if(window.FB_READY&&FB_KEYS.indexOf(key)>=0){
-    fbDB.collection('vetec').doc(key).set({value:value,updated:new Date().toISOString()}).catch(function(){});
+    fbWrite(key,value).catch(function(){});
   }
 };
+
 window.addEventListener('load',function(){
   fbSetStatus('☁️ Connecting...','#e2e8f0','#718096');
-  setTimeout(window.fbLoadAll,2000);
+  // Test connection first
+  fbWrite('_ping','ok').then(function(){
+    fbSetStatus('☁️ Firebase ✅','#c6f6d5','#276749');
+    window.FB_READY=true;
+    window.fbLoadAll();
+  }).catch(function(e){
+    console.error('FB connect error:',e);
+    fbSetStatus('☁️ Offline','#fff5f5','#c53030');
+  });
 });
 </script>
 </style>
