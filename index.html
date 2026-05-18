@@ -189,15 +189,24 @@ localStorage.setItem=function(key,value){
 
 window.addEventListener('load',function(){
   fbSetStatus('☁️ Connecting...','#e2e8f0','#718096');
-  // Test connection first
-  fbWrite('_ping','ok').then(function(){
-    fbSetStatus('☁️ Firebase ✅','#c6f6d5','#276749');
-    window.FB_READY=true;
-    window.fbLoadAll();
-  }).catch(function(e){
-    console.error('FB connect error:',e);
-    fbSetStatus('☁️ Offline','#fff5f5','#c53030');
-  });
+  // Test: GET request — 404 = connected (empty DB), other error = offline
+  fetch(FB_URL+'_ping?key='+FB_KEY)
+    .then(function(r){
+      // 404 = connected but doc not found = OK!
+      // 200 = connected and doc exists = OK!
+      if(r.status===404||r.status===200){
+        fbSetStatus('☁️ Firebase ✅','#c6f6d5','#276749');
+        window.FB_READY=true;
+        window.fbLoadAll();
+      } else {
+        r.json().then(function(d){console.error('FB error:',d);});
+        fbSetStatus('☁️ Error ('+r.status+')','#fff5f5','#c53030');
+      }
+    })
+    .catch(function(e){
+      console.error('FB connect error:',e);
+      fbSetStatus('☁️ Offline','#fff5f5','#c53030');
+    });
 });
 </script>
 </style>
