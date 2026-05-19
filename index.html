@@ -129,83 +129,60 @@ input[type=date] { }
 input:not([type=date]):not([type=time]):not([type=number]):not([type=search]):not([type=password]):not([type=file]):not([type=checkbox]):not([type=radio]),textarea{text-transform:uppercase}
 input[type=search],#lg-nm,#s3add-cari,#ml-q,#gm-q,#lt-q,#tk-q,#iv-q,#mlpk-q{text-transform:none}
 
-<!-- Firebase via REST API (no SDK needed) -->
+<!-- Firebase Realtime Database Sync -->
 <script>
-var FB_KEYS=['vu_g','vu_p','vu_rb','vu_rk','vu_ug','vu_ts','vu_ltj','vu_lt','vu_tkp','vu_tkt','vu_ivi','vu_ivp','vu_kw','vu_sp03','vu_ml','vu_ltk_ov','vu_submit_log','vu_import_hist'];
+var RTDB='https://vetec-utara-default-rtdb.firebaseio.com';
+var GS_KEYS=['vu_g','vu_p','vu_rb','vu_rk','vu_ug','vu_ts','vu_ltj','vu_lt','vu_tkp','vu_tkt','vu_ivi','vu_ivp','vu_kw','vu_sp03','vu_ml','vu_ltk_ov','vu_submit_log','vu_import_hist'];
 var _lsOrig=localStorage.setItem.bind(localStorage);
+window.GS_READY=false;
 window.FB_READY=false;
-var FB_URL='https://firestore.googleapis.com/v1/projects/laporanvetec-e0eec/databases/(default)/documents/vetec/';
-var FB_KEY='AIzaSyDjlfU18uFbXMmRkErVtVgdFsN1nXOmwxY';
 
-function fbSetStatus(msg,bg,col){
-  var el=document.getElementById('fb-status');
-  if(el){el.textContent=msg;el.style.background=bg;el.style.color=col;}
+function rtWrite(k,v){
+  fetch(RTDB+'/vetec/'+encodeURIComponent(k)+'.json',{
+    method:'PUT',
+    body:JSON.stringify(v)
+  }).catch(function(){});
 }
 
-function fbWrite(key,value){
-  return fetch(FB_URL+key+'?key='+FB_KEY,{
-    method:'PATCH',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({fields:{value:{stringValue:value},updated:{stringValue:new Date().toISOString()}}})
-  });
-}
-
-function fbRead(key){
-  return fetch(FB_URL+key+'?key='+FB_KEY)
+function rtRead(k){
+  return fetch(RTDB+'/vetec/'+encodeURIComponent(k)+'.json')
     .then(function(r){return r.json();})
-    .then(function(d){
-      if(d.fields&&d.fields.value&&d.fields.value.stringValue)
-        return d.fields.value.stringValue;
-      return null;
-    }).catch(function(){return null;});
+    .then(function(d){return d;})
+    .catch(function(){return null;});
 }
 
 window.fbLoadAll=function(){
-  fbSetStatus('☁️ Memuatkan...','#fffbeb','#744210');
-  var tasks=FB_KEYS.map(function(k){
-    return fbRead(k).then(function(val){
-      if(val){
-        var local=localStorage.getItem(k);
-        if(!local||local==='[]'||local==='{}') _lsOrig(k,val);
+  var done=0,total=GS_KEYS.length;
+  GS_KEYS.forEach(function(k){
+    rtRead(k).then(function(v){
+      done++;
+      if(v&&v!=='null'&&v!==null){
+        var l=localStorage.getItem(k);
+        if(!l||l==='[]'||l==='{}') _lsOrig(k,v);
+      }
+      if(done>=total){
+        if(typeof ld==='function') ld();
       }
     });
   });
-  Promise.all(tasks).then(function(){
-    window.FB_READY=true;
-    fbSetStatus('☁️ Firebase ✅','#c6f6d5','#276749');
-    if(typeof ld==='function') ld();
-  }).catch(function(e){
-    console.error('FB load error:',e);
-    fbSetStatus('☁️ Offline','#fff5f5','#c53030');
-  });
 };
 
-localStorage.setItem=function(key,value){
-  _lsOrig(key,value);
-  if(window.FB_READY&&FB_KEYS.indexOf(key)>=0){
-    fbWrite(key,value).catch(function(){});
-  }
+localStorage.setItem=function(k,v){
+  _lsOrig(k,v);
+  if(window.GS_READY&&GS_KEYS.indexOf(k)>=0) rtWrite(k,v);
 };
 
 window.addEventListener('load',function(){
-  fbSetStatus('☁️ Connecting...','#e2e8f0','#718096');
-  // Test: GET request — 404 = connected (empty DB), other error = offline
-  fetch(FB_URL+'_ping?key='+FB_KEY)
-    .then(function(r){
-      // 404 = connected but doc not found = OK!
-      // 200 = connected and doc exists = OK!
-      if(r.status===404||r.status===200){
-        fbSetStatus('☁️ Firebase ✅','#c6f6d5','#276749');
-        window.FB_READY=true;
-        window.fbLoadAll();
-      } else {
-        r.json().then(function(d){console.error('FB error:',d);});
-        fbSetStatus('☁️ Error ('+r.status+')','#fff5f5','#c53030');
-      }
+  // Test connection
+  fetch(RTDB+'/.json?shallow=true')
+    .then(function(r){return r.json();})
+    .then(function(){
+      window.GS_READY=true;
+      window.FB_READY=true;
+      window.fbLoadAll();
     })
-    .catch(function(e){
-      console.error('FB connect error:',e);
-      fbSetStatus('☁️ Offline','#fff5f5','#c53030');
+    .catch(function(){
+      console.warn('RTDB offline');
     });
 });
 </script>
@@ -270,7 +247,7 @@ window.addEventListener('load',function(){
 <div id="main">
   <div class="tbar">
     <div><div class="tttl" id="p-ttl">-</div><div class="tsub" id="p-sub">-</div></div>
-    <div style="display:flex;align-items:center;gap:8px"><button class="btn" id="notif-bell" onclick="showNotifPanel()" style="background:#fff;color:#0f2d5e;border:1px solid #e2e8f0;position:relative;padding:7px 12px;font-size:16px">&#128276;<span id="notif-count" style="display:none;position:absolute;top:-4px;right:-4px;background:#e53e3e;color:#fff;border-radius:10px;padding:1px 5px;font-size:10px;font-weight:700">0</span></button><div id="fb-status" style="font-size:10px;padding:3px 8px;border-radius:10px;background:#e2e8f0;color:#718096">☁️ Connecting...</div><div id="p-btn" style="display:flex;gap:8px"></div></div>
+    <div style="display:flex;align-items:center;gap:8px"><button class="btn" id="notif-bell" onclick="showNotifPanel()" style="background:#fff;color:#0f2d5e;border:1px solid #e2e8f0;position:relative;padding:7px 12px;font-size:16px">&#128276;<span id="notif-count" style="display:none;position:absolute;top:-4px;right:-4px;background:#e53e3e;color:#fff;border-radius:10px;padding:1px 5px;font-size:10px;font-weight:700">0</span></button><div id="p-btn" style="display:flex;gap:8px"></div></div>
   </div>
 
   <!-- SENARAI PENTERNAK -->
