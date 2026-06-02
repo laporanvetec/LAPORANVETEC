@@ -299,7 +299,6 @@ window.fbLoadAll=function(cb){
       }
       if(done>=total){
 
-        if(typeof resetWronglyAssigned==='function')resetWronglyAssigned();
         if(typeof cleanupPenternakData==='function')cleanupPenternakData();
         if(typeof ld==='function') ld();
         // Re-render current page if app is visible
@@ -320,6 +319,18 @@ localStorage.setItem=function(k,v){
   _lsOrig(k,v);
   if(window.GS_READY&&GS_KEYS.indexOf(k)>=0) rtWrite(k,v);
 };
+
+// Force push all local data to Firebase (use when devices out of sync)
+window.forceSyncToCloud=function(){
+  if(!window.GS_READY){alert('Firebase tidak bersambung');return;}
+  var count=0;
+  GS_KEYS.forEach(function(k){
+    var v=localStorage.getItem(k);
+    if(v){rtWrite(k,v);count++;}
+  });
+  alert('Pushed '+count+' keys to cloud. Refresh other devices.');
+};
+
 
 window.addEventListener('load',function(){
   // Test connection
