@@ -184,6 +184,36 @@ function resetWronglyAssigned(){
 
 
 // Auto-merge duplicate officers (e.g., NURSHUHAD vs NURSHUHADA in same PO)
+
+// Fix orphan pids - penternak whose pid doesn't exist in vu_g
+function fixOrphanPids(){
+  try{
+    var peg=JSON.parse(localStorage.getItem('vu_g')||'[]');
+    var pt=JSON.parse(localStorage.getItem('vu_p')||'[]');
+    var validPids={};
+    peg.forEach(function(g){validPids[g.id]=g;});
+    
+    var poToOfficer={};
+    peg.forEach(function(g){
+      if(!poToOfficer[g.po])poToOfficer[g.po]=g.id;  // use first officer in each PO
+    });
+    
+    var fixed=0;
+    pt.forEach(function(p){
+      if(p.pid&&!validPids[p.pid]&&p.po&&poToOfficer[p.po]){
+        // Orphan pid - reassign to first officer in same PO
+        p.pid=poToOfficer[p.po];
+        fixed++;
+      }
+    });
+    
+    if(fixed>0){
+      _lsOrig('vu_p',JSON.stringify(pt));
+      console.log('Fixed',fixed,'orphan pids');
+    }
+  }catch(e){console.error('fixOrphan error:',e);}
+}
+
 function mergeDuplicateOfficers(){
   try{
     var peg=JSON.parse(localStorage.getItem('vu_g')||'[]');
@@ -348,7 +378,7 @@ function rtRead(k){
 window.fbLoadAll=function(cb){
   var done=0,total=GS_KEYS.length,gotData=false;
   // Keys that should ALWAYS be synced from cloud (global lists)
-  var ALWAYS_SYNC=['vu_g','vu_ml'];
+  var ALWAYS_SYNC=['vu_g','vu_ml','vu_p'];
   GS_KEYS.forEach(function(k){
     rtRead(k).then(function(v){
       done++;
@@ -364,6 +394,7 @@ window.fbLoadAll=function(cb){
       if(done>=total){
 
         if(typeof mergeDuplicateOfficers==='function')mergeDuplicateOfficers();
+        if(typeof fixOrphanPids==='function')fixOrphanPids();
         if(typeof cleanupPenternakData==='function')cleanupPenternakData();
         if(typeof ld==='function') ld();
         // Re-render current page if app is visible
