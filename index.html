@@ -133,6 +133,107 @@ input[type=search],#lg-nm,#s3add-cari,#ml-q,#gm-q,#lt-q,#tk-q,#iv-q,#mlpk-q{text
 </style>
 <!-- Firebase Realtime Database Sync -->
 <script>
+
+// Senarai pegawai default ikut PO
+var DEFAULT_OFFICERS={
+  'GURUN':['ADMIN','NURSHUHADA','NABILAH','SHUKOR','ATIQAH'],
+  'KULIM':['AZIELA','UMI'],
+  'SUNGAI PETANI':['NORHAYATI','SUHAIMI','NORAFIZA'],
+  'KUALA KETIL':['MANSOR'],
+  'ALOR STAR':['SUHAI'],
+  'JITRA':['AFIQ'],
+  'KANGAR/PERLIS':['HARNANI','ZAKIAH'],
+  'SG BAKAP':['AZIELA']
+};
+
+
+// Cleanup: separate masterlist from senarai penternak
+function cleanupPenternakData(){
+  try{
+    var pt=JSON.parse(localStorage.getItem('vu_p')||'[]');
+    var ml=JSON.parse(localStorage.getItem('vu_ml')||'[]');
+    
+    // Move penternak without pid to masterlist
+    var validPt=[];
+    var mlMap={};
+    ml.forEach(function(m){mlMap[(m.nm||'').toUpperCase().trim()]=true;});
+    
+    pt.forEach(function(p){
+      if(p.pid){
+        // Has pid - keep in senarai
+        validPt.push(p);
+      } else {
+        // No pid - move to masterlist if not already there
+        var nmKey=(p.nm||'').toUpperCase().trim();
+        if(!mlMap[nmKey]&&nmKey){
+          ml.push({
+            rid:p.rid||('ml_'+Date.now()+'_'+Math.random().toString(36).substr(2,5)),
+            nm:p.nm,al:p.al||'',bn:p.bn||'',j:p.j||'',
+            ng:p.ng||'KEDAH',po:p.po||'',id:p.id||'',tl:p.tl||''
+          });
+          mlMap[nmKey]=true;
+        }
+      }
+    });
+    
+    if(validPt.length!==pt.length){
+      _lsOrig('vu_p',JSON.stringify(validPt));
+      _lsOrig('vu_ml',JSON.stringify(ml));
+      console.log('Cleanup: moved',pt.length-validPt.length,'penternak to masterlist');
+    }
+  }catch(e){console.error('Cleanup error:',e);}
+}
+
+
+// Sync tarikh lawatan from senarai pegawai to masterlist (admin can see it)
+function syncToMasterlist(penternak){
+  if(!penternak||!penternak.rid)return;
+  try{
+    var ml=JSON.parse(localStorage.getItem('vu_ml')||'[]');
+    var found=false;
+    for(var i=0;i<ml.length;i++){
+      if(ml[i].rid===penternak.rid){
+        // Update tr, pv, id, tl fields
+        ml[i].tr=penternak.tr||ml[i].tr||'';
+        ml[i].pv=penternak.pv||ml[i].pv||'';
+        ml[i].id=penternak.id||ml[i].id||'';
+        ml[i].tl=penternak.tl||ml[i].tl||'';
+        ml[i].lat=penternak.lat||ml[i].lat||'';
+        ml[i].lng=penternak.lng||ml[i].lng||'';
+        found=true;
+        break;
+      }
+    }
+    if(found){
+      _lsOrig('vu_ml',JSON.stringify(ml));
+    }
+  }catch(e){console.error('sync ML error:',e);}
+}
+
+function updateLoginNames(){
+  var po=document.getElementById('lg-po').value;
+  var sel=document.getElementById('lg-nm');
+  if(!sel)return;
+  sel.innerHTML='<option value="">-- Pilih nama anda --</option>';
+  if(!po)return;
+  var officers=getOfficers(po);
+  // Admin option always available
+  officers.forEach(function(nm){
+    var o=document.createElement('option');
+    o.value=nm;o.textContent=nm;
+    sel.appendChild(o);
+  });
+}
+
+function getOfficers(po){
+  try{
+    var custom=JSON.parse(localStorage.getItem('vu_officers')||'null');
+    if(custom&&custom[po])return custom[po];
+  }catch(e){}
+  return DEFAULT_OFFICERS[po]||[];
+}
+
+
 var RTDB='https://vetec-utara-default-rtdb.firebaseio.com';
 var GS_KEYS=['vu_g','vu_p','vu_rb','vu_rk','vu_ug','vu_ts','vu_ltj','vu_lt','vu_tkp','vu_tkt','vu_ivi','vu_ivp','vu_kw','vu_sp03','vu_ml','vu_ltk_ov','vu_submit_log','vu_import_hist'];
 var _lsOrig=localStorage.setItem.bind(localStorage);
@@ -175,6 +276,7 @@ window.fbLoadAll=function(cb){
             if(updated)_lsOrig('vu_p',JSON.stringify(ptList));
           }
         }catch(e){}
+        if(typeof cleanupPenternakData==='function')cleanupPenternakData();
         if(typeof ld==='function') ld();
         // Re-render current page if app is visible
         try{
@@ -222,7 +324,7 @@ window.addEventListener('load',function(){
   </div>
   <div class="lfg">
     <label>Pusat Operasi (PO)</label>
-    <select id="lg-po">
+    <select id="lg-po" onchange="updateLoginNames()">
       <option value="">-- Pilih PO anda --</option>
       <option>GURUN</option><option>SG BAKAP</option><option>KULIM</option>
       <option>SUNGAI PETANI</option><option>KUALA KETIL</option>
@@ -231,7 +333,7 @@ window.addEventListener('load',function(){
   </div>
   <div class="lfg">
     <label>Nama Penuh Anda</label>
-    <input id="lg-nm" type="text" placeholder="cth: Mohd Zamri bin Abdullah">
+    <select id="lg-nm" style="text-transform:uppercase"><option value="">-- Pilih PO dulu --</option></select>
   </div>
   <button class="lbtn" id="lg-btn" onclick="loginNow()">Masuk &rarr;</button>
   <p style="text-align:center;margin-top:12px;font-size:11px;color:#a0aec0">Sistem Pengurusan Laporan Bulanan</p>
@@ -1489,7 +1591,17 @@ var peg=[],pt=[],rRB=[],rRK=[],rUG=[];
 var ePI=null,eTI=null,eRI=null,eRT=null,impR=[],tDt=[];
 
 function isT(j,t){if(!j)return false;var u=j.toUpperCase();return TKW[t].some(function(k){return u.indexOf(k)>=0;});}
-function myPt(t){if(!CU)return[];return pt.filter(function(p){return (p.pid===CU.pid||(!p.pid&&p.po===CU.po))&&(!t||isT(p.j,t));});}
+function myPt(t){
+  if(!CU)return[];
+  // Admin sees masterlist as senarai
+  if(isMLAdmin()){
+    try{
+      var ml=JSON.parse(localStorage.getItem('vu_ml')||'[]');
+      return ml.filter(function(p){return !t||isT(p.j,t);});
+    }catch(e){return[];}
+  }
+  return pt.filter(function(p){return (p.pid===CU.pid||(!p.pid&&p.po===CU.po))&&(!t||isT(p.j,t));});
+}
 function nv(v){return(v&&v!==0)?v:'';}
 function pd(s){if(!s||!s.trim())return null;var p=s.trim().split('/');if(p.length===3){var d=+p[0],m=+p[1],y=+p[2];if(y<100)y+=2000;return new Date(y,m-1,d);}return null;}
 function vM(t){if(!t)return false;return t.split(',').some(function(d){var dt=pd(d.trim());return dt&&dt.getMonth()===CM&&dt.getFullYear()===CY;});}
@@ -6405,9 +6517,7 @@ document.getElementById('mLTK-c').onclick=function(){document.getElementById('mL
 var mlEditId = null;
 var PO_LIST = ['JITRA','GURUN','SUNGAI PETANI','KULIM','BALING','SUNGAI BAKAP','KANGAR/PERLIS','SEBERANG PERAI'];
 
-function isMLAdmin(){
-  return CU && (CU.nm.toUpperCase().indexOf('SHUHADA')>=0 || CU.nm.toUpperCase().indexOf('NURSHUHADA')>=0);
-}
+function isMLAdmin(){return CU&&(CU.nm||'').toUpperCase()==='ADMIN';}
 function updateMLNav(){
   try{
     var u = CU || window.CU;
