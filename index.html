@@ -1184,7 +1184,7 @@ window.addEventListener('load',function(){
       </select>
       <span id="s3-cnt" style="font-size:12px;color:#718096"></span>
       <div style="margin-left:auto;display:flex;gap:8px">
-        <button class="btn bg" onclick="genSP03()">&#9889; Jana Auto (dari Ladang Dilawat)</button><button class="btn bbl" onclick="openAddSP03Manual()">+ Tambah SP03 Manual</button><button class="btn" style="background:#276749;color:#fff" onclick="openShareSP03()">&#128257; Kongsi SP03</button>
+        <button class="btn bbl" onclick="openAddSP03Manual()">+ Tambah SP03 Manual</button><button class="btn" style="background:#276749;color:#fff" onclick="openShareSP03()">&#128257; Kongsi SP03</button>
         <button class="btn bgr" onclick="exSP03()">&#8659; Export Excel</button>
         <button class="btn bn" onclick="printSP03()">&#128438; Print</button>
       </div>
@@ -5389,6 +5389,48 @@ function getKomoditiFromJenis(jenis){
 }
 
 // Generate SP03 from current month's visited farms
+
+function autoGenSP03(mo, yr){
+  if(!CU)return;
+  var existing = getSP03().filter(function(r){ return r.po===CU.po&&r.mo===mo&&r.yr===yr; });
+  var existRids = existing.map(function(r){ return r.farmRid; });
+  var visited = myPt(null).filter(function(p){
+    if(existRids.indexOf(p.rid)>=0) return false;
+    if(!p.tr) return false;
+    return p.tr.split(',').some(function(d){
+      var dt=pd(d.trim());
+      return dt && dt.getMonth()===mo && dt.getFullYear()===yr;
+    });
+  });
+  if(!visited.length) return;
+  var allRecs = getSP03();
+  visited.forEach(function(p){
+    var visitDates = [];
+    if(p.tr){ p.tr.split(',').forEach(function(d){ var dt=pd(d.trim()); if(dt&&dt.getMonth()===mo&&dt.getFullYear()===yr) visitDates.push(d.trim()); }); }
+    var stok = '';
+    var rbRec = rRB.filter(function(r){ return r.nm===p.nm; }).pop();
+    var rkRec = rRK.filter(function(r){ return r.nm===p.nm; }).pop();
+    var ugRec = rUG.filter(function(r){ return r.nm===p.nm; }).pop();
+    if(rbRec) stok = rbRec.sA||'';
+    else if(rkRec) stok = rkRec.sA||'';
+    else if(ugRec) stok = ugRec.pp||'';
+    allRecs.push({
+      id: 'sp03_'+Date.now()+'_'+Math.random().toString(36).substr(2,5),
+      po: CU.po, pegawaiId: CU.pid, mo: mo, yr: yr,
+      farmRid: p.rid,
+      vetec: 'UTARA', bulan: (typeof BLN_SP!=='undefined'?BLN_SP[mo].toUpperCase():''),
+      pusat: CU.po, negeri: (p.ng||'KEDAH').toUpperCase(),
+      tarikhAktiviti: visitDates.join(', '),
+      namaPenternak: p.nm, idPremis: p.id||'',
+      alamat: (p.al||'').toUpperCase(), daerah: CU.po,
+      jenisTernakan: p.j||'', noTel: p.tl||'',
+      bantuan: p.bn||'', ppv: p.pv||'TIDAK',
+      stokAkhir: stok
+    });
+  });
+  saveSP03(allRecs);
+}
+
 function genSP03(){
   ld();
   var mo = parseInt(document.getElementById('s3-mo').value);
@@ -5475,6 +5517,10 @@ function renderSP03(){
   if(!CU) return;
   var mo = parseInt(document.getElementById('s3-mo').value);
   var yr = parseInt(document.getElementById('s3-yr').value)||2026;
+  
+  // Auto-generate SP03 from visited farms (silent)
+  if(typeof autoGenSP03==='function') autoGenSP03(mo, yr);
+  
   var recs = getSP03().filter(function(r){ return r.po===CU.po&&r.mo===mo&&r.yr===yr; });
   recs.sort(function(a,b){ return (a.namaPenternak||'').localeCompare(b.namaPenternak||''); });
   document.getElementById('s3-cnt').textContent = recs.length+' rekod SP03';
@@ -5487,7 +5533,7 @@ function renderSP03(){
   var canGen = unvisited - existing;
   if(canGen > 0){
     info.style.display='block';
-    info.innerHTML='&#9889; <b>'+canGen+' ladang yang dilawat bulan ini belum ada SP03.</b> Klik <b>Jana SP03 Bulan Ini</b> untuk jana secara automatik.';
+    info.innerHTML='&#9889; <b>'+canGen+' ladang yang dilawat bulan ini telah ditambah ke SP03.</b>';
   } else {
     info.style.display='none';
   }
@@ -5497,7 +5543,7 @@ function renderSP03(){
       '<div class="wb" style="margin:0"><div style="font-size:30px;margin-bottom:10px">&#128203;</div>'+
       '<div style="font-weight:700;color:#0f2d5e;font-size:14px">Tiada SP03 untuk '+BLN_SP[mo]+' '+yr+'</div>'+
       '<div style="color:#718096;font-size:12px;margin:8px 0">Rekod tarikh lawatan di Ladang Belum Dilawat, kemudian klik Jana SP03 Bulan Ini.</div>'+
-      '<button class="btn bg" onclick="genSP03()" style="margin-top:10px">&#9889; Jana SP03 Sekarang</button></div>';
+      '<button class="btn bg" onclick="openAddSP03Manual()" style="margin-top:10px">&#9889; Jana SP03 Sekarang</button></div>';
     return;
   }
 
@@ -6020,6 +6066,8 @@ function syncSP03ToLadang(sp03rec){
   if(!sp03rec.farmRid||!sp03rec.tarikhAktiviti) return;
   var pi=pt.findIndex(function(p){return p.rid===sp03rec.farmRid;});
   if(pi<0) return;
+  // Only update tr if penternak's PO matches the SP03 officer's PO
+  if(pt[pi].po && sp03rec.po && pt[pi].po !== sp03rec.po) return;
   var dates=sp03rec.tarikhAktiviti.split(',').map(function(d){return d.trim();}).filter(Boolean);
   var existing=pt[pi].tr?pt[pi].tr.split(',').map(function(d){return d.trim();}).filter(Boolean):[];
   var changed=false;
