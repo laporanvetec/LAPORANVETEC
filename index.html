@@ -153,17 +153,26 @@ function rtRead(k){
     .catch(function(){return null;});
 }
 
-window.fbLoadAll=function(){
-  var done=0,total=GS_KEYS.length;
+window.fbLoadAll=function(cb){
+  var done=0,total=GS_KEYS.length,gotData=false;
   GS_KEYS.forEach(function(k){
     rtRead(k).then(function(v){
       done++;
       if(v&&v!=='null'&&v!==null){
         var l=localStorage.getItem(k);
-        if(!l||l==='[]'||l==='{}') _lsOrig(k,v);
+        if(!l||l==='[]'||l==='{}'){_lsOrig(k,v);gotData=true;}
       }
       if(done>=total){
         if(typeof ld==='function') ld();
+        // Re-render current page if app is visible
+        try{
+          if(document.getElementById('app').style.display!=='none'){
+            // Re-render Senarai Penternak if visible
+            if(typeof renderSP==='function')renderSP();
+            if(typeof renderLD==='function')renderLD();
+          }
+        }catch(e){}
+        if(cb)cb(gotData);
       }
     });
   });
@@ -1402,7 +1411,12 @@ function loginNow(){
   if(_kwEl) _kwEl.style.display=_kwPos.indexOf(cu.po)>=0?'flex':'none';
   // Set LTJ month to current
 try{var ltjMoEl=document.getElementById('ltj-mo');if(ltjMoEl)ltjMoEl.value=new Date().getMonth();}catch(e){}
-if(typeof showPg==='function'){
+
+  // Re-sync from Firebase after login
+  if(window.GS_READY&&typeof window.fbLoadAll==='function'){
+    setTimeout(function(){window.fbLoadAll();},500);
+  }
+  if(typeof showPg==='function'){
   updateKWNav();
   updateMLNav();
   try{document.getElementById('rpt-mo').value=new Date().getMonth();}catch(e){}
