@@ -148,6 +148,40 @@ var DEFAULT_OFFICERS={
 
 
 // Cleanup: separate masterlist from senarai penternak
+
+// One-time reset: undo bad auto-assign (penternak with same pid but came from masterlist)
+function resetWronglyAssigned(){
+  try{
+    if(localStorage.getItem('vu_reset_done')==='1')return;
+    var pt=JSON.parse(localStorage.getItem('vu_p')||'[]');
+    var ml=JSON.parse(localStorage.getItem('vu_ml')||'[]');
+    var mlRids={};
+    ml.forEach(function(m){if(m.rid)mlRids[m.rid]=true;});
+    
+    // Penternak that exist in BOTH vu_p AND vu_ml (by rid) are likely wrongly-assigned
+    // unless they have specific user data (tr filled, etc)
+    var kept=[];
+    var resetCount=0;
+    pt.forEach(function(p){
+      // Keep if has visit dates or other user-modified data
+      if(p.tr||p.pid&&!mlRids[p.rid]){
+        kept.push(p);
+      } else if(p.rid&&mlRids[p.rid]){
+        // This is from masterlist, was auto-assigned - remove from senarai
+        resetCount++;
+      } else {
+        kept.push(p);
+      }
+    });
+    
+    if(resetCount>0){
+      _lsOrig('vu_p',JSON.stringify(kept));
+      console.log('Reset:',resetCount,'wrongly-assigned penternak removed from senarai');
+    }
+    _lsOrig('vu_reset_done','1');
+  }catch(e){console.error('reset error:',e);}
+}
+
 function cleanupPenternakData(){
   try{
     var pt=JSON.parse(localStorage.getItem('vu_p')||'[]');
@@ -264,18 +298,8 @@ window.fbLoadAll=function(cb){
         if(!l||l==='[]'||l==='{}'){_lsOrig(k,v);gotData=true;}
       }
       if(done>=total){
-        // Auto-assign pid for legacy penternak
-        try{
-          var cu=JSON.parse(sessionStorage.getItem('vu_u')||'null');
-          if(cu&&cu.pid){
-            var ptList=JSON.parse(localStorage.getItem('vu_p')||'[]');
-            var updated=false;
-            ptList.forEach(function(p){
-              if(!p.pid&&p.po===cu.po){p.pid=cu.pid;updated=true;}
-            });
-            if(updated)_lsOrig('vu_p',JSON.stringify(ptList));
-          }
-        }catch(e){}
+
+        if(typeof resetWronglyAssigned==='function')resetWronglyAssigned();
         if(typeof cleanupPenternakData==='function')cleanupPenternakData();
         if(typeof ld==='function') ld();
         // Re-render current page if app is visible
