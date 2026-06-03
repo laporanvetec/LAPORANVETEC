@@ -5944,20 +5944,26 @@ function cariPt4SP03(){
   var q = document.getElementById('s3add-cari').value.toLowerCase().trim();
   var res = document.getElementById('s3add-results');
   if(!q){ res.style.display='none'; return; }
-  // Search ALL penternak across all POs
-  var found = pt.filter(function(p){ return p.nm.toLowerCase().indexOf(q)>=0 || (p.id&&p.id.toLowerCase().indexOf(q)>=0); });
-  if(!found.length){ res.innerHTML='<div style="padding:8px;font-size:11px;color:#718096">Tiada hasil carian.</div>'; res.style.display='block'; return; }
+  var ml = [];
+  try{ ml = JSON.parse(localStorage.getItem('vu_ml')||'[]'); }catch(e){}
+  var combined = pt.slice();
+  var existRids = {};
+  pt.forEach(function(p){ if(p.rid) existRids[p.rid]=true; });
+  ml.forEach(function(m){ if(!m.rid || !existRids[m.rid]) combined.push(m); });
+  var found = combined.filter(function(p){
+    if(!p.nm) return false;
+    return p.nm.toLowerCase().indexOf(q)>=0 || (p.id&&p.id.toLowerCase().indexOf(q)>=0);
+  });
+  if(!found.length){
+    res.innerHTML='<div style="padding:8px;font-size:11px;color:#718096">Tiada hasil carian.</div>';
+    res.style.display='block';
+    return;
+  }
   res.style.display='block';
-  res.innerHTML = found.slice(0,8).map(function(p){
-    return '<div onclick="pilihPt4SP03(\''+p.rid+'\')" style="padding:8px 10px;cursor:pointer;font-size:11px;border-bottom:1px solid #f0f0f0;background:#fff;hover:background:#f0f4f8">';
-  }+
-  '<b>'+p.nm+'</b> <span style="color:#718096">('+p.po+')</span><br>'
-  +'<span style="font-size:10px;color:#2b6cb0">'+p.j+' | '+(p.id||'Tiada ID')+'</span>'
-  +'</div>').join('');
-  res.innerHTML = found.slice(0,8).map(function(p){
-    return '<div onclick="pilihPt4SP03(\''+p.rid+'\')" style="padding:8px 10px;cursor:pointer;font-size:11px;border-bottom:1px solid #f0f0f0;background:#fff">'
-      +'<b>'+p.nm+'</b> <span style="color:#718096">(PO: '+p.po+')</span><br>'
-      +'<span style="font-size:10px;color:#2b6cb0">'+p.j+' | '+(p.id||'Tiada ID Premis')+'</span></div>';
+  res.innerHTML = found.slice(0,15).map(function(p){
+    return '<div onclick="pilihPt4SP03(\''+p.rid+'\')" style="padding:8px 10px;cursor:pointer;font-size:11px;border-bottom:1px solid #f0f0f0;background:#fff" onmouseover="this.style.background=\'#f0f4f8\'" onmouseout="this.style.background=\'#fff\'">'
+      +'<b>'+p.nm+'</b> <span style="color:#718096">(PO: '+(p.po||'-')+')</span><br>'
+      +'<span style="font-size:10px;color:#2b6cb0">'+(p.j||'-')+' | '+(p.id||'Tiada ID Premis')+'</span></div>';
   }).join('');
 }
 
