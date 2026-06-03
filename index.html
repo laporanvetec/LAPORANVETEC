@@ -5697,6 +5697,40 @@ function renderSP03(){
 }
 
 // ── EDIT MODAL ────────────────────────────────────
+
+function renderPegList(){
+  var list = window._sp03PegList || [];
+  var opts = window._sp03PegOpts || function(){return '<option value="">-- Pilih --</option>';};
+  var container = document.getElementById('sp03-peglist');
+  if(!container) return;
+  var html = '';
+  list.forEach(function(nm, i){
+    html += '<div style="display:flex;gap:6px;margin-bottom:4px;align-items:center">';
+    html += '<select data-pegrow="'+i+'" onchange="updatePegRow('+i+',this.value)" style="flex:1;padding:5px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px">'+opts(nm)+'</select>';
+    html += '<button type="button" onclick="removePegRow('+i+')" style="background:#fff5f5;color:#c53030;border:1px solid #c53030;border-radius:4px;padding:4px 8px;font-size:10px;cursor:pointer">X</button>';
+    html += '</div>';
+  });
+  if(!list.length) html = '<div style="font-size:10px;color:#718096;padding:4px">Tiada pegawai lain. Klik butang + untuk tambah.</div>';
+  container.innerHTML = html;
+}
+
+function addPegawaiRow(){
+  if(!window._sp03PegList) window._sp03PegList=[];
+  window._sp03PegList.push('');
+  renderPegList();
+}
+
+function removePegRow(i){
+  if(!window._sp03PegList) return;
+  window._sp03PegList.splice(i,1);
+  renderPegList();
+}
+
+function updatePegRow(i, val){
+  if(!window._sp03PegList) return;
+  window._sp03PegList[i] = val;
+}
+
 function openSP03Edit(id){
   var recs = getSP03();
   var ridx = recs.findIndex(function(r){ return r.id===id; });
@@ -5725,6 +5759,34 @@ function openSP03Edit(id){
   b += '<div class="fg" style="margin:0"><label style="font-size:10px;font-weight:700;color:#444;display:block;margin-bottom:3px">MASA SELESAI</label>';
   b += '<input type="time" data-s3f="masaSelesai" value="'+(r.masaSelesai||'')+'" style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;font-family:inherit">';
   b += '<button type="button" onclick="setNowTime(this,\'masaMula\')" style="font-size:10px;background:#276749;color:#fff;border:none;border-radius:3px;padding:2px 7px;cursor:pointer;margin-top:2px">Masa Sekarang</button></div>';
+  b += '</div></div>';
+
+  // Stok Akhir (auto-fill from pengeluaran, editable)
+  // Get latest stok akhir for this farm
+  var stokAkhirAuto = '';
+  try{
+    var moNum = r.mo;
+    var yrNum = r.yr;
+    // Find latest pengeluaran record for this penternak by name/po
+    var allRb = JSON.parse(localStorage.getItem('vu_rb')||'[]');
+    var allRk = JSON.parse(localStorage.getItem('vu_rk')||'[]');
+    var allUg = JSON.parse(localStorage.getItem('vu_ug')||'[]');
+    var match = function(rec){return rec.nm===r.namaPenternak && rec.po===r.pusat && rec.yr<=yrNum;};
+    var rbMatches = allRb.filter(match).sort(function(a,b){return (b.yr*12+b.mo)-(a.yr*12+a.mo);});
+    var rkMatches = allRk.filter(match).sort(function(a,b){return (b.yr*12+b.mo)-(a.yr*12+a.mo);});
+    var ugMatches = allUg.filter(match).sort(function(a,b){return (b.yr*12+b.mo)-(a.yr*12+a.mo);});
+    if(rbMatches.length) stokAkhirAuto = rbMatches[0].sA||'';
+    else if(rkMatches.length) stokAkhirAuto = rkMatches[0].sA||'';
+    else if(ugMatches.length) stokAkhirAuto = ugMatches[0].pp||'';
+  }catch(e){}
+  // Use saved stokAkhir if exists, else auto
+  var stokDisplay = r.stokAkhir||stokAkhirAuto||'';
+  b += '<div style="background:#fff;border:1px solid #c6f6d5;border-radius:8px;overflow:hidden">';
+  b += '<div style="background:#276749;color:#fff;padding:8px 14px;font-weight:700;font-size:12px">&#128202; STOK AKHIR (Auto dari Pengeluaran)</div>';
+  b += '<div style="padding:12px;display:flex;gap:8px;align-items:center">';
+  b += '<label style="font-size:11px;color:#444;font-weight:700">Stok Akhir:</label>';
+  b += '<input type="number" data-s3f="stokAkhir" value="'+stokDisplay+'" style="flex:1;padding:6px 8px;border:1px solid #c6f6d5;border-radius:4px;font-size:12px;font-weight:700;color:#276749">';
+  b += '<span style="font-size:10px;color:#718096">'+(stokAkhirAuto?'(Auto: '+stokAkhirAuto+')':'Tiada rekod pengeluaran')+'</span>';
   b += '</div></div>';
 
   // Section 2: Komoditi
@@ -5802,10 +5864,45 @@ function openSP03Edit(id){
   b+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">';
   b+='<div style="background:#D3D3D3;color:#0f2d5e;padding:8px 14px;font-weight:700;font-size:12px">11. MAKLUMAT PEGAWAI</div>';
   b+='<div style="padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px">';
-  [['NAMA KETUA AKTIVITI','ketuaAktiviti'],['NAMA PEGAWAI 1','pegawai1'],['NAMA PEGAWAI 2','pegawai2'],['NAMA PEGAWAI 3','pegawai3'],['PEGAWAI RUJUKAN / SUMBER / PAKAR RUJUK','pegawaiRujukan'],['TAHAP KEPUASAN PELANGGAN (1-5)','kepuasan']].forEach(function(f){
-    b+='<div class="fg" style="margin:0"><label style="font-size:10px;font-weight:700;color:#444;display:block;margin-bottom:3px">'+f[0]+'</label>';
-    b+='<input data-s3f="'+f[1]+'" value="'+(r[f[1]]||'')+'" style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;font-family:inherit;text-transform:uppercase"></div>';
-  });
+  // Get officers from current PO
+  var poOfficers = [];
+  try{
+    var allPeg = JSON.parse(localStorage.getItem('vu_g')||'[]');
+    poOfficers = allPeg.filter(function(g){return g.po===r.pusat||g.po===CU.po;}).map(function(g){return g.nm;});
+  }catch(e){}
+  // Build dropdown options
+  function pegOpt(selected){
+    var opts = '<option value="">-- Pilih --</option>';
+    poOfficers.forEach(function(nm){
+      opts += '<option value="'+nm+'"'+(nm===selected?' selected':'')+'>'+nm+'</option>';
+    });
+    return opts;
+  }
+  
+  // Ketua Aktiviti - dropdown
+  b+='<div class="fg" style="margin:0"><label style="font-size:10px;font-weight:700;color:#444;display:block;margin-bottom:3px">NAMA KETUA AKTIVITI</label>';
+  b+='<select data-s3f="ketuaAktiviti" style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;font-family:inherit">'+pegOpt(r.ketuaAktiviti)+'</select></div>';
+  
+  // Pegawai Lain (dynamic list - stored as comma-separated in pegawaiLain or pegawai1+2+3)
+  var pegList = r.pegawaiLain ? r.pegawaiLain.split(',').map(function(x){return x.trim();}).filter(Boolean) : [];
+  if(!pegList.length){
+    [r.pegawai1, r.pegawai2, r.pegawai3].forEach(function(p){ if(p) pegList.push(p); });
+  }
+  b+='<div style="grid-column:span 2;background:#f7fafc;border-radius:6px;padding:8px">';
+  b+='<label style="font-size:10px;font-weight:700;color:#444;display:block;margin-bottom:6px">PEGAWAI LAIN (boleh tambah ramai)</label>';
+  b+='<div id="sp03-peglist"></div>';
+  b+='<button type="button" class="btn" style="background:#276749;color:#fff;padding:4px 10px;font-size:11px;margin-top:6px" onclick="addPegawaiRow()">+ Tambah Pegawai</button>';
+  b+='</div>';
+  
+  // Pegawai Rujukan & Kepuasan
+  b+='<div class="fg" style="margin:0"><label style="font-size:10px;font-weight:700;color:#444;display:block;margin-bottom:3px">PEGAWAI RUJUKAN / SUMBER / PAKAR RUJUK</label>';
+  b+='<input data-s3f="pegawaiRujukan" value="'+(r.pegawaiRujukan||'')+'" style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;font-family:inherit;text-transform:uppercase"></div>';
+  b+='<div class="fg" style="margin:0"><label style="font-size:10px;font-weight:700;color:#444;display:block;margin-bottom:3px">TAHAP KEPUASAN PELANGGAN (1-5)</label>';
+  b+='<input data-s3f="kepuasan" value="'+(r.kepuasan||'')+'" style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;font-family:inherit"></div>';
+  
+  // Store pegList for renderer
+  window._sp03PegList = pegList;
+  window._sp03PegOpts = pegOpt;
   b+='</div>';
   b+='<div style="padding:0 12px 12px;display:grid;grid-template-columns:1fr 1fr;gap:8px">';
   b+='<div class="fg" style="margin:0"><label style="font-size:10px;font-weight:700;color:#444;display:block;margin-bottom:3px">CATATAN (TINDAKAN DIAMBIL)</label>';
@@ -5819,6 +5916,7 @@ function openSP03Edit(id){
   b += '</div>';
   document.getElementById('mS3-body').innerHTML = b;
   document.getElementById('mSP03').classList.add('on');
+  setTimeout(renderPegList, 50);
 }
 
 function setNowTime(btn, field){
@@ -5866,6 +5964,15 @@ function saveSP03Edit(){
     if(v>0) r[field][key]=v;
     else delete r[field][key];
   });
+  // Save pegawai lain list
+  if(window._sp03PegList){
+    var validPegs = window._sp03PegList.filter(function(p){return p&&p.trim();});
+    r.pegawaiLain = validPegs.join(', ');
+    // Also fill old fields for backwards compat
+    r.pegawai1 = validPegs[0]||'';
+    r.pegawai2 = validPegs[1]||'';
+    r.pegawai3 = validPegs[2]||'';
+  }
   r.status='LENGKAP';
   recs[ridx]=r;
   saveSP03Data(recs);
