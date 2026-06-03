@@ -1987,10 +1987,66 @@ function openT(i){
   document.getElementById('tDp').value=todinp();
   document.getElementById('mT').classList.add('on');
 }
+
+// Clean up SP03 records when penternak tarikh is changed
+function cleanupSP03ForPenternak(penternak, newDates){
+  try{
+    var allSP03 = getSP03();
+    var changed = false;
+    
+    // Group new dates by month/year
+    var datesByMonth = {};
+    newDates.forEach(function(d){
+      var dt = pd(d.trim());
+      if(!dt) return;
+      var key = dt.getFullYear()+'_'+dt.getMonth();
+      if(!datesByMonth[key]) datesByMonth[key] = [];
+      datesByMonth[key].push(d.trim());
+    });
+    
+    // For each SP03 record for this penternak
+    for(var i = allSP03.length - 1; i >= 0; i--){
+      var rec = allSP03[i];
+      if(rec.farmRid !== penternak.rid) continue;
+      if(rec.po !== penternak.po) continue;
+      
+      var key = rec.yr+'_'+rec.mo;
+      if(!datesByMonth[key] || !datesByMonth[key].length){
+        // No date in this month anymore - delete SP03 record
+        allSP03.splice(i, 1);
+        changed = true;
+        console.log('SP03 dipadam (tarikh tiada):', rec.namaPenternak, rec.bulan);
+      } else {
+        // Update tarikhAktiviti with current dates for this month
+        var newTarikh = datesByMonth[key].join(', ');
+        if(rec.tarikhAktiviti !== newTarikh){
+          rec.tarikhAktiviti = newTarikh;
+          changed = true;
+        }
+      }
+    }
+    
+    if(changed){
+      saveSP03Data(allSP03);
+      // Refresh SP03 page if visible
+      if(typeof renderSP03==='function'){
+        try{ renderSP03(); }catch(e){}
+      }
+    }
+  }catch(e){console.error('SP03 cleanup error:',e);}
+}
+
 function saveTr(){
   if(eTI===null)return;
-  pt[eTI].tr=tDt.join(', ');
+  var penternak = pt[eTI];
+  var oldDates = penternak.tr ? penternak.tr.split(',').map(function(d){return d.trim();}).filter(Boolean) : [];
+  var newDates = tDt.slice();
+  penternak.tr = tDt.join(', ');
   sv();
+  
+  // Clean up SP03 records based on new dates
+  cleanupSP03ForPenternak(penternak, newDates);
+  
   // AUTO-SYNC to Tarikh Sasaran Lawatan
   syncSebenarFromTr(eTI, new Date().getFullYear());
   closeM('mT');
