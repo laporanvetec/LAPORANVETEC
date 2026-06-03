@@ -2038,8 +2038,21 @@ function cleanupSP03ForPenternak(penternak, newDates){
 
 function saveTr(){
   if(eTI===null)return;
+  // Auto-add any pending date in the picker that hasn't been clicked Add yet
+  var pendingInput = document.getElementById('tDp');
+  if(pendingInput && pendingInput.value){
+    var d = dmy(pendingInput.value);
+    if(d && tDt.indexOf(d) < 0){
+      tDt.push(d);
+      tDt.sort(function(a,b){return(pd(a)||new Date(0))-(pd(b)||new Date(0));});
+    }
+  }
+  // Warn if saving with no dates (user may have removed all by accident)
   var penternak = pt[eTI];
   var oldDates = penternak.tr ? penternak.tr.split(',').map(function(d){return d.trim();}).filter(Boolean) : [];
+  if(!tDt.length && oldDates.length){
+    if(!confirm('Anda telah padam SEMUA tarikh lawatan untuk '+penternak.nm+'. Teruskan?')) return;
+  }
   var newDates = tDt.slice();
   penternak.tr = tDt.join(', ');
   sv();
