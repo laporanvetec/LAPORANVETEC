@@ -5933,17 +5933,42 @@ function openSP03Edit(id){
   b+='<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">';
   b+='<div style="background:#D3D3D3;color:#0f2d5e;padding:8px 14px;font-weight:700;font-size:12px">11. MAKLUMAT PEGAWAI</div>';
   b+='<div style="padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px">';
-  // Get officers from current PO
-  var poOfficers = [];
+  // Get ALL officers from all POs (logged-in + default list)
+  var poOfficers = []; // each: {nm, po}
+  var seen = {};
   try{
     var allPeg = JSON.parse(localStorage.getItem('vu_g')||'[]');
-    poOfficers = allPeg.filter(function(g){return g.po===r.pusat||g.po===CU.po;}).map(function(g){return g.nm;});
+    allPeg.forEach(function(g){
+      if(g.nm && !seen[g.nm.toUpperCase()]){
+        poOfficers.push({nm:g.nm, po:g.po||''});
+        seen[g.nm.toUpperCase()] = true;
+      }
+    });
   }catch(e){}
-  // Build dropdown options
+  // Add default officers from all POs
+  if(typeof DEFAULT_OFFICERS === 'object'){
+    Object.keys(DEFAULT_OFFICERS).forEach(function(po){
+      DEFAULT_OFFICERS[po].forEach(function(nm){
+        if(nm && !seen[nm.toUpperCase()]){
+          poOfficers.push({nm:nm, po:po});
+          seen[nm.toUpperCase()] = true;
+        }
+      });
+    });
+  }
+  // Sort: current PO first, then others
+  var curPO = r.pusat || CU.po;
+  poOfficers.sort(function(a,b){
+    if(a.po===curPO && b.po!==curPO) return -1;
+    if(b.po===curPO && a.po!==curPO) return 1;
+    return (a.po+a.nm).localeCompare(b.po+b.nm);
+  });
+  // Build dropdown options - show name with PO
   function pegOpt(selected){
     var opts = '<option value="">-- Pilih --</option>';
-    poOfficers.forEach(function(nm){
-      opts += '<option value="'+nm+'"'+(nm===selected?' selected':'')+'>'+nm+'</option>';
+    poOfficers.forEach(function(o){
+      var label = o.nm + (o.po?' ('+o.po+')':'');
+      opts += '<option value="'+o.nm+'"'+(o.nm===selected?' selected':'')+'>'+label+'</option>';
     });
     return opts;
   }
