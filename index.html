@@ -5969,7 +5969,14 @@ function cariPt4SP03(){
 
 function pilihPt4SP03(rid){
   var p = pt.find(function(x){ return x.rid===rid; });
-  if(!p) return;
+  if(!p){
+    // Search in masterlist
+    try{
+      var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
+      p = ml.find(function(x){ return x.rid===rid; });
+    }catch(e){}
+  }
+  if(!p){alert('Penternak tidak dijumpai');return;}
   document.getElementById('s3add-nm').value = p.nm;
   document.getElementById('s3add-id').value = p.id||'';
   document.getElementById('s3add-al').value = p.al||'';
