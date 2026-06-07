@@ -5819,8 +5819,10 @@ function openSP03Edit(id){
   b += '<div style="background:#0f2d5e;color:#fff;padding:8px 14px;font-weight:700;font-size:12px">1. MAKLUMAT ASAS</div>';
   b += '<div style="padding:12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">';
   [['VETEC','vetec'],['BULAN','bulan'],['PUSAT OPERASI','pusat'],['NEGERI','negeri'],['TARIKH AKTIVITI','tarikhAktiviti'],['NAMA PENTERNAK','namaPenternak'],['ID PREMIS','idPremis'],['ALAMAT PREMIS','alamat'],['DAERAH','daerah']].forEach(function(f){
-    b+='<div class="fg" style="margin-bottom:0"><label style="font-size:10px;font-weight:700;color:#444;display:block;margin-bottom:3px;text-transform:uppercase">'+f[0]+'</label>';
-    b+='<input data-s3f="'+f[1]+'" value="'+( r[f[1]]||'')+'" style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;font-family:inherit;text-transform:uppercase"></div>';
+    var isReadOnly = (f[1]==='tarikhAktiviti'||f[1]==='namaPenternak'||f[1]==='bulan'||f[1]==='pusat');
+    var note = (f[1]==='tarikhAktiviti')?' <span style="font-size:9px;color:#c53030;font-weight:600">(Ubah di Ladang Belum Lawat)</span>':'';
+    b+='<div class="fg" style="margin-bottom:0"><label style="font-size:10px;font-weight:700;color:#444;display:block;margin-bottom:3px;text-transform:uppercase">'+f[0]+note+'</label>';
+    b+='<input data-s3f="'+f[1]+'" value="'+( r[f[1]]||'')+'" '+(isReadOnly?'readonly style="background:#f7fafc;cursor:not-allowed;width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;font-family:inherit;text-transform:uppercase"':'style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;font-family:inherit;text-transform:uppercase"')+'></div>';
   });
   b += '</div><div style="padding:0 12px 12px;display:grid;grid-template-columns:1fr 1fr;gap:8px">';
   b += '<div class="fg" style="margin:0"><label style="font-size:10px;font-weight:700;color:#444;display:block;margin-bottom:3px">MASA MULA</label>';
@@ -6068,84 +6070,12 @@ function saveSP03Edit(){
     r.pegawai3 = validPegs[2]||'';
   }
   r.status='LENGKAP';
-  
-  // Check if tarikhAktiviti dates still match this record's month/year
-  // If any date is in a different month, move the record to that month
-  if(r.tarikhAktiviti){
-    var dates = r.tarikhAktiviti.split(',').map(function(d){return d.trim();}).filter(Boolean);
-    var datesByMonth = {};
-    dates.forEach(function(d){
-      var dt = pd(d);
-      if(!dt) return;
-      var key = dt.getFullYear()+'_'+dt.getMonth();
-      if(!datesByMonth[key]) datesByMonth[key] = [];
-      datesByMonth[key].push(d);
-    });
-    var currentKey = r.yr+'_'+r.mo;
-    
-    if(!datesByMonth[currentKey]){
-      // No dates in current month/year - move record to first available month
-      var keys = Object.keys(datesByMonth);
-      if(keys.length){
-        var newKey = keys[0].split('_');
-        var newYr = parseInt(newKey[0]);
-        var newMo = parseInt(newKey[1]);
-        // Check if same penternak already exists in target month
-        var existingTarget = recs.find(function(x){
-          return x.farmRid===r.farmRid && x.po===r.po && x.yr===newYr && x.mo===newMo && x.id!==r.id;
-        });
-        if(existingTarget){
-          // Merge dates into existing
-          var existDates = existingTarget.tarikhAktiviti?existingTarget.tarikhAktiviti.split(',').map(function(d){return d.trim();}).filter(Boolean):[];
-          datesByMonth[keys[0]].forEach(function(d){
-            if(existDates.indexOf(d)<0) existDates.push(d);
-          });
-          existingTarget.tarikhAktiviti = existDates.join(', ');
-          // Delete this record (moved into existing)
-          recs.splice(ridx,1);
-          saveSP03Data(recs);
-          document.getElementById('mSP03').classList.remove('on');
-          syncSP03ToLadang(r);
-          renderSP03();
-          toast('SP03 dipindah ke '+(typeof BLN_SP!=='undefined'?BLN_SP[newMo]:newMo+1)+' '+newYr+': '+r.namaPenternak,'#e8a900');
-          return;
-        }
-        // Move this record to new month
-        r.mo = newMo;
-        r.yr = newYr;
-        r.bulan = (typeof BLN_SP!=='undefined'?BLN_SP[newMo].toUpperCase():'');
-        r.tarikhAktiviti = datesByMonth[keys[0]].join(', ');
-        recs[ridx]=r;
-        saveSP03Data(recs);
-        document.getElementById('mSP03').classList.remove('on');
-        syncSP03ToLadang(r);
-        renderSP03();
-        toast('SP03 dipindah ke '+(typeof BLN_SP!=='undefined'?BLN_SP[newMo]:newMo+1)+' '+newYr+': '+r.namaPenternak,'#e8a900');
-        return;
-      } else {
-        // No valid dates - keep record but warn
-        if(!confirm('Tiada tarikh sah dalam SP03 ini. Padamkan record?')){
-          return;
-        }
-        recs.splice(ridx,1);
-        saveSP03Data(recs);
-        document.getElementById('mSP03').classList.remove('on');
-        renderSP03();
-        toast('SP03 dipadam','#c53030');
-        return;
-      }
-    } else {
-      // Update tarikhAktiviti to only dates within current month
-      r.tarikhAktiviti = datesByMonth[currentKey].join(', ');
-    }
-  }
-  
   recs[ridx]=r;
   saveSP03Data(recs);
   document.getElementById('mSP03').classList.remove('on');
   syncSP03ToLadang(r);
   renderSP03();
-  toast('SP03 disimpan & tarikh disync: '+r.namaPenternak,'#276749');
+  toast('SP03 disimpan: '+r.namaPenternak,'#276749');
 }
 
 function exSP03(){
