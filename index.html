@@ -357,6 +357,189 @@ function updateLoginNames(){
 
 
 // ─── URUS PEGAWAI (ADMIN) ───────────────────────────
+
+// ─── APPROVAL MASTERLIST REQUEST SYSTEM ──────────────
+function getMLReq(){
+  try{ return JSON.parse(localStorage.getItem('vu_ml_req')||'[]'); }catch(e){ return []; }
+}
+function saveMLReq(arr){
+  localStorage.setItem('vu_ml_req', JSON.stringify(arr));
+  if(window.GS_READY && typeof rtWrite === 'function'){
+    rtWrite('vu_ml_req', JSON.stringify(arr));
+  }
+  updateMLReqBadge();
+}
+
+// Submit a new penternak as masterlist request
+function submitMLRequest(penternak, source){
+  // Check if already in masterlist
+  try{
+    var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
+    var existing = ml.find(function(m){
+      return m.nm && penternak.nm && m.nm.toUpperCase()===penternak.nm.toUpperCase();
+    });
+    if(existing) return false; // already in masterlist, no need to request
+  }catch(e){}
+  
+  // Check if already a pending request
+  var reqs = getMLReq();
+  var dup = reqs.find(function(r){
+    return r.nm && penternak.nm && r.nm.toUpperCase()===penternak.nm.toUpperCase() && r.status==='pending';
+  });
+  if(dup) return false;
+  
+  var req = {
+    reqId: 'req_'+Date.now()+'_'+Math.random().toString(36).substr(2,5),
+    rid: penternak.rid||'',
+    nm: penternak.nm||'',
+    id: penternak.id||'',
+    al: penternak.al||'',
+    j: penternak.j||'',
+    ng: penternak.ng||'',
+    po: penternak.po||CU.po,
+    bn: penternak.bn||'',
+    pv: penternak.pv||'',
+    tl: penternak.tl||'',
+    lat: penternak.lat||'',
+    lng: penternak.lng||'',
+    tr: penternak.tr||'',
+    requestedBy: CU.nm||'',
+    requestedPO: CU.po||'',
+    requestedFrom: source||'sp',
+    requestedAt: new Date().toISOString(),
+    status: 'pending'
+  };
+  reqs.push(req);
+  saveMLReq(reqs);
+  return true;
+}
+
+// Update badge count on sidebar
+function updateMLReqBadge(){
+  if(!isMLAdmin()) return;
+  var reqs = getMLReq().filter(function(r){return r.status==='pending';});
+  var badge = document.getElementById('mlr-badge');
+  if(!badge) return;
+  if(reqs.length > 0){
+    badge.textContent = reqs.length;
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// Show notification toast on admin login
+function notifyAdminPendingReqs(){
+  if(!isMLAdmin()) return;
+  var reqs = getMLReq().filter(function(r){return r.status==='pending';});
+  if(reqs.length > 0){
+    setTimeout(function(){
+      toast('&#128276; Ada '+reqs.length+' permohonan tambah penternak menunggu kelulusan','#e8a900');
+    }, 1500);
+  }
+}
+
+// Render approval page
+function renderMLReq(){
+  if(!isMLAdmin()) return;
+  var wrap = document.getElementById('mlr-wrap');
+  if(!wrap) return;
+  var reqs = getMLReq();
+  var pending = reqs.filter(function(r){return r.status==='pending';});
+  
+  if(pending.length === 0){
+    wrap.innerHTML = '<div style="text-align:center;padding:40px;color:#718096"><div style="font-size:48px;margin-bottom:8px">&#9989;</div><div style="font-weight:700;font-size:14px">Tiada permohonan menunggu</div><div style="font-size:11px;margin-top:4px">Semua permohonan sudah diproses</div></div>';
+    return;
+  }
+  
+  var html = '<div style="font-size:11px;color:#444;margin-bottom:10px">Jumlah permohonan: <b>'+pending.length+'</b></div>';
+  
+  pending.forEach(function(r, idx){
+    html += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:10px;overflow:hidden">';
+    
+    // Header
+    html += '<div style="background:#fef3c7;padding:8px 12px;border-bottom:1px solid #fbd38d;display:flex;justify-content:space-between;align-items:center">';
+    html += '<div><b style="font-size:13px;color:#2d3748">'+r.nm+'</b> <span style="font-size:10px;color:#718096">('+r.po+')</span></div>';
+    html += '<div style="font-size:10px;color:#718096">Oleh: <b>'+r.requestedBy+'</b> | '+(r.requestedFrom==='sp03'?'SP03':'Senarai Penternak')+' | '+(r.requestedAt?new Date(r.requestedAt).toLocaleString('ms-MY'):'')+'</div>';
+    html += '</div>';
+    
+    // Details grid
+    html += '<div style="padding:10px 12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:6px;font-size:11px">';
+    var fields = [
+      ['ID Premis', r.id], ['Jenis Ternakan', r.j],
+      ['Alamat', r.al], ['Negeri', r.ng],
+      ['Telefon', r.tl], ['Bantuan', r.bn],
+      ['PV', r.pv], ['Tarikh Lawatan', r.tr],
+      ['GPS', (r.lat&&r.lng)?(r.lat+','+r.lng):'']
+    ];
+    fields.forEach(function(f){
+      if(f[1]){
+        html += '<div><span style="color:#718096;font-size:10px">'+f[0]+':</span> <b>'+f[1]+'</b></div>';
+      }
+    });
+    html += '</div>';
+    
+    // Action buttons
+    html += '<div style="padding:8px 12px;background:#f7fafc;border-top:1px solid #e2e8f0;display:flex;gap:8px;justify-content:flex-end">';
+    html += '<button onclick="rejectMLReq(\''+r.reqId+'\')" style="background:#fff5f5;color:#c53030;border:1px solid #c53030;border-radius:4px;padding:5px 14px;font-size:11px;cursor:pointer;font-weight:600">&#10006; Tolak</button>';
+    html += '<button onclick="approveMLReq(\''+r.reqId+'\')" style="background:#276749;color:#fff;border:none;border-radius:4px;padding:5px 14px;font-size:11px;cursor:pointer;font-weight:600">&#10004; Lulus</button>';
+    html += '</div>';
+    
+    html += '</div>';
+  });
+  
+  wrap.innerHTML = html;
+}
+
+function approveMLReq(reqId){
+  var reqs = getMLReq();
+  var idx = reqs.findIndex(function(r){return r.reqId===reqId;});
+  if(idx < 0) return;
+  var r = reqs[idx];
+  if(!confirm('Lulus permohonan tambah '+r.nm+' ke Masterlist?')) return;
+  
+  // Add to masterlist
+  try{
+    var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
+    var newEntry = {
+      rid: r.rid||('ml_'+Date.now()),
+      nm: r.nm, id: r.id, al: r.al, j: r.j, ng: r.ng,
+      po: r.po, bn: r.bn, pv: r.pv, tl: r.tl,
+      lat: r.lat, lng: r.lng, tr: r.tr
+    };
+    ml.push(newEntry);
+    localStorage.setItem('vu_ml', JSON.stringify(ml));
+    if(window.GS_READY && typeof rtWrite === 'function'){
+      rtWrite('vu_ml', JSON.stringify(ml));
+    }
+  }catch(e){
+    alert('Ralat: '+e.message);
+    return;
+  }
+  
+  // Mark request as approved (keep for history)
+  r.status = 'approved';
+  r.approvedAt = new Date().toISOString();
+  r.approvedBy = CU.nm;
+  saveMLReq(reqs);
+  
+  renderMLReq();
+  toast('&#9989; '+r.nm+' diluluskan dan ditambah ke Masterlist','#276749');
+}
+
+function rejectMLReq(reqId){
+  var reqs = getMLReq();
+  var idx = reqs.findIndex(function(r){return r.reqId===reqId;});
+  if(idx < 0) return;
+  var r = reqs[idx];
+  if(!confirm('Tolak permohonan '+r.nm+'? Rekod permohonan akan dipadam.')) return;
+  
+  reqs.splice(idx, 1);
+  saveMLReq(reqs);
+  renderMLReq();
+  toast('&#10006; Permohonan '+r.nm+' ditolak','#c53030');
+}
+
 function getAllOfficers(){
   try{
     var custom=JSON.parse(localStorage.getItem('vu_officers')||'null');
@@ -472,7 +655,7 @@ function getOfficers(po){
 
 
 var RTDB='https://vetec-utara-default-rtdb.firebaseio.com';
-var GS_KEYS=['vu_g','vu_p','vu_rb','vu_rk','vu_ug','vu_ts','vu_ltj','vu_lt','vu_tkp','vu_tkt','vu_ivi','vu_ivp','vu_kw','vu_sp03','vu_ml','vu_ltk_ov','vu_submit_log','vu_import_hist','vu_officers'];
+var GS_KEYS=['vu_g','vu_p','vu_rb','vu_rk','vu_ug','vu_ts','vu_ltj','vu_lt','vu_tkp','vu_tkt','vu_ivi','vu_ivp','vu_kw','vu_sp03','vu_ml','vu_ltk_ov','vu_submit_log','vu_import_hist','vu_officers','vu_ml_req'];
 var _lsOrig=localStorage.setItem.bind(localStorage);
 window.GS_READY=false;
 window.FB_READY=false;
@@ -686,6 +869,7 @@ window.addEventListener('load',function(){
   <div class="ni" id="n-ltk" onclick="showPg('ltk')">&#128202; Log Teknikal</div>
   <div class="ni" id="n-ml" onclick="showPg('ml')" style="display:none">&#128274; Masterlist</div>
   <div class="ni" id="n-up" onclick="showPg('up')" style="display:none">&#128100; Urus Pegawai</div>
+  <div class="ni" id="n-mlr" onclick="showPg('mlr')" style="display:none">&#128276; Approval <span id="mlr-badge" style="display:none;background:#c53030;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700;margin-left:4px"></span></div>
   <div class="ni" id="n-rpt" onclick="showPg('rpt')">&#128196; Pelaporan</div>
   <div class="ni" id="n-rpt" onclick="showPg('rpt')" style="display:none">&#128196; Pelaporan</div>
   <div id="sb-export-btn" style="display:none;padding:10px 14px;cursor:pointer;font-size:12px;font-weight:600;color:#2b6cb0;border-top:1px solid #e2e8f0" onclick="exportMyData()">&#8659; Export Data Saya</div>
@@ -1570,6 +1754,16 @@ window.addEventListener('load',function(){
     <div style="padding:14px 18px;flex:1;overflow:auto" id="up-wrap"></div>
   </div>
 
+  <!-- APPROVAL MASTERLIST REQUEST PAGE (ADMIN) -->
+  <div id="pg-mlr" class="pg">
+    <div class="fbar" style="background:#f7fafc;padding:10px 14px;border-bottom:1px solid #e2e8f0">
+      <div style="font-size:11px;color:#444">
+        <b>&#128276; Permohonan Tambah Penternak ke Masterlist</b> &mdash; Lulus untuk masukkan ke Masterlist, atau Tolak untuk padam.
+      </div>
+    </div>
+    <div style="padding:14px 18px;flex:1;overflow:auto" id="mlr-wrap"></div>
+  </div>
+
   <!-- MASTERLIST DIFF VIEW -->
   <div class="mov" id="mMLDiff">
   <div class="mbox" style="max-width:950px">
@@ -2038,12 +2232,12 @@ var curPg='sp';
 function showPg(pg){
   ld();
   curPg=pg;
-  ['sp','rb','rk','ug','ld','ts','ltj','gm','lt','kw','tk','iv','sp03','ltk','ml','rpt','up'].forEach(function(p){
+  ['sp','rb','rk','ug','ld','ts','ltj','gm','lt','kw','tk','iv','sp03','ltk','ml','rpt','up','mlr'].forEach(function(p){
     var el2=document.getElementById('pg-'+p);if(el2)el2.classList.toggle('on',p===pg);
     var ni=document.getElementById('n-'+(p==='ld'?'ld':p==='ts'?'ts':p));
     if(ni) ni.classList.toggle('on',p===pg);
   });
-  var ti={sp:'Senarai Penternak Saya',ts:'Tarikh Sasaran Lawatan Ladang',ltj:'Lawatan Terancang dan Berjadual (LTJ)',gm:'Gambar Aktiviti',lt:'Latihan',kw:'Kewangan - Rumusan Perbelanjaan Duit Mengurus',tk:'Promosi dan Pemindahan Teknologi',iv:'Inovasi dan Penyelidikan',sp03:'SP03 - Rekod Aktiviti Lawatan Ladang',ltk:'Log Teknikal',ml:'Masterlist',up:'Urus Pegawai',rpt:'Pelaporan',rpt:'Pelaporan',rb:'Pengeluaran RB - Ruminan Besar',rk:'Pengeluaran RK - Ruminan Kecil',ug:'Pengeluaran UG - Unggas',ld:'Ladang Belum Dilawat'};
+  var ti={sp:'Senarai Penternak Saya',ts:'Tarikh Sasaran Lawatan Ladang',ltj:'Lawatan Terancang dan Berjadual (LTJ)',gm:'Gambar Aktiviti',lt:'Latihan',kw:'Kewangan - Rumusan Perbelanjaan Duit Mengurus',tk:'Promosi dan Pemindahan Teknologi',iv:'Inovasi dan Penyelidikan',sp03:'SP03 - Rekod Aktiviti Lawatan Ladang',ltk:'Log Teknikal',ml:'Masterlist',up:'Urus Pegawai',mlr:'Approval Permohonan Masterlist',rpt:'Pelaporan',rpt:'Pelaporan',rb:'Pengeluaran RB - Ruminan Besar',rk:'Pengeluaran RK - Ruminan Kecil',ug:'Pengeluaran UG - Unggas',ld:'Ladang Belum Dilawat'};
   document.getElementById('p-ttl').textContent=ti[pg]||pg;
   document.getElementById('p-sub').textContent=CU.po+' | '+CU.nm;
   if(pg==='ts'){renderTS();checkNotifications();return;}
@@ -2056,6 +2250,7 @@ function showPg(pg){
   if(pg==='rpt'){try{document.getElementById('rpt-mo').value=new Date().getMonth();document.getElementById('rpt-yr').value=new Date().getFullYear();}catch(e){} renderRPT();if(!isMLAdmin()){var m2=new Date().getMonth();var y2=new Date().getFullYear();renderStaffRPT(m2,y2);}return;}
   if(pg==='ml'){if(!isMLAdmin()){toast('&#128274; Akses Ditolak — Modul ini hanya untuk pentadbir','#c53030');return;}populateMLPoFilters();renderML();return;}
   if(pg==='up'){if(!isMLAdmin()){toast('&#128274; Akses Ditolak — Modul ini hanya untuk pentadbir','#c53030');showPg('sp');return;}renderUP();return;}
+  if(pg==='mlr'){if(!isMLAdmin()){toast('&#128274; Akses Ditolak — Modul ini hanya untuk pentadbir','#c53030');showPg('sp');return;}renderMLReq();return;}
   if(pg==='sp03'){try{document.getElementById('s3-mo').value=new Date().getMonth();}catch(e){}renderSP03();return;}
   if(pg==='kw'){try{document.getElementById('kw-mo').value=new Date().getMonth();}catch(e){}renderKW();return;}
   if(pg==='ltj'){syncPPVtoLTJ();
@@ -2173,8 +2368,20 @@ function saveP(){
     al:document.getElementById('pAl').value,
     tr: ePI!==null ? pt[ePI].tr : ''
   };
+  var isNew = ePI===null;
   if(ePI!==null) pt[ePI]=p; else pt.push(p);
   sv(); closeM('mP'); renderSP();
+  
+  // For non-admin officers, submit new penternak as approval request
+  if(isNew && !isMLAdmin() && typeof submitMLRequest==='function'){
+    var submitted = submitMLRequest(p, 'sp');
+    if(submitted){
+      setTimeout(function(){
+        toast('&#128276; Permohonan dihantar untuk kelulusan admin','#e8a900');
+      }, 1000);
+    }
+  }
+  
   var dest=isT(j,'rb')?'Pengeluaran RB':isT(j,'rk')?'Pengeluaran RK':isT(j,'ug')?'Pengeluaran UG':'';
   toast('Disimpan. Penternak muncul di '+dest,'#276749');
 }
@@ -6468,6 +6675,16 @@ function saveS3Manual(addToSenarai){
       // Sync tarikh
       if(tarikhStr) syncSebenarFromTr(pt.length-1, yr);
       toast('&#128100; Penternak ditambah ke Senarai Penternak: '+nm,'#276749');
+      
+      // For non-admin officers, also submit as masterlist approval request
+      if(!isMLAdmin() && typeof submitMLRequest==='function'){
+        var submitted = submitMLRequest(np, 'sp03');
+        if(submitted){
+          setTimeout(function(){
+            toast('&#128276; Permohonan tambah ke Masterlist dihantar untuk kelulusan admin','#e8a900');
+          }, 1500);
+        }
+      }
     } else {
       farmRid=existing.rid;
       // Update visit date
