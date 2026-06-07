@@ -2194,7 +2194,13 @@ function loginNow(){
   try{CU=cu;window.CU=cu;}catch(e){window.CU=cu;}
   // Show/hide restricted nav items — same pattern as Kewangan
   var _mlEl=document.getElementById('n-ml');
-  if(_mlEl) _mlEl.style.display=cu.nm.toUpperCase().indexOf('SHUHADA')>=0?'flex':'none';
+  if(_mlEl) _mlEl.style.display=isMLAdmin()?'flex':'none';
+  var _upEl=document.getElementById('n-up');
+  if(_upEl) _upEl.style.display=isMLAdmin()?'flex':'none';
+  var _mlrEl=document.getElementById('n-mlr');
+  if(_mlrEl) _mlrEl.style.display=isMLAdmin()?'flex':'none';
+  if(isMLAdmin()){ setTimeout(updateMLReqBadge, 500); setTimeout(notifyAdminPendingReqs, 1000); }
+  if(!isMLAdmin()) setTimeout(showMyPendingNotifs, 1500);
   var _kwPos=['GURUN','KANGAR/PERLIS','SG BAKAP'];
   var _kwEl=document.getElementById('n-kw');
   if(_kwEl) _kwEl.style.display=_kwPos.indexOf(cu.po)>=0?'flex':'none';
@@ -2241,8 +2247,14 @@ function loginNow(){
     CU=cu;
     // ── Tunjuk/Sembunyi nav mengikut nama & PO ──
     var mlEl=document.getElementById('n-ml');
-    var isAdm=nm.toUpperCase().indexOf('SHUHADA')>=0 || nm.toUpperCase().indexOf('NURSHUHADA')>=0;
+    var isAdm = (nm||'').toUpperCase()==='ADMIN';
     if(mlEl) mlEl.style.cssText = isAdm ? 'display:flex!important' : 'display:none!important';
+    var upEl=document.getElementById('n-up');
+    if(upEl) upEl.style.cssText = isAdm ? 'display:flex!important' : 'display:none!important';
+    var mlrEl=document.getElementById('n-mlr');
+    if(mlrEl) mlrEl.style.cssText = isAdm ? 'display:flex!important' : 'display:none!important';
+    if(isAdm){ setTimeout(function(){if(typeof updateMLReqBadge==='function')updateMLReqBadge();}, 500); setTimeout(function(){if(typeof notifyAdminPendingReqs==='function')notifyAdminPendingReqs();}, 1000); }
+    if(!isAdm) setTimeout(function(){if(typeof showMyPendingNotifs==='function')showMyPendingNotifs();}, 1500);
     // Show Laporan Akhir button for admin
     var laBtn=document.getElementById('btn-laporan-akhir');
     if(laBtn) laBtn.style.display=isAdm?'flex':'none';
@@ -7565,7 +7577,14 @@ function updateMLNav(){
     var u = CU || window.CU;
     if(!u) return;
     var mlEl2 = document.getElementById('n-ml');
-    if(mlEl2) mlEl2.style.display = u.nm.toUpperCase().indexOf('SHUHADA')>=0 ? 'flex' : 'none';
+    var isAdm3 = (u.nm||'').toUpperCase()==='ADMIN';
+    if(mlEl2) mlEl2.style.display = isAdm3 ? 'flex' : 'none';
+    var upEl3=document.getElementById('n-up');
+    if(upEl3) upEl3.style.display = isAdm3 ? 'flex' : 'none';
+    var mlrEl3=document.getElementById('n-mlr');
+    if(mlrEl3) mlrEl3.style.display = isAdm3 ? 'flex' : 'none';
+    if(isAdm3){ setTimeout(function(){if(typeof updateMLReqBadge==='function')updateMLReqBadge();}, 500); setTimeout(function(){if(typeof notifyAdminPendingReqs==='function')notifyAdminPendingReqs();}, 1000); }
+    if(!isAdm3) setTimeout(function(){if(typeof showMyPendingNotifs==='function')showMyPendingNotifs();}, 1500);
   }catch(e){}
 }
 function getML(){ return JSON.parse(localStorage.getItem('vu_ml')||'[]'); }
