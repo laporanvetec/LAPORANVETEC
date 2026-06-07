@@ -1984,7 +1984,7 @@ function openT(i){
   document.getElementById('mT-n').textContent=p.nm+' ('+p.po+')';
   tDt=p.tr?p.tr.split(',').map(function(d){return d.trim();}).filter(Boolean):[];
   renderCh();
-  document.getElementById('tDp').value=todinp();
+  document.getElementById('tDp').value='';
   document.getElementById('mT').classList.add('on');
 }
 
@@ -2038,13 +2038,15 @@ function cleanupSP03ForPenternak(penternak, newDates){
 
 function saveTr(){
   if(eTI===null)return;
-  // Auto-add any pending date in the picker that hasn't been clicked Add yet
+  // Warn if user typed date but didn't click + Tambah
   var pendingInput = document.getElementById('tDp');
   if(pendingInput && pendingInput.value){
-    var d = dmy(pendingInput.value);
-    if(d && tDt.indexOf(d) < 0){
-      tDt.push(d);
-      tDt.sort(function(a,b){return(pd(a)||new Date(0))-(pd(b)||new Date(0));});
+    if(confirm('Anda ada tarikh di kotak yang belum diklik "+ Tambah".\n\nKlik OK untuk tambah, atau Batal untuk simpan tanpa tarikh tersebut.')){
+      var d = dmy(pendingInput.value);
+      if(d && tDt.indexOf(d) < 0){
+        tDt.push(d);
+        tDt.sort(function(a,b){return(pd(a)||new Date(0))-(pd(b)||new Date(0));});
+      }
     }
   }
   // Warn if saving with no dates (user may have removed all by accident)
@@ -5820,9 +5822,14 @@ function openSP03Edit(id){
   b += '<div style="padding:12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">';
   [['VETEC','vetec'],['BULAN','bulan'],['PUSAT OPERASI','pusat'],['NEGERI','negeri'],['TARIKH AKTIVITI','tarikhAktiviti'],['NAMA PENTERNAK','namaPenternak'],['ID PREMIS','idPremis'],['ALAMAT PREMIS','alamat'],['DAERAH','daerah']].forEach(function(f){
     var isReadOnly = (f[1]==='tarikhAktiviti'||f[1]==='namaPenternak'||f[1]==='bulan'||f[1]==='pusat');
-    var note = (f[1]==='tarikhAktiviti')?' <span style="font-size:9px;color:#c53030;font-weight:600">(Ubah di Ladang Belum Lawat)</span>':'';
-    b+='<div class="fg" style="margin-bottom:0"><label style="font-size:10px;font-weight:700;color:#444;display:block;margin-bottom:3px;text-transform:uppercase">'+f[0]+note+'</label>';
-    b+='<input data-s3f="'+f[1]+'" value="'+( r[f[1]]||'')+'" '+(isReadOnly?'readonly style="background:#f7fafc;cursor:not-allowed;width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;font-family:inherit;text-transform:uppercase"':'style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;font-family:inherit;text-transform:uppercase"')+'></div>';
+    var tooltip = '';
+    var labelIcon = '';
+    if(f[1]==='tarikhAktiviti'){
+      tooltip = ' title="Untuk ubah tarikh, sila pergi ke Ladang Belum Lawat"';
+      labelIcon = ' <span style="color:#c53030;cursor:help" title="Untuk ubah tarikh, sila pergi ke Ladang Belum Lawat">&#9432;</span>';
+    }
+    b+='<div class="fg" style="margin-bottom:0"><label style="font-size:10px;font-weight:700;color:#444;display:block;margin-bottom:3px;text-transform:uppercase">'+f[0]+labelIcon+'</label>';
+    b+='<input data-s3f="'+f[1]+'" value="'+( r[f[1]]||'')+'"'+tooltip+' '+(isReadOnly?'readonly style="background:#f7fafc;cursor:not-allowed;width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;font-family:inherit;text-transform:uppercase"':'style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;font-family:inherit;text-transform:uppercase"')+'></div>';
   });
   b += '</div><div style="padding:0 12px 12px;display:grid;grid-template-columns:1fr 1fr;gap:8px">';
   b += '<div class="fg" style="margin:0"><label style="font-size:10px;font-weight:700;color:#444;display:block;margin-bottom:3px">MASA MULA</label>';
