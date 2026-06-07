@@ -358,6 +358,96 @@ function updateLoginNames(){
 
 // ─── URUS PEGAWAI (ADMIN) ───────────────────────────
 
+
+// ─── NOTIFICATION SYSTEM (for officers) ─────────────
+function getNotifs(){
+  try{ return JSON.parse(localStorage.getItem('vu_notif')||'[]'); }catch(e){ return []; }
+}
+function saveNotifs(arr){
+  localStorage.setItem('vu_notif', JSON.stringify(arr));
+  if(window.GS_READY && typeof rtWrite === 'function'){
+    rtWrite('vu_notif', JSON.stringify(arr));
+  }
+}
+function addNotif(toOfficer, toPO, type, penternakNm, fromAdmin){
+  var notifs = getNotifs();
+  notifs.push({
+    id: 'notif_'+Date.now()+'_'+Math.random().toString(36).substr(2,5),
+    toOfficer: toOfficer||'',
+    toPO: toPO||'',
+    type: type, // 'approved' or 'rejected'
+    penternakNm: penternakNm||'',
+    fromAdmin: fromAdmin||'ADMIN',
+    createdAt: new Date().toISOString(),
+    read: false
+  });
+  saveNotifs(notifs);
+}
+function getMyUnreadNotifs(){
+  if(!CU) return [];
+  return getNotifs().filter(function(n){
+    return !n.read && n.toOfficer===CU.nm && n.toPO===CU.po;
+  });
+}
+function markAllMyNotifsRead(){
+  if(!CU) return;
+  var notifs = getNotifs();
+  var changed = false;
+  notifs.forEach(function(n){
+    if(!n.read && n.toOfficer===CU.nm && n.toPO===CU.po){
+      n.read = true;
+      changed = true;
+    }
+  });
+  if(changed) saveNotifs(notifs);
+}
+function showMyPendingNotifs(){
+  if(!CU) return;
+  if(isMLAdmin()) return; // admins don't get these notifs
+  var unread = getMyUnreadNotifs();
+  if(!unread.length) return;
+  
+  // Show modal with all unread notifications
+  var html = '<div class="mov on" id="mNotif" style="z-index:9999"><div class="mbox" style="max-width:500px">';
+  html += '<div class="mh" style="background:#0f2d5e"><div><h2>&#128276; Notifikasi Anda ('+unread.length+')</h2></div><div class="mx" onclick="closeNotifModal()">&#215;</div></div>';
+  html += '<div style="padding:14px;max-height:60vh;overflow-y:auto">';
+  
+  unread.forEach(function(n){
+    var bg = n.type==='approved' ? '#f0fff4' : '#fff5f5';
+    var borderColor = n.type==='approved' ? '#276749' : '#c53030';
+    var icon = n.type==='approved' ? '&#9989;' : '&#10006;';
+    var statusText = n.type==='approved' ? 'DILULUSKAN' : 'DITOLAK';
+    var dateStr = n.createdAt ? new Date(n.createdAt).toLocaleString('ms-MY') : '';
+    
+    html += '<div style="background:'+bg+';border-left:4px solid '+borderColor+';padding:10px 12px;margin-bottom:8px;border-radius:4px">';
+    html += '<div style="font-weight:700;font-size:13px;color:'+borderColor+';margin-bottom:4px">'+icon+' Permohonan '+statusText+'</div>';
+    html += '<div style="font-size:12px;color:#2d3748">Penternak: <b>'+n.penternakNm+'</b></div>';
+    html += '<div style="font-size:10px;color:#718096;margin-top:3px">Oleh: '+n.fromAdmin+' &middot; '+dateStr+'</div>';
+    if(n.type==='rejected'){
+      html += '<div style="font-size:10px;color:#c53030;margin-top:4px;font-style:italic">Penternak ini juga telah dipadam dari Senarai Penternak anda.</div>';
+    }
+    html += '</div>';
+  });
+  
+  html += '</div>';
+  html += '<div style="padding:10px 14px;background:#f7fafc;border-top:1px solid #e2e8f0;text-align:right">';
+  html += '<button onclick="closeNotifModal()" style="background:#276749;color:#fff;border:none;border-radius:4px;padding:7px 16px;font-size:12px;cursor:pointer;font-weight:600">Tanda Sebagai Dibaca</button>';
+  html += '</div></div></div>';
+  
+  // Remove existing modal if any
+  var existing = document.getElementById('mNotif');
+  if(existing) existing.remove();
+  
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+function closeNotifModal(){
+  var m = document.getElementById('mNotif');
+  if(m){
+    markAllMyNotifsRead();
+    m.remove();
+  }
+}
+
 // ─── APPROVAL MASTERLIST REQUEST SYSTEM ──────────────
 function getMLReq(){
   try{ return JSON.parse(localStorage.getItem('vu_ml_req')||'[]'); }catch(e){ return []; }
@@ -523,6 +613,11 @@ function approveMLReq(reqId){
   r.approvedBy = CU.nm;
   saveMLReq(reqs);
   
+  // Notify the requesting officer
+  if(typeof addNotif === 'function'){
+    addNotif(r.requestedBy, r.requestedPO, 'approved', r.nm, CU.nm);
+  }
+  
   renderMLReq();
   toast('&#9989; '+r.nm+' diluluskan dan ditambah ke Masterlist','#276749');
 }
@@ -559,6 +654,11 @@ function rejectMLReq(reqId){
       if(typeof ld === 'function') ld();
     }
   }catch(e){console.error('Error removing from pt:', e);}
+  
+  // Notify the requesting officer
+  if(typeof addNotif === 'function'){
+    addNotif(r.requestedBy, r.requestedPO, 'rejected', r.nm, CU.nm);
+  }
   
   // Remove the request
   reqs.splice(idx, 1);
@@ -682,7 +782,7 @@ function getOfficers(po){
 
 
 var RTDB='https://vetec-utara-default-rtdb.firebaseio.com';
-var GS_KEYS=['vu_g','vu_p','vu_rb','vu_rk','vu_ug','vu_ts','vu_ltj','vu_lt','vu_tkp','vu_tkt','vu_ivi','vu_ivp','vu_kw','vu_sp03','vu_ml','vu_ltk_ov','vu_submit_log','vu_import_hist','vu_officers','vu_ml_req'];
+var GS_KEYS=['vu_g','vu_p','vu_rb','vu_rk','vu_ug','vu_ts','vu_ltj','vu_lt','vu_tkp','vu_tkt','vu_ivi','vu_ivp','vu_kw','vu_sp03','vu_ml','vu_ltk_ov','vu_submit_log','vu_import_hist','vu_officers','vu_ml_req','vu_notif'];
 var _lsOrig=localStorage.setItem.bind(localStorage);
 window.GS_READY=false;
 window.FB_READY=false;
