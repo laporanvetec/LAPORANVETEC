@@ -355,6 +355,113 @@ function updateLoginNames(){
   });
 }
 
+
+// ─── URUS PEGAWAI (ADMIN) ───────────────────────────
+function getAllOfficers(){
+  try{
+    var custom=JSON.parse(localStorage.getItem('vu_officers')||'null');
+    if(custom) return custom;
+  }catch(e){}
+  // Initialize from DEFAULT_OFFICERS
+  var init = {};
+  Object.keys(DEFAULT_OFFICERS).forEach(function(po){
+    init[po] = DEFAULT_OFFICERS[po].slice();
+  });
+  return init;
+}
+
+function saveAllOfficers(data){
+  localStorage.setItem('vu_officers', JSON.stringify(data));
+  // Sync to Firebase if available
+  if(window.GS_READY && typeof rtWrite === 'function'){
+    rtWrite('vu_officers', JSON.stringify(data));
+  }
+}
+
+function renderUP(){
+  if(!isMLAdmin()) return;
+  var wrap = document.getElementById('up-wrap');
+  if(!wrap) return;
+  var data = getAllOfficers();
+  var poList = Object.keys(DEFAULT_OFFICERS);
+  
+  var html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">';
+  poList.forEach(function(po){
+    var officers = data[po] || [];
+    html += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">';
+    html += '<div style="background:#0f2d5e;color:#fff;padding:8px 12px;font-weight:700;font-size:12px">'+po+' <span style="opacity:0.7;font-weight:400">('+officers.length+' pegawai)</span></div>';
+    html += '<div style="padding:10px 12px">';
+    
+    // List of officers
+    if(officers.length === 0){
+      html += '<div style="font-size:11px;color:#718096;padding:6px 0">Tiada pegawai</div>';
+    } else {
+      officers.forEach(function(nm, i){
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:#f7fafc;margin-bottom:4px;border-radius:4px">';
+        html += '<span style="font-size:11px;font-weight:600;color:#2d3748">'+nm+'</span>';
+        html += '<button onclick="removeOfficerFromPO(\''+po+'\','+i+')" style="background:#fff5f5;color:#c53030;border:1px solid #c53030;border-radius:3px;padding:2px 6px;font-size:10px;cursor:pointer">&#215;</button>';
+        html += '</div>';
+      });
+    }
+    
+    // Add new officer input
+    html += '<div style="display:flex;gap:6px;margin-top:8px">';
+    html += '<input id="up-add-'+po+'" placeholder="Nama Pegawai Baru" style="flex:1;padding:5px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;text-transform:uppercase">';
+    html += '<button onclick="addOfficerToPO(\''+po+'\')" style="background:#276749;color:#fff;border:none;border-radius:4px;padding:5px 10px;font-size:11px;cursor:pointer;font-weight:600">+ Tambah</button>';
+    html += '</div>';
+    
+    html += '</div></div>';
+  });
+  html += '</div>';
+  
+  // Reset button
+  html += '<div style="margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0;text-align:center">';
+  html += '<button onclick="resetOfficersToDefault()" style="background:#fff5f5;color:#c53030;border:1px solid #c53030;border-radius:4px;padding:6px 14px;font-size:11px;cursor:pointer">&#8635; Reset ke Default</button>';
+  html += '</div>';
+  
+  wrap.innerHTML = html;
+}
+
+function addOfficerToPO(po){
+  var input = document.getElementById('up-add-'+po);
+  if(!input) return;
+  var name = input.value.trim().toUpperCase();
+  if(!name){toast('Nama pegawai diperlukan','#c53030');return;}
+  var data = getAllOfficers();
+  if(!data[po]) data[po] = [];
+  // Check duplicate
+  if(data[po].indexOf(name) >= 0){
+    toast('Pegawai ini sudah ada di '+po,'#e8a900');
+    return;
+  }
+  data[po].push(name);
+  saveAllOfficers(data);
+  input.value = '';
+  renderUP();
+  toast('Pegawai '+name+' ditambah ke '+po,'#276749');
+}
+
+function removeOfficerFromPO(po, idx){
+  var data = getAllOfficers();
+  if(!data[po] || idx >= data[po].length) return;
+  var name = data[po][idx];
+  if(!confirm('Padam pegawai '+name+' dari '+po+'?')) return;
+  data[po].splice(idx, 1);
+  saveAllOfficers(data);
+  renderUP();
+  toast('Pegawai '+name+' dipadam','#c53030');
+}
+
+function resetOfficersToDefault(){
+  if(!confirm('Reset semua senarai pegawai ke default? Perubahan custom akan hilang.')) return;
+  localStorage.removeItem('vu_officers');
+  if(window.GS_READY && typeof rtWrite === 'function'){
+    rtWrite('vu_officers', JSON.stringify(getAllOfficers()));
+  }
+  renderUP();
+  toast('Senarai pegawai direset','#276749');
+}
+
 function getOfficers(po){
   try{
     var custom=JSON.parse(localStorage.getItem('vu_officers')||'null');
@@ -365,7 +472,7 @@ function getOfficers(po){
 
 
 var RTDB='https://vetec-utara-default-rtdb.firebaseio.com';
-var GS_KEYS=['vu_g','vu_p','vu_rb','vu_rk','vu_ug','vu_ts','vu_ltj','vu_lt','vu_tkp','vu_tkt','vu_ivi','vu_ivp','vu_kw','vu_sp03','vu_ml','vu_ltk_ov','vu_submit_log','vu_import_hist'];
+var GS_KEYS=['vu_g','vu_p','vu_rb','vu_rk','vu_ug','vu_ts','vu_ltj','vu_lt','vu_tkp','vu_tkt','vu_ivi','vu_ivp','vu_kw','vu_sp03','vu_ml','vu_ltk_ov','vu_submit_log','vu_import_hist','vu_officers'];
 var _lsOrig=localStorage.setItem.bind(localStorage);
 window.GS_READY=false;
 window.FB_READY=false;
@@ -459,7 +566,7 @@ window.manualRefresh = function(){
 window.fbLoadAll=function(cb){
   var done=0,total=GS_KEYS.length,gotData=false;
   // Keys that should ALWAYS be synced from cloud (global lists)
-  var ALWAYS_SYNC=['vu_g','vu_ml','vu_p'];
+  var ALWAYS_SYNC=['vu_g','vu_ml','vu_p','vu_officers'];
   GS_KEYS.forEach(function(k){
     rtRead(k).then(function(v){
       done++;
@@ -1452,6 +1559,16 @@ window.addEventListener('load',function(){
     <div style="overflow:auto;padding:12px 18px;flex:1" id="ml-wrap"></div>
   </div>
 
+  <!-- URUS PEGAWAI PAGE (ADMIN) -->
+  <div id="pg-up" class="pg">
+    <div class="fbar" style="background:#f7fafc;padding:10px 14px;border-bottom:1px solid #e2e8f0">
+      <div style="font-size:11px;color:#444">
+        <b>&#128100; Urus Senarai Pegawai</b> &mdash; Tambah atau buang pegawai untuk setiap PO.
+      </div>
+    </div>
+    <div style="padding:14px 18px;flex:1;overflow:auto" id="up-wrap"></div>
+  </div>
+
   <!-- MASTERLIST DIFF VIEW -->
   <div class="mov" id="mMLDiff">
   <div class="mbox" style="max-width:950px">
@@ -1920,12 +2037,12 @@ var curPg='sp';
 function showPg(pg){
   ld();
   curPg=pg;
-  ['sp','rb','rk','ug','ld','ts','ltj','gm','lt','kw','tk','iv','sp03','ltk','ml','rpt'].forEach(function(p){
+  ['sp','rb','rk','ug','ld','ts','ltj','gm','lt','kw','tk','iv','sp03','ltk','ml','rpt','up'].forEach(function(p){
     var el2=document.getElementById('pg-'+p);if(el2)el2.classList.toggle('on',p===pg);
     var ni=document.getElementById('n-'+(p==='ld'?'ld':p==='ts'?'ts':p));
     if(ni) ni.classList.toggle('on',p===pg);
   });
-  var ti={sp:'Senarai Penternak Saya',ts:'Tarikh Sasaran Lawatan Ladang',ltj:'Lawatan Terancang dan Berjadual (LTJ)',gm:'Gambar Aktiviti',lt:'Latihan',kw:'Kewangan - Rumusan Perbelanjaan Duit Mengurus',tk:'Promosi dan Pemindahan Teknologi',iv:'Inovasi dan Penyelidikan',sp03:'SP03 - Rekod Aktiviti Lawatan Ladang',ltk:'Log Teknikal',ml:'Masterlist',rpt:'Pelaporan',rpt:'Pelaporan',rb:'Pengeluaran RB - Ruminan Besar',rk:'Pengeluaran RK - Ruminan Kecil',ug:'Pengeluaran UG - Unggas',ld:'Ladang Belum Dilawat'};
+  var ti={sp:'Senarai Penternak Saya',ts:'Tarikh Sasaran Lawatan Ladang',ltj:'Lawatan Terancang dan Berjadual (LTJ)',gm:'Gambar Aktiviti',lt:'Latihan',kw:'Kewangan - Rumusan Perbelanjaan Duit Mengurus',tk:'Promosi dan Pemindahan Teknologi',iv:'Inovasi dan Penyelidikan',sp03:'SP03 - Rekod Aktiviti Lawatan Ladang',ltk:'Log Teknikal',ml:'Masterlist',up:'Urus Pegawai',rpt:'Pelaporan',rpt:'Pelaporan',rb:'Pengeluaran RB - Ruminan Besar',rk:'Pengeluaran RK - Ruminan Kecil',ug:'Pengeluaran UG - Unggas',ld:'Ladang Belum Dilawat'};
   document.getElementById('p-ttl').textContent=ti[pg]||pg;
   document.getElementById('p-sub').textContent=CU.po+' | '+CU.nm;
   if(pg==='ts'){renderTS();checkNotifications();return;}
@@ -1937,6 +2054,7 @@ function showPg(pg){
   if(pg==='rpt'){if(!isMLAdmin()){showPg('sp');toast('Akses terhad','#c53030');return;}renderRPT();return;}
   if(pg==='rpt'){try{document.getElementById('rpt-mo').value=new Date().getMonth();document.getElementById('rpt-yr').value=new Date().getFullYear();}catch(e){} renderRPT();if(!isMLAdmin()){var m2=new Date().getMonth();var y2=new Date().getFullYear();renderStaffRPT(m2,y2);}return;}
   if(pg==='ml'){if(!isMLAdmin()){toast('&#128274; Akses Ditolak — Modul ini hanya untuk pentadbir','#c53030');return;}populateMLPoFilters();renderML();return;}
+  if(pg==='up'){if(!isMLAdmin()){toast('&#128274; Akses Ditolak — Modul ini hanya untuk pentadbir','#c53030');showPg('sp');return;}renderUP();return;}
   if(pg==='sp03'){try{document.getElementById('s3-mo').value=new Date().getMonth();}catch(e){}renderSP03();return;}
   if(pg==='kw'){try{document.getElementById('kw-mo').value=new Date().getMonth();}catch(e){}renderKW();return;}
   if(pg==='ltj'){syncPPVtoLTJ();
