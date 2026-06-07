@@ -384,6 +384,78 @@ function rtRead(k){
     .catch(function(){return null;});
 }
 
+
+// Periodic auto-sync - pull latest data from Firebase every 30 seconds
+var _autoSyncInterval = null;
+var _lastSyncTime = 0;
+function startAutoSync(){
+  if(_autoSyncInterval) clearInterval(_autoSyncInterval);
+  _autoSyncInterval = setInterval(function(){
+    // Only sync if Firebase is ready and page is visible
+    if(!window.GS_READY) return;
+    if(document.hidden) return;
+    // Skip if recently synced
+    if(Date.now() - _lastSyncTime < 25000) return;
+    _lastSyncTime = Date.now();
+    
+    // Pull all data from Firebase silently
+    GS_KEYS.forEach(function(k){
+      rtRead(k).then(function(v){
+        if(v && v!=='null' && v!==null){
+          var current = localStorage.getItem(k);
+          var newVal = (typeof v === 'string') ? v : JSON.stringify(v);
+          if(current !== newVal){
+            _lsOrig(k, newVal);
+            // Refresh current page UI silently
+            try{
+              if(typeof ld === 'function') ld();
+              if(curPg && typeof showPg === 'function'){
+                // Re-render current page
+                if(curPg==='ld' && typeof renderLD==='function') renderLD();
+                else if(curPg==='sp' && typeof renderSP==='function') renderSP();
+                else if(curPg==='s3' && typeof renderSP03==='function') renderSP03();
+              }
+            }catch(e){}
+          }
+        }
+      });
+    });
+  }, 30000); // every 30 seconds
+}
+
+// Manual refresh button handler
+window.manualRefresh = function(){
+  if(!window.GS_READY){
+    toast('Firebase tidak bersambung','#c53030');
+    return;
+  }
+  _lastSyncTime = 0; // Force sync
+  toast('Menyegerakkan data...','#0f2d5e');
+  var done = 0, total = GS_KEYS.length, gotNew = false;
+  GS_KEYS.forEach(function(k){
+    rtRead(k).then(function(v){
+      done++;
+      if(v && v!=='null' && v!==null){
+        var current = localStorage.getItem(k);
+        var newVal = (typeof v === 'string') ? v : JSON.stringify(v);
+        if(current !== newVal){
+          _lsOrig(k, newVal);
+          gotNew = true;
+        }
+      }
+      if(done >= total){
+        toast(gotNew ? 'Data terkini dimuat ✓' : 'Sudah terkini ✓','#276749');
+        try{
+          if(typeof ld === 'function') ld();
+          if(curPg==='ld' && typeof renderLD==='function') renderLD();
+          else if(curPg==='sp' && typeof renderSP==='function') renderSP();
+          else if(curPg==='s3' && typeof renderSP03==='function') renderSP03();
+        }catch(e){}
+      }
+    });
+  });
+};
+
 window.fbLoadAll=function(cb){
   var done=0,total=GS_KEYS.length,gotData=false;
   // Keys that should ALWAYS be synced from cloud (global lists)
@@ -445,6 +517,8 @@ window.addEventListener('load',function(){
       window.GS_READY=true;
       window.FB_READY=true;
       window.fbLoadAll();
+      // Start periodic auto-sync
+      if(typeof startAutoSync==='function') startAutoSync();
     })
     .catch(function(){
       console.warn('RTDB offline');
@@ -513,6 +587,7 @@ window.addEventListener('load',function(){
 <div id="main">
   <div class="tbar">
     <button id="sb-toggle" onclick="toggleSidebar()">&#9776;</button>
+    <button onclick="manualRefresh()" title="Segerakkan data" style="background:#fff;color:#0f2d5e;border:1px solid #cbd5e0;padding:6px 10px;font-size:14px;cursor:pointer;border-radius:6px;margin-right:8px">&#8635;</button>
     <div><div class="tttl" id="p-ttl">-</div><div class="tsub" id="p-sub">-</div></div>
     <div style="display:flex;align-items:center;gap:8px"><button class="btn" id="notif-bell" onclick="showNotifPanel()" style="background:#fff;color:#0f2d5e;border:1px solid #e2e8f0;position:relative;padding:7px 12px;font-size:16px">&#128276;<span id="notif-count" style="display:none;position:absolute;top:-4px;right:-4px;background:#e53e3e;color:#fff;border-radius:10px;padding:1px 5px;font-size:10px;font-weight:700">0</span></button><div id="p-btn" style="display:flex;gap:8px"></div></div>
   </div>
