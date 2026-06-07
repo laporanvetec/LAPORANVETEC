@@ -532,12 +532,39 @@ function rejectMLReq(reqId){
   var idx = reqs.findIndex(function(r){return r.reqId===reqId;});
   if(idx < 0) return;
   var r = reqs[idx];
-  if(!confirm('Tolak permohonan '+r.nm+'? Rekod permohonan akan dipadam.')) return;
   
+  // Ask: also remove from requesting officer's senarai penternak?
+  var msg = 'Tolak permohonan '+r.nm+'?\n\nTekan OK untuk JUGA padam dari Senarai Penternak '+r.requestedBy+' ('+r.requestedPO+').\nTekan Cancel untuk batal.';
+  if(!confirm(msg)) return;
+  
+  // Remove from pt (officer's senarai)
+  try{
+    var allPt = JSON.parse(localStorage.getItem('vu_p')||'[]');
+    var removed = 0;
+    for(var i=allPt.length-1; i>=0; i--){
+      var p = allPt[i];
+      if(!p.nm) continue;
+      var same = p.nm.toUpperCase().trim() === r.nm.toUpperCase().trim() && p.po === r.requestedPO;
+      if(same){
+        allPt.splice(i,1);
+        removed++;
+      }
+    }
+    if(removed > 0){
+      localStorage.setItem('vu_p', JSON.stringify(allPt));
+      if(window.GS_READY && typeof rtWrite === 'function'){
+        rtWrite('vu_p', JSON.stringify(allPt));
+      }
+      // Refresh local pt array if same PO
+      if(typeof ld === 'function') ld();
+    }
+  }catch(e){console.error('Error removing from pt:', e);}
+  
+  // Remove the request
   reqs.splice(idx, 1);
   saveMLReq(reqs);
   renderMLReq();
-  toast('&#10006; Permohonan '+r.nm+' ditolak','#c53030');
+  toast('&#10006; Permohonan '+r.nm+' ditolak & dipadam dari senarai '+r.requestedBy,'#c53030');
 }
 
 function getAllOfficers(){
@@ -6652,8 +6679,45 @@ function saveS3Manual(addToSenarai){
   var tarikhStr='';
   if(tarikhVal){ var sp=tarikhVal.split('-'); tarikhStr=sp[2]+'/'+sp[1]+'/'+sp[0]; }
 
-  // Check if penternak exists
-  var existing=pt.find(function(p){ return p.nm===nm&&p.po===CU.po; });
+  // Check if penternak exists (case-insensitive, trim spaces)
+  var nmClean = nm.replace(/\s+/g,' ').trim();
+  var existing=pt.find(function(p){
+    if(!p.nm) return false;
+    var pn = p.nm.replace(/\s+/g,' ').trim().toUpperCase();
+    return pn===nmClean && p.po===CU.po;
+  });
+  
+  // Check if in masterlist (other POs)
+  var existingOtherPO = null;
+  if(!existing && addToSenarai){
+    try{
+      var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
+      existingOtherPO = ml.find(function(m){
+        if(!m.nm) return false;
+        var mn = m.nm.replace(/\s+/g,' ').trim().toUpperCase();
+        return mn===nmClean;
+      });
+      // Also check other POs in pt
+      var existingInOtherPo = pt.find(function(p){
+        if(!p.nm) return false;
+        var pn = p.nm.replace(/\s+/g,' ').trim().toUpperCase();
+        return pn===nmClean && p.po!==CU.po;
+      });
+      if(existingInOtherPo) existingOtherPO = existingInOtherPo;
+    }catch(e){}
+  }
+  
+  // If adding to senarai and penternak already exists, reject + notify
+  if(addToSenarai && existing){
+    alert('⚠️ Penternak "'+nm+'" SUDAH WUJUD di Senarai Penternak anda!\n\nSila guna fungsi CARIAN di atas untuk pilih penternak yang sedia ada, atau klik "Simpan SP03 Sahaja".');
+    toast('Penternak sudah wujud — guna fungsi carian','#e8a900');
+    return;
+  }
+  
+  // If exists in another PO/masterlist, warn
+  if(addToSenarai && existingOtherPO){
+    if(!confirm('⚠️ Penternak "'+nm+'" sudah ada di '+(existingOtherPO.po||'Masterlist')+'.\n\nTeruskan tambah ke PO anda ('+CU.po+')?')) return;
+  }
   var farmRid='';
 
   if(addToSenarai){
