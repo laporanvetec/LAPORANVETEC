@@ -460,26 +460,29 @@ function saveMLReq(arr){
   updateMLReqBadge();
 }
 
-// Submit a new penternak as masterlist request
-function submitMLRequest(penternak, source){
-  // Check if already in masterlist
-  try{
-    var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
-    var existing = ml.find(function(m){
-      return m.nm && penternak.nm && m.nm.toUpperCase()===penternak.nm.toUpperCase();
-    });
-    if(existing) return false; // already in masterlist, no need to request
-  }catch(e){}
+// Submit ML request - action: 'add', 'delete', 'edit'
+function submitMLActionRequest(penternak, action, source, oldData){
+  // For ADD: check if already in masterlist
+  if(action==='add'){
+    try{
+      var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
+      var existing = ml.find(function(m){
+        return m.nm && penternak.nm && m.nm.toUpperCase()===penternak.nm.toUpperCase();
+      });
+      if(existing) return false;
+    }catch(e){}
+  }
   
-  // Check if already a pending request
+  // Check if already a pending request for same name & action
   var reqs = getMLReq();
   var dup = reqs.find(function(r){
-    return r.nm && penternak.nm && r.nm.toUpperCase()===penternak.nm.toUpperCase() && r.status==='pending';
+    return r.nm && penternak.nm && r.nm.toUpperCase()===penternak.nm.toUpperCase() && r.status==='pending' && r.action===action;
   });
   if(dup) return false;
   
   var req = {
     reqId: 'req_'+Date.now()+'_'+Math.random().toString(36).substr(2,5),
+    action: action||'add',
     rid: penternak.rid||'',
     nm: penternak.nm||'',
     id: penternak.id||'',
@@ -493,6 +496,7 @@ function submitMLRequest(penternak, source){
     lat: penternak.lat||'',
     lng: penternak.lng||'',
     tr: penternak.tr||'',
+    oldData: oldData||null, // for edit/delete - the original data
     requestedBy: CU.nm||'',
     requestedPO: CU.po||'',
     requestedFrom: source||'sp',
@@ -502,6 +506,11 @@ function submitMLRequest(penternak, source){
   reqs.push(req);
   saveMLReq(reqs);
   return true;
+}
+
+// Backwards compat
+function submitMLRequest(penternak, source){
+  return submitMLActionRequest(penternak, 'add', source);
 }
 
 // Update badge count on sidebar
@@ -545,11 +554,19 @@ function renderMLReq(){
   var html = '<div style="font-size:11px;color:#444;margin-bottom:10px">Jumlah permohonan: <b>'+pending.length+'</b></div>';
   
   pending.forEach(function(r, idx){
+    var action = r.action || 'add';
+    var actionLabel = {'add':'TAMBAH','delete':'PADAM','edit':'EDIT'}[action] || action.toUpperCase();
+    var actionColor = {'add':'#276749','delete':'#c53030','edit':'#e8a900'}[action] || '#0f2d5e';
+    var actionIcon = {'add':'\u2795','delete':'\u274C','edit':'\u270F\uFE0F'}[action] || '';
+    
     html += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:10px;overflow:hidden">';
     
     // Header
-    html += '<div style="background:#fef3c7;padding:8px 12px;border-bottom:1px solid #fbd38d;display:flex;justify-content:space-between;align-items:center">';
-    html += '<div><b style="font-size:13px;color:#2d3748">'+r.nm+'</b> <span style="font-size:10px;color:#718096">('+r.po+')</span></div>';
+    html += '<div style="background:#fef3c7;padding:8px 12px;border-bottom:1px solid #fbd38d;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">';
+    html += '<div>';
+    html += '<span style="background:'+actionColor+';color:#fff;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;margin-right:6px">'+actionIcon+' '+actionLabel+'</span>';
+    html += '<b style="font-size:13px;color:#2d3748">'+r.nm+'</b> <span style="font-size:10px;color:#718096">('+r.po+')</span>';
+    html += '</div>';
     html += '<div style="font-size:10px;color:#718096">Oleh: <b>'+r.requestedBy+'</b> | '+(r.requestedFrom==='sp03'?'SP03':'Senarai Penternak')+' | '+(r.requestedAt?new Date(r.requestedAt).toLocaleString('ms-MY'):'')+'</div>';
     html += '</div>';
     
@@ -569,6 +586,13 @@ function renderMLReq(){
     });
     html += '</div>';
     
+    // For DELETE - warning
+    if(action==='delete'){
+      html += '<div style="background:#fff5f5;color:#c53030;padding:6px 12px;font-size:10px;font-weight:600;border-top:1px solid #fed7d7">&#9888; Permohonan untuk PADAM penternak dari Senarai Penternak DAN Masterlist</div>';
+    } else if(action==='edit' && r.oldData){
+      html += '<div style="background:#fffaf0;padding:6px 12px;font-size:10px;color:#744210;border-top:1px solid #fbd38d">Data lama: '+JSON.stringify(r.oldData)+'</div>';
+    }
+    
     // Action buttons
     html += '<div style="padding:8px 12px;background:#f7fafc;border-top:1px solid #e2e8f0;display:flex;gap:8px;justify-content:flex-end">';
     html += '<button onclick="rejectMLReq(\''+r.reqId+'\')" style="background:#fff5f5;color:#c53030;border:1px solid #c53030;border-radius:4px;padding:5px 14px;font-size:11px;cursor:pointer;font-weight:600">&#10006; Tolak</button>';
@@ -586,40 +610,87 @@ function approveMLReq(reqId){
   var idx = reqs.findIndex(function(r){return r.reqId===reqId;});
   if(idx < 0) return;
   var r = reqs[idx];
-  if(!confirm('Lulus permohonan tambah '+r.nm+' ke Masterlist?')) return;
+  var action = r.action || 'add';
   
-  // Add to masterlist
+  var confirmMsg = {
+    'add':'Lulus permohonan TAMBAH '+r.nm+' ke Masterlist?',
+    'delete':'Lulus permohonan PADAM '+r.nm+'?\n\nIni akan padam dari:\n- Senarai Penternak '+r.requestedBy+'\n- Masterlist (jika ada)\n- SP03 (jika ada)',
+    'edit':'Lulus permohonan EDIT '+r.nm+'?'
+  }[action];
+  if(!confirm(confirmMsg)) return;
+  
   try{
-    var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
-    var newEntry = {
-      rid: r.rid||('ml_'+Date.now()),
-      nm: r.nm, id: r.id, al: r.al, j: r.j, ng: r.ng,
-      po: r.po, bn: r.bn, pv: r.pv, tl: r.tl,
-      lat: r.lat, lng: r.lng, tr: r.tr
-    };
-    ml.push(newEntry);
-    localStorage.setItem('vu_ml', JSON.stringify(ml));
-    if(window.GS_READY && typeof rtWrite === 'function'){
-      rtWrite('vu_ml', JSON.stringify(ml));
+    if(action==='add'){
+      // Add to masterlist
+      var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
+      var newEntry = {
+        rid: r.rid||('ml_'+Date.now()),
+        nm: r.nm, id: r.id, al: r.al, j: r.j, ng: r.ng,
+        po: r.po, bn: r.bn, pv: r.pv, tl: r.tl,
+        lat: r.lat, lng: r.lng, tr: r.tr
+      };
+      ml.push(newEntry);
+      localStorage.setItem('vu_ml', JSON.stringify(ml));
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ml', JSON.stringify(ml));
+    } else if(action==='delete'){
+      // Delete from masterlist
+      var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
+      var mlNew = ml.filter(function(m){
+        if(!m.nm) return true;
+        return !(m.nm.toUpperCase().trim() === r.nm.toUpperCase().trim() && (m.po === r.po || !m.po));
+      });
+      localStorage.setItem('vu_ml', JSON.stringify(mlNew));
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ml', JSON.stringify(mlNew));
+      
+      // Delete from pt (senarai penternak)
+      var allPt = JSON.parse(localStorage.getItem('vu_p')||'[]');
+      var ptNew = allPt.filter(function(p){
+        if(!p.nm) return true;
+        return !(p.nm.toUpperCase().trim() === r.nm.toUpperCase().trim() && p.po === r.requestedPO);
+      });
+      localStorage.setItem('vu_p', JSON.stringify(ptNew));
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_p', JSON.stringify(ptNew));
+      
+      // Delete from SP03
+      var allSP03 = JSON.parse(localStorage.getItem('vu_sp03')||'[]');
+      var sp03New = allSP03.filter(function(s){
+        if(!s.namaPenternak) return true;
+        return !(s.namaPenternak.toUpperCase().trim() === r.nm.toUpperCase().trim() && s.po === r.requestedPO);
+      });
+      localStorage.setItem('vu_sp03', JSON.stringify(sp03New));
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_sp03', JSON.stringify(sp03New));
+      
+      // Refresh local pt
+      if(typeof ld === 'function') ld();
+    } else if(action==='edit'){
+      // Update masterlist + pt with new data
+      var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
+      ml.forEach(function(m){
+        if(m.nm && m.nm.toUpperCase().trim() === (r.oldData?r.oldData.nm:r.nm).toUpperCase().trim() && (m.po === r.po || !m.po)){
+          m.nm = r.nm; m.id = r.id; m.al = r.al; m.j = r.j;
+          m.ng = r.ng; m.bn = r.bn; m.pv = r.pv; m.tl = r.tl;
+        }
+      });
+      localStorage.setItem('vu_ml', JSON.stringify(ml));
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ml', JSON.stringify(ml));
     }
   }catch(e){
     alert('Ralat: '+e.message);
     return;
   }
   
-  // Mark request as approved (keep for history)
+  // Mark approved
   r.status = 'approved';
   r.approvedAt = new Date().toISOString();
   r.approvedBy = CU.nm;
   saveMLReq(reqs);
   
-  // Notify the requesting officer
-  if(typeof addNotif === 'function'){
-    addNotif(r.requestedBy, r.requestedPO, 'approved', r.nm, CU.nm);
-  }
+  // Notify officer
+  if(typeof addNotif === 'function') addNotif(r.requestedBy, r.requestedPO, 'approved', r.nm, CU.nm);
   
   renderMLReq();
-  toast('&#9989; '+r.nm+' diluluskan dan ditambah ke Masterlist','#276749');
+  var actionLabel = {'add':'ditambah ke Masterlist','delete':'dipadam sepenuhnya','edit':'dikemaskini'}[action];
+  toast('&#9989; '+r.nm+' '+actionLabel,'#276749');
 }
 
 function rejectMLReq(reqId){
@@ -627,44 +698,41 @@ function rejectMLReq(reqId){
   var idx = reqs.findIndex(function(r){return r.reqId===reqId;});
   if(idx < 0) return;
   var r = reqs[idx];
+  var action = r.action || 'add';
   
-  // Ask: also remove from requesting officer's senarai penternak?
-  var msg = 'Tolak permohonan '+r.nm+'?\n\nTekan OK untuk JUGA padam dari Senarai Penternak '+r.requestedBy+' ('+r.requestedPO+').\nTekan Cancel untuk batal.';
-  if(!confirm(msg)) return;
+  var confirmMsg = {
+    'add':'Tolak permohonan TAMBAH '+r.nm+'?\n\nPenternak akan dipadam dari Senarai Penternak '+r.requestedBy+'.',
+    'delete':'Tolak permohonan PADAM '+r.nm+'?\n\nPenternak akan KEKAL di Senarai Penternak '+r.requestedBy+'.',
+    'edit':'Tolak permohonan EDIT '+r.nm+'?\n\nPerubahan akan dibatalkan.'
+  }[action];
+  if(!confirm(confirmMsg)) return;
   
-  // Remove from pt (officer's senarai)
   try{
-    var allPt = JSON.parse(localStorage.getItem('vu_p')||'[]');
-    var removed = 0;
-    for(var i=allPt.length-1; i>=0; i--){
-      var p = allPt[i];
-      if(!p.nm) continue;
-      var same = p.nm.toUpperCase().trim() === r.nm.toUpperCase().trim() && p.po === r.requestedPO;
-      if(same){
-        allPt.splice(i,1);
-        removed++;
-      }
-    }
-    if(removed > 0){
-      localStorage.setItem('vu_p', JSON.stringify(allPt));
-      if(window.GS_READY && typeof rtWrite === 'function'){
-        rtWrite('vu_p', JSON.stringify(allPt));
-      }
-      // Refresh local pt array if same PO
+    if(action==='add'){
+      // Remove from pt (officer's senarai)
+      var allPt = JSON.parse(localStorage.getItem('vu_p')||'[]');
+      var ptNew = allPt.filter(function(p){
+        if(!p.nm) return true;
+        return !(p.nm.toUpperCase().trim() === r.nm.toUpperCase().trim() && p.po === r.requestedPO);
+      });
+      localStorage.setItem('vu_p', JSON.stringify(ptNew));
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_p', JSON.stringify(ptNew));
       if(typeof ld === 'function') ld();
     }
-  }catch(e){console.error('Error removing from pt:', e);}
+    // For delete: nothing to undo (penternak still in senarai since we never deleted)
+    // For edit: nothing to undo (we never applied the edit)
+  }catch(e){console.error('Error:', e);}
   
-  // Notify the requesting officer
-  if(typeof addNotif === 'function'){
-    addNotif(r.requestedBy, r.requestedPO, 'rejected', r.nm, CU.nm);
-  }
+  // Notify officer
+  if(typeof addNotif === 'function') addNotif(r.requestedBy, r.requestedPO, 'rejected', r.nm, CU.nm);
   
-  // Remove the request
+  // Remove request
   reqs.splice(idx, 1);
   saveMLReq(reqs);
   renderMLReq();
-  toast('&#10006; Permohonan '+r.nm+' ditolak & dipadam dari senarai '+r.requestedBy,'#c53030');
+  
+  var msg = {'add':'ditolak & dipadam','delete':'ditolak','edit':'ditolak'}[action];
+  toast('&#10006; Permohonan '+r.nm+' '+msg,'#c53030');
 }
 
 function getAllOfficers(){
@@ -2525,9 +2593,40 @@ function saveP(){
   toast('Disimpan. Penternak muncul di '+dest,'#276749');
 }
 function delP(i){
-  if(!confirm('Padam "'+pt[i].nm+'"?'))return;
-  pt.splice(i,1);sv();renderSP();
-  toast('Dipadam','#c53030');
+  if(!pt[i]) return;
+  var p = pt[i];
+  
+  if(isMLAdmin()){
+    // Admin: delete immediately + propagate to masterlist
+    if(!confirm('Padam "'+p.nm+'"?\n\nIni juga akan padam dari Masterlist.'))return;
+    pt.splice(i,1);
+    sv();
+    // Also delete from masterlist
+    try{
+      var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
+      var mlNew = ml.filter(function(m){
+        if(!m.nm) return true;
+        return !(m.nm.toUpperCase().trim() === p.nm.toUpperCase().trim() && (m.po === p.po || !m.po));
+      });
+      if(mlNew.length !== ml.length){
+        localStorage.setItem('vu_ml', JSON.stringify(mlNew));
+        if(window.GS_READY && typeof rtWrite === 'function'){
+          rtWrite('vu_ml', JSON.stringify(mlNew));
+        }
+      }
+    }catch(e){}
+    renderSP();
+    toast('Dipadam dari Senarai & Masterlist','#c53030');
+  } else {
+    // Officer: send DELETE request to admin
+    if(!confirm('Padam "'+p.nm+'"?\n\nPermohonan akan dihantar untuk kelulusan admin.\nPenternak akan kekal sehingga diluluskan.'))return;
+    var submitted = submitMLActionRequest(p, 'delete', 'sp');
+    if(submitted){
+      toast('&#128276; Permohonan padam dihantar untuk kelulusan admin','#e8a900');
+    } else {
+      toast('Permohonan sudah wujud untuk penternak ini','#e8a900');
+    }
+  }
 }
 
 // TARIKH LAWATAN
