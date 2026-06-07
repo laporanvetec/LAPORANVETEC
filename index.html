@@ -19,8 +19,17 @@ body{font-family:'Segoe UI',sans-serif;background:#f0f4f8;font-size:13px}
 .lbtn{width:100%;background:#0f2d5e;color:#fff;border:none;border-radius:9px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px}
 .lbtn:hover{background:#1a4a8a}
 #app{display:none;min-height:100vh;flex-direction:row}
-#sb{width:230px;min-height:100vh;background:#0f2d5e;position:fixed;top:0;left:0;bottom:0;overflow-y:auto;display:flex;flex-direction:column;z-index:100}
-#main{margin-left:230px;flex:1;display:flex;flex-direction:column;min-height:100vh}
+#sb{width:230px;min-height:100vh;background:#0f2d5e;position:fixed;top:0;left:0;bottom:0;overflow-y:auto;display:flex;flex-direction:column;z-index:100;transition:transform 0.3s ease}
+#main{margin-left:230px;flex:1;display:flex;flex-direction:column;min-height:100vh;transition:margin-left 0.3s ease}
+#sb-toggle{display:none;background:#0f2d5e;color:#fff;border:none;padding:8px 12px;font-size:20px;cursor:pointer;border-radius:6px;margin-right:8px;font-weight:700}
+#sb-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:99}
+@media (max-width: 768px){
+  #sb{transform:translateX(-100%);width:260px}
+  #sb.on{transform:translateX(0)}
+  #main{margin-left:0}
+  #sb-toggle{display:inline-block}
+  #sb.on ~ #sb-overlay,body.sb-open #sb-overlay{display:block}
+}
 .sbg{background:#e8a900;padding:4px 14px;font-size:10px;font-weight:700;color:#0f2d5e}
 .sblo{padding:12px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.1)}
 .sbic{width:36px;height:36px;background:#e8a900;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:17px;color:#0f2d5e}
@@ -500,8 +509,10 @@ window.addEventListener('load',function(){
   <div id="sb-export-btn" style="display:none;padding:10px 14px;cursor:pointer;font-size:12px;font-weight:600;color:#2b6cb0;border-top:1px solid #e2e8f0" onclick="exportMyData()">&#8659; Export Data Saya</div>
   <div class="sbou" onclick="logout()">&#128682; Log Keluar</div>
 </div>
+<div id="sb-overlay" onclick="toggleSidebar()"></div>
 <div id="main">
   <div class="tbar">
+    <button id="sb-toggle" onclick="toggleSidebar()">&#9776;</button>
     <div><div class="tttl" id="p-ttl">-</div><div class="tsub" id="p-sub">-</div></div>
     <div style="display:flex;align-items:center;gap:8px"><button class="btn" id="notif-bell" onclick="showNotifPanel()" style="background:#fff;color:#0f2d5e;border:1px solid #e2e8f0;position:relative;padding:7px 12px;font-size:16px">&#128276;<span id="notif-count" style="display:none;position:absolute;top:-4px;right:-4px;background:#e53e3e;color:#fff;border-radius:10px;padding:1px 5px;font-size:10px;font-weight:700">0</span></button><div id="p-btn" style="display:flex;gap:8px"></div></div>
   </div>
@@ -1796,6 +1807,30 @@ try{
     if(e.key==='Enter') loginNow();
   });
 }catch(e){}
+
+
+function toggleSidebar(){
+  var sb=document.getElementById('sb');
+  var ov=document.getElementById('sb-overlay');
+  if(!sb)return;
+  sb.classList.toggle('on');
+  if(sb.classList.contains('on')){
+    ov.style.display='block';
+  } else {
+    ov.style.display='none';
+  }
+}
+// Auto-close sidebar when clicking nav item on mobile
+function autoCloseSidebar(){
+  if(window.innerWidth<=768){
+    var sb=document.getElementById('sb');
+    var ov=document.getElementById('sb-overlay');
+    if(sb&&sb.classList.contains('on')){
+      sb.classList.remove('on');
+      if(ov) ov.style.display='none';
+    }
+  }
+}
 
 function logout(){
   CU=null;sessionStorage.removeItem('vu_u');
@@ -5822,14 +5857,12 @@ function openSP03Edit(id){
   b += '<div style="padding:12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">';
   [['VETEC','vetec'],['BULAN','bulan'],['PUSAT OPERASI','pusat'],['NEGERI','negeri'],['TARIKH AKTIVITI','tarikhAktiviti'],['NAMA PENTERNAK','namaPenternak'],['ID PREMIS','idPremis'],['ALAMAT PREMIS','alamat'],['DAERAH','daerah']].forEach(function(f){
     var isReadOnly = (f[1]==='tarikhAktiviti'||f[1]==='namaPenternak'||f[1]==='bulan'||f[1]==='pusat');
-    var tooltip = '';
-    var labelIcon = '';
+    var note = '';
     if(f[1]==='tarikhAktiviti'){
-      tooltip = ' title="Untuk ubah tarikh, sila pergi ke Ladang Belum Lawat"';
-      labelIcon = ' <span style="color:#c53030;cursor:help" title="Untuk ubah tarikh, sila pergi ke Ladang Belum Lawat">&#9432;</span>';
+      note = '<div style="font-size:10px;color:#c53030;margin-top:3px;font-weight:600;background:#fff5f5;padding:3px 6px;border-radius:3px;border-left:3px solid #c53030">&#9432; Untuk ubah tarikh, sila pergi ke <b>Ladang Belum Lawat</b></div>';
     }
-    b+='<div class="fg" style="margin-bottom:0"><label style="font-size:10px;font-weight:700;color:#444;display:block;margin-bottom:3px;text-transform:uppercase">'+f[0]+labelIcon+'</label>';
-    b+='<input data-s3f="'+f[1]+'" value="'+( r[f[1]]||'')+'"'+tooltip+' '+(isReadOnly?'readonly style="background:#f7fafc;cursor:not-allowed;width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;font-family:inherit;text-transform:uppercase"':'style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;font-family:inherit;text-transform:uppercase"')+'></div>';
+    b+='<div class="fg" style="margin-bottom:0"><label style="font-size:10px;font-weight:700;color:#444;display:block;margin-bottom:3px;text-transform:uppercase">'+f[0]+'</label>';
+    b+='<input data-s3f="'+f[1]+'" value="'+( r[f[1]]||'')+'" '+(isReadOnly?'readonly style="background:#f7fafc;cursor:not-allowed;width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;font-family:inherit;text-transform:uppercase"':'style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;font-family:inherit;text-transform:uppercase"')+'>'+note+'</div>';
   });
   b += '</div><div style="padding:0 12px 12px;display:grid;grid-template-columns:1fr 1fr;gap:8px">';
   b += '<div class="fg" style="margin:0"><label style="font-size:10px;font-weight:700;color:#444;display:block;margin-bottom:3px">MASA MULA</label>';
