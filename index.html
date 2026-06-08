@@ -680,8 +680,14 @@ function gpsBtnHTML(p, pi){
   var hasGPS = p && p.lat && p.lng;
   var safeName = (p.nm||'').replace(/"/g,'').replace(/'/g,'');
   if(hasGPS){
-    // Click pin = direct Google Maps navigation
-    return '<button onclick="openGoogleMaps(\''+p.lat+'\',\''+p.lng+'\',\''+safeName+'\')" style="border:1px solid #c53030;background:#c53030;color:#fff;padding:4px 10px;font-size:14px;border-radius:4px;cursor:pointer" title="Klik untuk navigasi Google Maps&#10;GPS: '+p.lat+', '+p.lng+'">&#128205;</button>';
+    // Pin red = navigate + small pencil = edit
+    var html = '<div style="display:inline-flex;gap:2px;align-items:center">';
+    html += '<button onclick="openGoogleMaps(\''+p.lat+'\',\''+p.lng+'\',\''+safeName+'\')" style="border:1px solid #c53030;background:#c53030;color:#fff;padding:4px 8px;font-size:14px;border-radius:4px;cursor:pointer" title="Klik untuk navigasi Google Maps">&#128205;</button>';
+    if(pi!=null){
+      html += '<button onclick="openGPSModal('+pi+')" style="border:1px solid #e8a900;background:#fffbeb;color:#744210;padding:3px 5px;font-size:10px;border-radius:3px;cursor:pointer" title="Edit GPS">&#9999;&#65039;</button>';
+    }
+    html += '</div>';
+    return html;
   } else {
     if(pi!=null){
       return '<button onclick="openGPSModal('+pi+')" style="border:1.5px dashed #a0aec0;background:#fff;color:#a0aec0;padding:4px 10px;font-size:14px;border-radius:4px;cursor:pointer" title="Klik untuk set GPS">&#128205;</button>';
@@ -3825,8 +3831,11 @@ function renderLD(){
     var hasGPS=p.lat&&p.lng;
     h+='<td style="border:1px solid #d0d0d0;padding:5px;text-align:center">';
     if(hasGPS){
-      // Click pin = direct navigate to Google Maps
-      h+='<button class="bsm ld-nav" data-lat="'+p.lat+'" data-lng="'+p.lng+'" data-nm="'+(p.nm||'').replace(/"/g,'')+'" style="border:1px solid #c53030;background:#c53030;color:#fff;padding:4px 10px;font-size:14px;border-radius:4px;cursor:pointer" title="Klik untuk navigasi Google Maps&#10;GPS: '+p.lat+', '+p.lng+'">&#128205;</button>';
+      // Pin red = navigate + small pencil = edit
+      h+='<div style="display:inline-flex;gap:2px;align-items:center">';
+      h+='<button class="bsm ld-nav" data-lat="'+p.lat+'" data-lng="'+p.lng+'" data-nm="'+(p.nm||'').replace(/"/g,'')+'" style="border:1px solid #c53030;background:#c53030;color:#fff;padding:4px 8px;font-size:14px;border-radius:4px;cursor:pointer" title="Klik untuk navigasi Google Maps&#10;GPS: '+p.lat+', '+p.lng+'">&#128205;</button>';
+      h+='<button class="bsm ld-gps" data-pi="'+pi+'" style="border:1px solid #e8a900;background:#fffbeb;color:#744210;padding:3px 5px;font-size:10px;border-radius:3px;cursor:pointer" title="Edit GPS">&#9999;&#65039;</button>';
+      h+='</div>';
     } else {
       // No GPS - click to set
       h+='<button class="bsm ld-gps" data-pi="'+pi+'" style="border:1.5px dashed #a0aec0;background:#fff;color:#a0aec0;padding:4px 10px;font-size:14px;border-radius:4px;cursor:pointer" title="Klik untuk set GPS">&#128205;</button>';
@@ -4385,7 +4394,10 @@ function renderTS(){
     months.forEach(function(mo){var rec=tsd[tsdKey(p.rid,yr,mo)];if(rec&&rec.lat)hasLoc=true;});
     h+='<td style="border:1px solid #ccc;padding:3px;text-align:center">';
     if(hasLoc){
-      h+='<button onclick="openGoogleMaps(\''+p.lat+'\',\''+p.lng+'\',\''+(p.nm||'').replace(/"/g,'').replace(/\'/g,'')+'\')" style="border:1px solid #c53030;background:#c53030;color:#fff;padding:4px 10px;font-size:14px;border-radius:4px;cursor:pointer" title="Klik untuk navigasi Google Maps">&#128205;</button>';
+      h+='<div style="display:inline-flex;gap:2px;align-items:center">';
+      h+='<button onclick="openGoogleMaps(\''+p.lat+'\',\''+p.lng+'\',\''+(p.nm||'').replace(/"/g,'').replace(/\'/g,'')+'\')" style="border:1px solid #c53030;background:#c53030;color:#fff;padding:4px 8px;font-size:14px;border-radius:4px;cursor:pointer" title="Klik untuk navigasi Google Maps">&#128205;</button>';
+      h+='<button onclick="openGPSModal('+pt.indexOf(p)+')" style="border:1px solid #e8a900;background:#fffbeb;color:#744210;padding:3px 5px;font-size:10px;border-radius:3px;cursor:pointer" title="Edit GPS">&#9999;&#65039;</button>';
+      h+='</div>';
     } else {
       h+='<button class="bsm" data-pi="'+pt.indexOf(p)+'" data-yr="'+yr+'" data-mo="0" id="loc-'+i+'" style="border:1.5px dashed #a0aec0;background:#fff;color:#a0aec0;padding:4px 10px;font-size:14px;border-radius:4px;cursor:pointer" title="Klik untuk set GPS">&#128205;</button>';
     }
