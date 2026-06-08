@@ -4381,7 +4381,7 @@ function renderTS(){
     h+='<td style="border:1px solid #ccc;padding:5px 8px;font-size:10px">'+(p.ng||'Kedah')+'</td>';
     h+='<td style="border:1px solid #ccc;padding:5px 8px;font-size:10px">'+p.po+'</td>';
     // Location button
-    var hasLoc=false;
+    var hasLoc = !!(p.lat && p.lng);
     months.forEach(function(mo){var rec=tsd[tsdKey(p.rid,yr,mo)];if(rec&&rec.lat)hasLoc=true;});
     h+='<td style="border:1px solid #ccc;padding:3px;text-align:center">';
     if(hasLoc){
