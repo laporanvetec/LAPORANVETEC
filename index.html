@@ -607,6 +607,481 @@ function renderMLReq(){
 
 
 // ─── SP03 DOWNLOAD LAPORAN ─────────────────────────
+
+
+
+// ─── GOOGLE MAPS NAVIGATION ──────────────────────
+function openGoogleMaps(lat, lng, nm){
+  if(!lat || !lng){
+    alert('Tiada koordinat GPS untuk lokasi ini');
+    return;
+  }
+  // Detect mobile - use geo: URI on mobile, https on desktop
+  var isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent);
+  var url;
+  if(isMobile){
+    // Try Google Maps app first via universal URL
+    url = 'https://www.google.com/maps/dir/?api=1&destination='+lat+','+lng;
+    if(nm) url += '&destination_place_id='+encodeURIComponent(nm);
+  } else {
+    // Desktop - open in browser
+    url = 'https://www.google.com/maps/dir/?api=1&destination='+lat+','+lng;
+  }
+  window.open(url, '_blank');
+  toast('&#129517; Membuka Google Maps...', '#2b6cb0');
+}
+
+// Helper: build GPS button HTML for use anywhere
+function gpsBtnHTML(p, pi){
+  var hasGPS = p && p.lat && p.lng;
+  var safeName = (p.nm||'').replace(/"/g,'').replace(/'/g,'');
+  if(hasGPS){
+    return '<div style="display:inline-flex;gap:3px;align-items:center">' +
+      '<button class="gps-nav-btn" data-lat="'+p.lat+'" data-lng="'+p.lng+'" data-nm="'+safeName+'" onclick="openGoogleMaps(\''+p.lat+'\',\''+p.lng+'\',\''+safeName+'\')" style="border:1px solid #2b6cb0;color:#fff;background:#2b6cb0;padding:3px 7px;font-size:12px;border-radius:4px;cursor:pointer" title="Buka Google Maps untuk navigasi">&#129517;</button>' +
+      (pi!=null?'<button class="bsm" data-pi="'+pi+'" onclick="openGPSModal('+pi+')" style="border:1px solid #276749;color:#276749;padding:3px 6px;font-size:11px;border-radius:4px;cursor:pointer" title="GPS: '+p.lat+', '+p.lng+' (Edit)">&#128205;</button>':'') +
+      '</div>';
+  } else {
+    if(pi!=null){
+      return '<button class="bsm" data-pi="'+pi+'" onclick="openGPSModal('+pi+')" style="border:1px solid #d0d0d0;color:#a0aec0;padding:3px 6px;font-size:11px;border-radius:4px;cursor:pointer" title="Set lokasi GPS">&#128205;</button>';
+    }
+    return '<span style="color:#a0aec0;font-size:10px">Tiada GPS</span>';
+  }
+}
+
+// ─── MONTHLY CLEARANCE SYSTEM (GAMBAR AKTIVITI) ──────
+function getClearanceLog(){
+  try{ return JSON.parse(localStorage.getItem('vu_clearance_log')||'{}'); }catch(e){return{};}
+}
+function saveClearanceLog(log){
+  localStorage.setItem('vu_clearance_log', JSON.stringify(log));
+  if(window.GS_READY && typeof rtWrite === 'function'){
+    rtWrite('vu_clearance_log', JSON.stringify(log));
+  }
+}
+// Check if a month's data has been cleared for this user
+function isClearanceDone(pegawaiId, mo, yr){
+  var log = getClearanceLog();
+  var key = pegawaiId+'_'+yr+'_'+mo;
+  return !!log[key];
+}
+// Mark clearance done
+function markClearanceDone(pegawaiId, mo, yr, count){
+  var log = getClearanceLog();
+  var key = pegawaiId+'_'+yr+'_'+mo;
+  log[key] = {
+    clearedAt: new Date().toISOString(),
+    clearedBy: CU.nm,
+    count: count
+  };
+  saveClearanceLog(log);
+}
+
+// Check on Gambar page open: is there old month data needing clearance?
+function checkGMClearance(){
+  if(!CU) return;
+  var now = new Date();
+  var curMo = now.getMonth();
+  var curYr = now.getFullYear();
+  
+  getAllGMRecords(CU.pid, function(recs){
+    // Group by year+month
+    var byMonth = {};
+    recs.forEach(function(r){
+      var key = r.yr+'_'+r.mo;
+      if(!byMonth[key]) byMonth[key] = [];
+      byMonth[key].push(r);
+    });
+    
+    // Find OLD months (not current month) that have data and not yet cleared
+    var pendingClearance = [];
+    Object.keys(byMonth).forEach(function(key){
+      var parts = key.split('_');
+      var yr = parseInt(parts[0]);
+      var mo = parseInt(parts[1]);
+      var isCurrent = (yr===curYr && mo===curMo);
+      if(isCurrent) return;
+      // Only consider months in the past
+      if(yr > curYr) return;
+      if(yr===curYr && mo>=curMo) return;
+      // Check if already cleared
+      if(isClearanceDone(CU.pid, mo, yr)) return;
+      pendingClearance.push({yr:yr, mo:mo, count:byMonth[key].length});
+    });
+    
+    if(pendingClearance.length === 0) return;
+    
+    // Show notification banner
+    showClearanceBanner(pendingClearance);
+  });
+}
+
+function showClearanceBanner(pending){
+  // Remove existing banner
+  var existing = document.getElementById('gm-clear-banner');
+  if(existing) existing.remove();
+  
+  var wrap = document.getElementById('pg-gm');
+  if(!wrap) return;
+  
+  var totalRecs = pending.reduce(function(sum, p){return sum+p.count;}, 0);
+  var monthList = pending.map(function(p){
+    return BLN_SP_FULL[p.mo]+' '+p.yr+' ('+p.count+' rekod)';
+  }).join(', ');
+  
+  var banner = document.createElement('div');
+  banner.id = 'gm-clear-banner';
+  banner.style.cssText = 'background:#fef3c7;border-left:4px solid #e8a900;padding:12px 16px;margin:8px;border-radius:6px';
+  banner.innerHTML = 
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
+    '<div style="flex:1;min-width:250px">' +
+    '<div style="font-weight:700;color:#744210;font-size:13px;margin-bottom:4px">&#128276; CLEARANCE BULANAN: '+totalRecs+' rekod gambar dari bulan lepas</div>' +
+    '<div style="font-size:11px;color:#744210">Bulan: '+monthList+'</div>' +
+    '<div style="font-size:10px;color:#744210;margin-top:4px;font-style:italic">Sila <b>DOWNLOAD</b> rekod lama dulu sebelum <b>APPROVE CLEARANCE</b> untuk padam semua data bulan lalu.</div>' +
+    '</div>' +
+    '<div style="display:flex;gap:6px">' +
+    '<button onclick="downloadGMPending()" style="background:#2b6cb0;color:#fff;border:none;border-radius:4px;padding:8px 14px;font-size:11px;cursor:pointer;font-weight:600">&#8659; Download Backup</button>' +
+    '<button onclick="approveGMClearance()" style="background:#c53030;color:#fff;border:none;border-radius:4px;padding:8px 14px;font-size:11px;cursor:pointer;font-weight:600">&#9888; Approve Clearance</button>' +
+    '</div>' +
+    '</div>';
+  
+  wrap.insertBefore(banner, wrap.firstChild);
+}
+
+function downloadGMPending(){
+  if(!CU) return;
+  var now = new Date();
+  var curMo = now.getMonth();
+  var curYr = now.getFullYear();
+  
+  getAllGMRecords(CU.pid, function(recs){
+    var oldRecs = recs.filter(function(r){
+      if(r.yr > curYr) return false;
+      if(r.yr===curYr && r.mo>=curMo) return false;
+      if(isClearanceDone(CU.pid, r.mo, r.yr)) return false;
+      return true;
+    });
+    
+    if(!oldRecs.length){
+      alert('Tiada rekod untuk di-backup');
+      return;
+    }
+    
+    // Build Excel
+    if(typeof XLSX==='undefined'){alert('Library XLSX tidak dimuat');return;}
+    var headers = ['Bil','Tarikh','Bulan','Tahun','Ringkasan','Pegawai','Bilangan Gambar'];
+    var rows = oldRecs.map(function(r,i){
+      return [i+1, r.tarikh||'', BLN_SP_FULL[r.mo], r.yr, r.ringkasan||'', r.pegawai||'', (r.images||[]).length];
+    });
+    var wsData = [headers].concat(rows);
+    var ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols'] = [{wch:4},{wch:14},{wch:12},{wch:8},{wch:50},{wch:18},{wch:15}];
+    
+    // Style headers
+    for(var c=0; c<headers.length; c++){
+      var cellRef = XLSX.utils.encode_cell({r:0,c:c});
+      if(!ws[cellRef]) continue;
+      ws[cellRef].s = {fill:{fgColor:{rgb:'0F2D5E'}},font:{color:{rgb:'FFFFFF'},bold:true},alignment:{horizontal:'center'},border:{top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}}};
+    }
+    
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Gambar Aktiviti Backup');
+    var fname = 'GambarAktiviti_Backup_'+CU.nm+'_'+(new Date().toISOString().split('T')[0])+'.xlsx';
+    XLSX.writeFile(wb, fname);
+    toast('&#9989; Backup dimuat turun: '+fname, '#276749');
+  });
+}
+
+function approveGMClearance(){
+  if(!CU) return;
+  var msg = '⚠️ APPROVE CLEARANCE\n\nIni akan PADAMKAN SEMUA rekod gambar bulan lepas yang belum di-clear.\n\nPastikan anda sudah DOWNLOAD BACKUP terlebih dahulu.\n\nTeruskan?';
+  if(!confirm(msg)) return;
+  
+  var now = new Date();
+  var curMo = now.getMonth();
+  var curYr = now.getFullYear();
+  
+  getAllGMRecords(CU.pid, function(recs){
+    var oldRecs = recs.filter(function(r){
+      if(r.yr > curYr) return false;
+      if(r.yr===curYr && r.mo>=curMo) return false;
+      if(isClearanceDone(CU.pid, r.mo, r.yr)) return false;
+      return true;
+    });
+    
+    if(!oldRecs.length){
+      alert('Tiada rekod untuk dipadam');
+      return;
+    }
+    
+    // Group by month
+    var byMonth = {};
+    oldRecs.forEach(function(r){
+      var key = r.yr+'_'+r.mo;
+      if(!byMonth[key]) byMonth[key] = [];
+      byMonth[key].push(r);
+    });
+    
+    // Delete each record
+    var totalDeleted = 0;
+    var totalToDelete = oldRecs.length;
+    
+    oldRecs.forEach(function(r){
+      deleteGMRecord(r.id, function(){
+        totalDeleted++;
+        if(totalDeleted >= totalToDelete){
+          // All deleted - mark each month as cleared
+          Object.keys(byMonth).forEach(function(key){
+            var parts = key.split('_');
+            markClearanceDone(CU.pid, parseInt(parts[1]), parseInt(parts[0]), byMonth[key].length);
+          });
+          
+          // Remove banner & refresh
+          var banner = document.getElementById('gm-clear-banner');
+          if(banner) banner.remove();
+          if(typeof renderGM === 'function') renderGM();
+          
+          alert('✅ Clearance selesai!\n\n'+totalDeleted+' rekod gambar telah dipadam.');
+          toast('&#9989; Clearance selesai - '+totalDeleted+' rekod dipadam','#276749');
+        }
+      });
+    });
+  });
+}
+
+
+// ─── SP03 MONTHLY CLEARANCE ──────────────────────────
+function checkSP03Clearance(){
+  if(!CU) return;
+  var now = new Date();
+  var curMo = now.getMonth();
+  var curYr = now.getFullYear();
+  
+  // Get all SP03 records for current user (officer's records based on filter)
+  var allSP03 = JSON.parse(localStorage.getItem('vu_sp03')||'[]');
+  var myRecs = allSP03.filter(function(r){
+    if(isMLAdmin()) return r.po===CU.po; // admin: their PO
+    // Officer: where they are Ketua or Pegawai Lain
+    var cuNm = (CU.nm||'').toUpperCase().trim();
+    if((r.ketuaAktiviti||'').toUpperCase().trim() === cuNm) return true;
+    var pegList = [];
+    if(r.pegawaiLain) pegList = r.pegawaiLain.split(',').map(function(x){return x.trim().toUpperCase();});
+    else pegList = [r.pegawai1,r.pegawai2,r.pegawai3].filter(Boolean).map(function(x){return x.toUpperCase().trim();});
+    return pegList.indexOf(cuNm) >= 0;
+  });
+  
+  // Group by year+month
+  var byMonth = {};
+  myRecs.forEach(function(r){
+    var key = r.yr+'_'+r.mo;
+    if(!byMonth[key]) byMonth[key] = [];
+    byMonth[key].push(r);
+  });
+  
+  // Find OLD months not cleared
+  var pending = [];
+  Object.keys(byMonth).forEach(function(key){
+    var parts = key.split('_');
+    var yr = parseInt(parts[0]);
+    var mo = parseInt(parts[1]);
+    if(yr > curYr) return;
+    if(yr===curYr && mo>=curMo) return;
+    // Check cleared - use special prefix for SP03 clearance
+    var sp03Key = 'sp03_'+CU.pid+'_'+yr+'_'+mo;
+    var log = getClearanceLog();
+    if(log[sp03Key]) return;
+    pending.push({yr:yr, mo:mo, count:byMonth[key].length, records:byMonth[key]});
+  });
+  
+  if(!pending.length) return;
+  showSP03ClearanceBanner(pending);
+}
+
+function showSP03ClearanceBanner(pending){
+  var existing = document.getElementById('sp03-clear-banner');
+  if(existing) existing.remove();
+  
+  var wrap = document.getElementById('pg-sp03');
+  if(!wrap) return;
+  
+  var totalRecs = pending.reduce(function(sum,p){return sum+p.count;}, 0);
+  var monthList = pending.map(function(p){
+    return BLN_SP_FULL[p.mo]+' '+p.yr+' ('+p.count+' rekod)';
+  }).join(', ');
+  
+  var banner = document.createElement('div');
+  banner.id = 'sp03-clear-banner';
+  banner.style.cssText = 'background:#fef3c7;border-left:4px solid #e8a900;padding:12px 16px;margin:8px;border-radius:6px';
+  banner.innerHTML = 
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
+    '<div style="flex:1;min-width:250px">' +
+    '<div style="font-weight:700;color:#744210;font-size:13px;margin-bottom:4px">&#128276; CLEARANCE SP03: '+totalRecs+' rekod dari bulan lepas</div>' +
+    '<div style="font-size:11px;color:#744210">Bulan: '+monthList+'</div>' +
+    '<div style="font-size:10px;color:#744210;margin-top:4px;font-style:italic">Sila <b>DOWNLOAD</b> laporan dulu sebelum <b>APPROVE CLEARANCE</b>. Tarikh lawatan di Senarai Penternak & Pengeluaran tidak akan terjejas.</div>' +
+    '</div>' +
+    '<div style="display:flex;gap:6px">' +
+    '<button onclick="downloadSP03Pending()" style="background:#2b6cb0;color:#fff;border:none;border-radius:4px;padding:8px 14px;font-size:11px;cursor:pointer;font-weight:600">&#8659; Download Backup</button>' +
+    '<button onclick="approveSP03Clearance()" style="background:#c53030;color:#fff;border:none;border-radius:4px;padding:8px 14px;font-size:11px;cursor:pointer;font-weight:600">&#9888; Approve Clearance</button>' +
+    '</div>' +
+    '</div>';
+  
+  wrap.insertBefore(banner, wrap.firstChild);
+}
+
+function downloadSP03Pending(){
+  if(!CU) return;
+  if(typeof XLSX==='undefined'){alert('XLSX tidak dimuat');return;}
+  
+  var now = new Date();
+  var curMo = now.getMonth();
+  var curYr = now.getFullYear();
+  var allSP03 = JSON.parse(localStorage.getItem('vu_sp03')||'[]');
+  var cuNm = (CU.nm||'').toUpperCase().trim();
+  
+  var oldRecs = allSP03.filter(function(r){
+    if(r.yr > curYr) return false;
+    if(r.yr===curYr && r.mo>=curMo) return false;
+    var sp03Key = 'sp03_'+CU.pid+'_'+r.yr+'_'+r.mo;
+    if(getClearanceLog()[sp03Key]) return false;
+    // Filter for this officer
+    if(isMLAdmin()) return r.po===CU.po;
+    if((r.ketuaAktiviti||'').toUpperCase().trim() === cuNm) return true;
+    var pegList = r.pegawaiLain ? r.pegawaiLain.split(',').map(function(x){return x.trim().toUpperCase();}) : [r.pegawai1,r.pegawai2,r.pegawai3].filter(Boolean).map(function(x){return x.toUpperCase().trim();});
+    return pegList.indexOf(cuNm) >= 0;
+  });
+  
+  if(!oldRecs.length){alert('Tiada rekod untuk backup');return;}
+  
+  // Build Excel (same format as exportSP03Excel but for backup)
+  var headers = ['Bil','VetEC','Bulan','Tahun','Pusat','Negeri','Tarikh','Nama Penternak','ID','Alamat','Daerah','Stok Akhir','Ketua','Pegawai Lain','Pegawai Rujukan'];
+  var rows = oldRecs.map(function(r,i){
+    var pegLain = r.pegawaiLain || [r.pegawai1,r.pegawai2,r.pegawai3].filter(Boolean).join(', ');
+    return [i+1, r.vetec||'', BLN_SP_FULL[r.mo]||'', r.yr||'', r.pusat||'', r.negeri||'', r.tarikhAktiviti||'', r.namaPenternak||'', r.idPremis||'', r.alamat||'', r.daerah||'', r.stokAkhir||'', r.ketuaAktiviti||'', pegLain, r.pegawaiRujukan||''];
+  });
+  var wsData = [headers].concat(rows);
+  var ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [{wch:4},{wch:8},{wch:10},{wch:6},{wch:14},{wch:10},{wch:14},{wch:28},{wch:12},{wch:30},{wch:14},{wch:10},{wch:16},{wch:25},{wch:18}];
+  for(var c=0;c<headers.length;c++){
+    var cr=XLSX.utils.encode_cell({r:0,c:c});
+    if(ws[cr]) ws[cr].s={fill:{fgColor:{rgb:'0F2D5E'}},font:{color:{rgb:'FFFFFF'},bold:true},alignment:{horizontal:'center'},border:{top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}}};
+  }
+  
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'SP03 Backup');
+  var fname = 'SP03_Backup_'+CU.nm+'_'+(new Date().toISOString().split('T')[0])+'.xlsx';
+  XLSX.writeFile(wb, fname);
+  toast('&#9989; Backup: '+fname,'#276749');
+}
+
+function approveSP03Clearance(){
+  if(!CU) return;
+  if(!confirm('⚠️ APPROVE CLEARANCE SP03\n\nIni akan PADAM semua rekod SP03 bulan lepas yang anda terlibat.\n\nPastikan dah download BACKUP dulu.\n\nNota: Tarikh lawatan di Senarai Penternak & Pengeluaran TIDAK akan terjejas.\n\nTeruskan?')) return;
+  
+  var now = new Date();
+  var curMo = now.getMonth();
+  var curYr = now.getFullYear();
+  var allSP03 = JSON.parse(localStorage.getItem('vu_sp03')||'[]');
+  var cuNm = (CU.nm||'').toUpperCase().trim();
+  
+  // Find records to delete (only old, only this officer's)
+  var toDelete = [];
+  var keepList = [];
+  var monthsCleared = {};
+  
+  allSP03.forEach(function(r){
+    if(r.yr > curYr || (r.yr===curYr && r.mo>=curMo)){
+      keepList.push(r); return;
+    }
+    var sp03Key = 'sp03_'+CU.pid+'_'+r.yr+'_'+r.mo;
+    if(getClearanceLog()[sp03Key]){
+      keepList.push(r); return;
+    }
+    
+    // Check if this is officer's record
+    var isMine = false;
+    if(isMLAdmin()){
+      isMine = (r.po===CU.po);
+    } else {
+      if((r.ketuaAktiviti||'').toUpperCase().trim() === cuNm) isMine = true;
+      else {
+        var pegList = r.pegawaiLain ? r.pegawaiLain.split(',').map(function(x){return x.trim().toUpperCase();}) : [r.pegawai1,r.pegawai2,r.pegawai3].filter(Boolean).map(function(x){return x.toUpperCase().trim();});
+        if(pegList.indexOf(cuNm) >= 0) isMine = true;
+      }
+    }
+    
+    if(isMine){
+      // Only delete if I am the ONLY officer (Ketua + no pegLain), otherwise just remove me from pegawaiLain
+      var ketua = (r.ketuaAktiviti||'').toUpperCase().trim();
+      var pegList = r.pegawaiLain ? r.pegawaiLain.split(',').map(function(x){return x.trim();}).filter(Boolean) : [];
+      
+      if(ketua === cuNm && pegList.length === 0){
+        // I'm the only one - delete entirely
+        toDelete.push(r.id);
+        var mk = r.yr+'_'+r.mo;
+        monthsCleared[mk] = (monthsCleared[mk]||0)+1;
+      } else if(ketua === cuNm){
+        // I'm Ketua but have other peg - promote first peg to Ketua
+        r.ketuaAktiviti = pegList[0];
+        pegList.shift();
+        r.pegawaiLain = pegList.join(', ');
+        keepList.push(r);
+        var mk = r.yr+'_'+r.mo;
+        monthsCleared[mk] = (monthsCleared[mk]||0)+1;
+      } else {
+        // I'm in pegawaiLain - remove me
+        var newPegList = pegList.filter(function(p){return p.toUpperCase().trim() !== cuNm;});
+        r.pegawaiLain = newPegList.join(', ');
+        keepList.push(r);
+        var mk = r.yr+'_'+r.mo;
+        monthsCleared[mk] = (monthsCleared[mk]||0)+1;
+      }
+    } else {
+      keepList.push(r);
+    }
+  });
+  
+  // Save updated list
+  localStorage.setItem('vu_sp03', JSON.stringify(keepList));
+  if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_sp03', JSON.stringify(keepList));
+  
+  // Mark months as cleared for this officer
+  Object.keys(monthsCleared).forEach(function(mk){
+    var parts = mk.split('_');
+    var log = getClearanceLog();
+    log['sp03_'+CU.pid+'_'+parts[0]+'_'+parts[1]] = {clearedAt:new Date().toISOString(),clearedBy:CU.nm,count:monthsCleared[mk]};
+    saveClearanceLog(log);
+  });
+  
+  // Remove banner & refresh
+  var banner = document.getElementById('sp03-clear-banner');
+  if(banner) banner.remove();
+  if(typeof renderSP03==='function') renderSP03();
+  
+  var total = Object.keys(monthsCleared).reduce(function(s,k){return s+monthsCleared[k];}, 0);
+  alert('✅ Clearance selesai!\n\n'+total+' rekod telah diproses (padam/keluar nama anda).');
+  toast('&#9989; SP03 clearance: '+total+' rekod','#276749');
+}
+
+// Helper: assign current officer as ketuaAktiviti for legacy records in their PO
+function claimLegacySP03(){
+  if(!CU || isMLAdmin()) return;
+  var sp = JSON.parse(localStorage.getItem('vu_sp03')||'[]');
+  var changed = 0;
+  sp.forEach(function(r){
+    if(r.po===CU.po && !r.ketuaAktiviti){
+      r.ketuaAktiviti = CU.nm;
+      changed++;
+    }
+  });
+  if(changed > 0){
+    localStorage.setItem('vu_sp03', JSON.stringify(sp));
+    if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_sp03', JSON.stringify(sp));
+    if(typeof renderSP03==='function') renderSP03();
+    alert('OK! '+changed+' rekod SP03 lama telah ditanda sebagai milik '+CU.nm+'.');
+  } else {
+    alert('Tiada rekod lama untuk ditandakan.');
+  }
+}
+
 var BLN_SP_FULL=['JANUARI','FEBRUARI','MAC','APRIL','MEI','JUN','JULAI','OGOS','SEPTEMBER','OKTOBER','NOVEMBER','DISEMBER'];
 
 function openSP03Download(){
@@ -1250,7 +1725,7 @@ function getOfficers(po){
 
 
 var RTDB='https://vetec-utara-default-rtdb.firebaseio.com';
-var GS_KEYS=['vu_g','vu_p','vu_rb','vu_rk','vu_ug','vu_ts','vu_ltj','vu_lt','vu_tkp','vu_tkt','vu_ivi','vu_ivp','vu_kw','vu_sp03','vu_ml','vu_ltk_ov','vu_submit_log','vu_import_hist','vu_officers','vu_ml_req','vu_notif'];
+var GS_KEYS=['vu_g','vu_p','vu_rb','vu_rk','vu_ug','vu_ts','vu_ltj','vu_lt','vu_tkp','vu_tkt','vu_ivi','vu_ivp','vu_kw','vu_sp03','vu_ml','vu_ltk_ov','vu_submit_log','vu_import_hist','vu_officers','vu_ml_req','vu_notif','vu_clearance_log','vu_rpt_imported','vu_rpt_hist'];
 var _lsOrig=localStorage.setItem.bind(localStorage);
 window.GS_READY=false;
 window.FB_READY=false;
@@ -3005,6 +3480,7 @@ function renderSP(){
     h+='<td style="text-align:center;font-size:10px;font-weight:700;color:'+(p.pv==='YA'?'#276749':'#c53030')+'">'+(p.pv||'TIDAK')+'</td>';
     h+='<td><div style="display:flex;align-items:center;gap:5px"><span class="tc '+tc+'" data-pi="'+pi+'">'+(p.tr||'Klik untuk rekod')+'</span><button data-pi="'+pi+'" style="background:#276749;color:#fff;border:none;border-radius:4px;padding:2px 7px;font-size:10px;cursor:pointer;font-weight:700" class="qt-btn">&#9989;</button></div></td>';
     h+='<td style="text-align:center"><span class="'+(vb?'s1':'s0')+'">'+(vb?'Dilawat':'Belum')+'</span></td>';
+    h+='<td style="text-align:center">'+gpsBtnHTML(p, pi)+'</td>';
     h+='<td><div style="display:flex;gap:3px"><button class="bsm be ep-btn" data-pi="'+pi+'">&#9999;&#65039;</button><button class="bsm bd dp-btn" data-pi="'+pi+'">&#128465;&#65039;</button></div></td>';
     h+='</tr>';
   });
@@ -3294,8 +3770,15 @@ function renderLD(){
     // GPS button in Ladang
     var hasGPS=p.lat&&p.lng;
     h+='<td style="border:1px solid #d0d0d0;padding:5px;text-align:center">';
-    h+='<button class="bsm ld-gps" data-pi="'+pi+'" style="border-color:'+(hasGPS?'#276749':'#d0d0d0')+';color:'+(hasGPS?'#276749':'#a0aec0')+';padding:2px 6px" title="'+(hasGPS?p.lat+', '+p.lng:'Set lokasi GPS')+'">';
-    h+='&#128205;</button></td>';
+    if(hasGPS){
+      h+='<div style="display:flex;gap:3px;justify-content:center;align-items:center">';
+      h+='<button class="bsm ld-nav" data-lat="'+p.lat+'" data-lng="'+p.lng+'" data-nm="'+(p.nm||'').replace(/"/g,'')+'" style="border:1px solid #2b6cb0;color:#fff;background:#2b6cb0;padding:3px 7px;font-size:12px;border-radius:4px;cursor:pointer" title="Buka Google Maps untuk navigasi">&#129517;</button>';
+      h+='<button class="bsm ld-gps" data-pi="'+pi+'" style="border:1px solid #276749;color:#276749;padding:3px 6px;font-size:11px;border-radius:4px;cursor:pointer" title="GPS: '+p.lat+', '+p.lng+'">&#128205;</button>';
+      h+='</div>';
+    } else {
+      h+='<button class="bsm ld-gps" data-pi="'+pi+'" style="border-color:#d0d0d0;color:#a0aec0;padding:2px 6px" title="Set lokasi GPS">&#128205;</button>';
+    }
+    h+='</td>';
     h+='<td style="text-align:center"><div style="display:flex;gap:3px"><button class="bsm be ep-btn" data-pi="'+pi+'">Edit</button><button class="bsm bd dp-btn" data-pi="'+pi+'">Padam</button></div></td>';
     h+='</tr>';
   });
@@ -3308,6 +3791,12 @@ function renderLD(){
     el.onclick=function(){
       var pi=+this.dataset.pi;
       openGPSModal(pi);
+    };
+  });
+  document.getElementById('ld-w').querySelectorAll('.ld-nav').forEach(function(el){
+    el.onclick=function(){
+      var lat=this.dataset.lat, lng=this.dataset.lng, nm=this.dataset.nm||'';
+      openGoogleMaps(lat, lng, nm);
     };
   });
   document.getElementById('ld-w').querySelectorAll('.dp-btn').forEach(function(el){el.onclick=function(){delP(+this.dataset.pi);};});
@@ -5131,6 +5620,8 @@ function deleteGMRecord(id, cb){
 // ── RENDER ───────────────────────────────────────
 function renderGM(){
   if(!CU) return;
+  // Check for pending clearance
+  setTimeout(function(){if(typeof checkGMClearance==='function')checkGMClearance();}, 500);
   var yr  = parseInt(document.getElementById('gm-yr').value)||2026;
   var mo  = document.getElementById('gm-mo').value;
   var q   = (document.getElementById('gm-q').value||'').toLowerCase();
@@ -6748,6 +7239,8 @@ function genSP03(){
 // ── RENDER LIST ───────────────────────────────────
 function renderSP03(){
   if(!CU) return;
+  // Check for pending SP03 clearance
+  setTimeout(function(){if(typeof checkSP03Clearance==='function')checkSP03Clearance();}, 500);
   var mo = parseInt(document.getElementById('s3-mo').value);
   var yr = parseInt(document.getElementById('s3-yr').value)||2026;
   
@@ -6766,7 +7259,6 @@ function renderSP03(){
     }
     
     // Officer: see records where they are Ketua OR Pegawai Lain (regardless of PO)
-    if(!r.ketuaAktiviti && r.po===CU.po) return true; // legacy records in own PO
     if((r.ketuaAktiviti||'').toUpperCase().trim() === cuNm) return true;
     var pegList = [];
     if(r.pegawaiLain) pegList = r.pegawaiLain.split(',').map(function(x){return x.trim().toUpperCase();});
