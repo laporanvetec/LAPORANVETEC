@@ -605,6 +605,383 @@ function renderMLReq(){
   wrap.innerHTML = html;
 }
 
+
+// ─── SP03 DOWNLOAD LAPORAN ─────────────────────────
+var BLN_SP_FULL=['JANUARI','FEBRUARI','MAC','APRIL','MEI','JUN','JULAI','OGOS','SEPTEMBER','OKTOBER','NOVEMBER','DISEMBER'];
+
+function openSP03Download(){
+  // Populate month/year selectors
+  var moSel = document.getElementById('dl-mo');
+  var yrSel = document.getElementById('dl-yr');
+  var curMo = parseInt(document.getElementById('s3-mo').value);
+  var curYr = parseInt(document.getElementById('s3-yr').value)||2026;
+  
+  moSel.innerHTML = '';
+  for(var i=0; i<12; i++){
+    moSel.innerHTML += '<option value="'+i+'"'+(i===curMo?' selected':'')+'>'+BLN_SP_FULL[i]+'</option>';
+  }
+  yrSel.innerHTML = '';
+  for(var y=2024; y<=2028; y++){
+    yrSel.innerHTML += '<option value="'+y+'"'+(y===curYr?' selected':'')+'>'+y+'</option>';
+  }
+  
+  // Show PO/Pegawai filter for admin
+  var poWrap = document.getElementById('dl-po-wrap');
+  if(isMLAdmin()){
+    poWrap.style.display = 'block';
+    // Default to current PO
+    document.getElementById('dl-po').value = CU.po || 'ALL';
+    updateDLPegawaiList();
+    document.getElementById('dl-po').onchange = updateDLPegawaiList;
+  } else {
+    poWrap.style.display = 'none';
+  }
+  
+  document.getElementById('mSP03DL').classList.add('on');
+}
+
+function updateDLPegawaiList(){
+  var po = document.getElementById('dl-po').value;
+  var pegSel = document.getElementById('dl-pg');
+  pegSel.innerHTML = '<option value="ALL">Semua Pegawai</option>';
+  // Get officers for this PO
+  if(po !== 'ALL' && typeof getOfficers === 'function'){
+    var ofs = getOfficers(po);
+    ofs.forEach(function(nm){
+      pegSel.innerHTML += '<option value="'+nm+'">'+nm+'</option>';
+    });
+  } else if(po === 'ALL'){
+    // All officers from all POs
+    Object.keys(DEFAULT_OFFICERS).forEach(function(p){
+      getOfficers(p).forEach(function(nm){
+        pegSel.innerHTML += '<option value="'+nm+'_'+p+'">'+nm+' ('+p+')</option>';
+      });
+    });
+  }
+}
+
+function getSP03DataForDownload(){
+  var mo = parseInt(document.getElementById('dl-mo').value);
+  var yr = parseInt(document.getElementById('dl-yr').value);
+  var poFilter = isMLAdmin() ? document.getElementById('dl-po').value : CU.po;
+  var pegFilter = isMLAdmin() ? document.getElementById('dl-pg').value : CU.nm;
+  
+  var allSP03 = JSON.parse(localStorage.getItem('vu_sp03')||'[]');
+  var filtered = allSP03.filter(function(r){
+    if(r.mo !== mo || r.yr !== yr) return false;
+    if(poFilter !== 'ALL' && r.po !== poFilter) return false;
+    if(!isMLAdmin()){
+      // Officer: only their own records (filter by ketuaAktiviti)
+      if(r.ketuaAktiviti && r.ketuaAktiviti.toUpperCase() !== CU.nm.toUpperCase()) return false;
+    } else if(pegFilter !== 'ALL'){
+      // Admin filtering by specific pegawai
+      var pgName = pegFilter.indexOf('_')>0 ? pegFilter.split('_')[0] : pegFilter;
+      if(r.ketuaAktiviti && r.ketuaAktiviti.toUpperCase() !== pgName.toUpperCase()) return false;
+      if(!r.ketuaAktiviti) return false;
+    }
+    return true;
+  });
+  
+  return {records: filtered, mo: mo, yr: yr, poFilter: poFilter, pegFilter: pegFilter};
+}
+
+function doSP03Download(){
+  var format = document.getElementById('dl-format').value;
+  var data = getSP03DataForDownload();
+  
+  if(!data.records.length){
+    alert('Tiada rekod SP03 untuk tetapan yang dipilih.');
+    return;
+  }
+  
+  try{
+    if(format === 'excel'){
+      exportSP03Excel(data);
+    } else if(format === 'pdf-table'){
+      exportSP03PDFTable(data);
+    } else if(format === 'pdf-form'){
+      exportSP03PDFForm(data);
+    }
+    closeM('mSP03DL');
+  }catch(e){
+    alert('Ralat semasa download: '+e.message);
+    console.error(e);
+  }
+}
+
+function exportSP03Excel(data){
+  if(typeof XLSX === 'undefined'){ alert('Library XLSX tidak dimuat. Refresh halaman.'); return; }
+  var recs = data.records;
+  var bln = BLN_SP_FULL[data.mo];
+  
+  // Headers - same as paparan SP03
+  var headers = ['Bil','VetEC','Bulan','Pusat Operasi','Negeri','Tarikh Aktiviti','Nama Penternak','ID Premis','Alamat Premis','Daerah','Komoditi','Bil Komoditi','Stok Akhir','Aktiviti Kawalan','Ketua Aktiviti','Pegawai Lain','Pegawai Rujukan','Kepuasan'];
+  
+  // Build data rows
+  var rows = recs.map(function(r, i){
+    var komoditi = r.komoditi || '';
+    var bilKomoditi = r.bilKomoditi || '';
+    if(typeof r.komoditi === 'object'){
+      komoditi = Object.keys(r.komoditi||{}).filter(function(k){return r.komoditi[k];}).join(', ');
+    }
+    return [
+      i+1, r.vetec||'', r.bulan||bln, r.pusat||'', r.negeri||'',
+      r.tarikhAktiviti||'', r.namaPenternak||'', r.idPremis||'', r.alamat||'', r.daerah||'',
+      komoditi, bilKomoditi, r.stokAkhir||'',
+      r.aktiviti||r.aktivitiKawalan||'', r.ketuaAktiviti||'',
+      r.pegawaiLain || [r.pegawai1, r.pegawai2, r.pegawai3].filter(Boolean).join(', '),
+      r.pegawaiRujukan||'', r.kepuasan||''
+    ];
+  });
+  
+  // Create worksheet
+  var wsData = [headers].concat(rows);
+  var ws = XLSX.utils.aoa_to_sheet(wsData);
+  
+  // Set column widths
+  ws['!cols'] = [
+    {wch:4}, {wch:8}, {wch:12}, {wch:14}, {wch:8}, {wch:15}, {wch:30}, {wch:12}, {wch:30}, {wch:14},
+    {wch:18}, {wch:10}, {wch:10}, {wch:18}, {wch:18}, {wch:25}, {wch:18}, {wch:10}
+  ];
+  
+  // Style headers: dark blue background, white text, bold
+  for(var c=0; c<headers.length; c++){
+    var cellRef = XLSX.utils.encode_cell({r:0, c:c});
+    if(!ws[cellRef]) continue;
+    ws[cellRef].s = {
+      fill:{fgColor:{rgb:'0F2D5E'}},
+      font:{color:{rgb:'FFFFFF'}, bold:true, sz:11},
+      alignment:{horizontal:'center', vertical:'center', wrapText:true},
+      border:{top:{style:'thin',color:{rgb:'000000'}},bottom:{style:'thin',color:{rgb:'000000'}},left:{style:'thin',color:{rgb:'000000'}},right:{style:'thin',color:{rgb:'000000'}}}
+    };
+  }
+  
+  // Style data rows: alternating colors, borders
+  for(var r=1; r<wsData.length; r++){
+    var rowColor = r%2===0 ? 'F7FAFC' : 'FFFFFF';
+    for(var c=0; c<headers.length; c++){
+      var cellRef = XLSX.utils.encode_cell({r:r, c:c});
+      if(!ws[cellRef]) ws[cellRef] = {v:'', t:'s'};
+      ws[cellRef].s = {
+        fill:{fgColor:{rgb:rowColor}},
+        font:{sz:10},
+        alignment:{vertical:'center', wrapText:true, horizontal:c===0?'center':'left'},
+        border:{top:{style:'thin',color:{rgb:'CBD5E0'}},bottom:{style:'thin',color:{rgb:'CBD5E0'}},left:{style:'thin',color:{rgb:'CBD5E0'}},right:{style:'thin',color:{rgb:'CBD5E0'}}}
+      };
+    }
+  }
+  
+  // Freeze first row
+  ws['!freeze'] = {xSplit:0, ySplit:1};
+  
+  // Create workbook
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'SP03 '+bln+' '+data.yr);
+  
+  // Add summary sheet
+  var summaryData = [
+    ['LAPORAN SP03 - '+bln+' '+data.yr],
+    [],
+    ['Pusat Operasi:', data.poFilter==='ALL'?'Semua PO':data.poFilter],
+    ['Pegawai:', data.pegFilter==='ALL'?'Semua':data.pegFilter],
+    ['Bulan/Tahun:', bln+' '+data.yr],
+    ['Jumlah Lawatan:', recs.length],
+    ['Dijana Oleh:', CU.nm+' ('+CU.po+')'],
+    ['Tarikh Jana:', new Date().toLocaleString('ms-MY')]
+  ];
+  var wsSum = XLSX.utils.aoa_to_sheet(summaryData);
+  wsSum['!cols'] = [{wch:20},{wch:35}];
+  // Style summary
+  if(wsSum['A1']) wsSum['A1'].s = {font:{bold:true,sz:14,color:{rgb:'0F2D5E'}},alignment:{horizontal:'center'}};
+  wsSum['!merges'] = [{s:{r:0,c:0},e:{r:0,c:1}}];
+  XLSX.utils.book_append_sheet(wb, wsSum, 'Ringkasan');
+  
+  // Save file
+  var fname = 'SP03_'+bln+'_'+data.yr+'_'+(data.poFilter==='ALL'?'SEMUA':data.poFilter.replace(/[^A-Z0-9]/gi,'_'))+'.xlsx';
+  XLSX.writeFile(wb, fname);
+  toast('&#9989; Excel dimuat turun: '+fname, '#276749');
+}
+
+function exportSP03PDFTable(data){
+  if(typeof window.jspdf === 'undefined'){ alert('Library jsPDF tidak dimuat. Refresh halaman.'); return; }
+  var jsPDF = window.jspdf.jsPDF;
+  var doc = new jsPDF({orientation:'landscape', unit:'mm', format:'a4'});
+  var bln = BLN_SP_FULL[data.mo];
+  
+  // Title
+  doc.setFontSize(14);
+  doc.setFont(undefined, 'bold');
+  doc.text('LAPORAN SP03 - '+bln+' '+data.yr, 14, 12);
+  doc.setFontSize(9);
+  doc.setFont(undefined, 'normal');
+  doc.text('PO: '+(data.poFilter==='ALL'?'Semua':data.poFilter)+' | Pegawai: '+(data.pegFilter==='ALL'?'Semua':data.pegFilter)+' | Jumlah: '+data.records.length+' rekod', 14, 18);
+  doc.text('Dijana: '+new Date().toLocaleString('ms-MY')+' oleh '+CU.nm, 14, 23);
+  
+  // Table headers (simplified for PDF)
+  var headers = [['#','Tarikh','Nama Penternak','ID','Alamat','Jenis','Ketua','Pegawai Lain']];
+  var rows = data.records.map(function(r, i){
+    var pegLain = r.pegawaiLain || [r.pegawai1,r.pegawai2,r.pegawai3].filter(Boolean).join(', ');
+    return [
+      i+1, r.tarikhAktiviti||'', r.namaPenternak||'', r.idPremis||'',
+      (r.alamat||'').substring(0,40), r.komoditi || (r.jenis||''),
+      r.ketuaAktiviti||'', pegLain
+    ];
+  });
+  
+  doc.autoTable({
+    head: headers,
+    body: rows,
+    startY: 28,
+    styles: {fontSize: 8, cellPadding: 2},
+    headStyles: {fillColor: [15, 45, 94], textColor: [255,255,255], fontStyle: 'bold'},
+    alternateRowStyles: {fillColor: [247, 250, 252]},
+    columnStyles: {
+      0: {cellWidth: 8, halign:'center'},
+      1: {cellWidth: 22},
+      2: {cellWidth: 45},
+      3: {cellWidth: 20},
+      4: {cellWidth: 55},
+      5: {cellWidth: 30},
+      6: {cellWidth: 30},
+      7: {cellWidth: 40}
+    },
+    margin: {left: 7, right: 7}
+  });
+  
+  var fname = 'SP03_Senarai_'+bln+'_'+data.yr+'.pdf';
+  doc.save(fname);
+  toast('&#9989; PDF dimuat turun: '+fname, '#276749');
+}
+
+function exportSP03PDFForm(data){
+  if(typeof window.jspdf === 'undefined'){ alert('Library jsPDF tidak dimuat. Refresh halaman.'); return; }
+  var jsPDF = window.jspdf.jsPDF;
+  var doc = new jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
+  var bln = BLN_SP_FULL[data.mo];
+  
+  data.records.forEach(function(r, idx){
+    if(idx > 0) doc.addPage();
+    
+    // Border
+    doc.setDrawColor(15, 45, 94);
+    doc.setLineWidth(0.5);
+    doc.rect(10, 10, 190, 277);
+    
+    // Header
+    doc.setFillColor(15, 45, 94);
+    doc.rect(10, 10, 190, 14, 'F');
+    doc.setTextColor(255,255,255);
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.text('BORANG SP03 - REKOD AKTIVITI LAWATAN LADANG', 105, 19, {align:'center'});
+    
+    doc.setTextColor(0,0,0);
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    
+    // Maklumat Asas section
+    var y = 30;
+    doc.setFillColor(232, 169, 0);
+    doc.rect(10, y, 190, 6, 'F');
+    doc.setTextColor(255,255,255);
+    doc.setFont(undefined, 'bold');
+    doc.text('1. MAKLUMAT ASAS', 12, y+4);
+    y += 8;
+    
+    doc.setTextColor(0,0,0);
+    doc.setFont(undefined, 'normal');
+    var asas = [
+      ['VetEC', r.vetec||''], ['Bulan', r.bulan||bln],
+      ['Pusat Operasi', r.pusat||''], ['Negeri', r.negeri||''],
+      ['Tarikh Aktiviti', r.tarikhAktiviti||''], ['Daerah', r.daerah||''],
+      ['Nama Penternak', r.namaPenternak||''], ['ID Premis', r.idPremis||''],
+      ['Alamat Premis', r.alamat||'']
+    ];
+    asas.forEach(function(f, i){
+      var col = i%2;
+      var row = Math.floor(i/2);
+      var x = 12 + col*94;
+      var yi = y + row*8;
+      doc.setFont(undefined, 'bold');
+      doc.setFontSize(7);
+      doc.text(f[0]+':', x, yi);
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(9);
+      doc.text((f[1]||'-').toString().substring(0,40), x, yi+4);
+    });
+    y += Math.ceil(asas.length/2)*8 + 4;
+    
+    // Stok Akhir
+    doc.setFillColor(39, 103, 73);
+    doc.rect(10, y, 190, 6, 'F');
+    doc.setTextColor(255,255,255);
+    doc.setFont(undefined, 'bold');
+    doc.text('STOK AKHIR', 12, y+4);
+    y += 8;
+    doc.setTextColor(0,0,0);
+    doc.setFontSize(11);
+    doc.text((r.stokAkhir||'-').toString(), 12, y+3);
+    y += 8;
+    
+    // Komoditi
+    doc.setFillColor(232, 169, 0);
+    doc.rect(10, y, 190, 6, 'F');
+    doc.setTextColor(255,255,255);
+    doc.setFont(undefined, 'bold');
+    doc.text('2. KOMODITI', 12, y+4);
+    y += 8;
+    doc.setTextColor(0,0,0);
+    doc.setFontSize(9);
+    var komStr = '';
+    if(typeof r.komoditi === 'object'){
+      komStr = Object.keys(r.komoditi||{}).filter(function(k){return r.komoditi[k];}).join(', ');
+    } else komStr = r.komoditi||'';
+    doc.text(komStr || '-', 12, y+3);
+    y += 8;
+    
+    // Pegawai
+    doc.setFillColor(232, 169, 0);
+    doc.rect(10, y, 190, 6, 'F');
+    doc.setTextColor(255,255,255);
+    doc.setFont(undefined, 'bold');
+    doc.text('3. MAKLUMAT PEGAWAI', 12, y+4);
+    y += 8;
+    doc.setTextColor(0,0,0);
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(7);
+    doc.text('Ketua Aktiviti:', 12, y);
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(9);
+    doc.text(r.ketuaAktiviti||'-', 12, y+4);
+    y += 10;
+    
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(7);
+    doc.text('Pegawai Lain:', 12, y);
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(9);
+    var pegLain = r.pegawaiLain || [r.pegawai1,r.pegawai2,r.pegawai3].filter(Boolean).join(', ');
+    doc.text(pegLain || '-', 12, y+4);
+    y += 10;
+    
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(7);
+    doc.text('Pegawai Rujukan:', 12, y);
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(9);
+    doc.text(r.pegawaiRujukan||'-', 12, y+4);
+    
+    // Footer
+    doc.setFontSize(7);
+    doc.setTextColor(120,120,120);
+    doc.text('Halaman '+(idx+1)+' dari '+data.records.length+' | Dijana: '+new Date().toLocaleString('ms-MY')+' oleh '+CU.nm, 105, 285, {align:'center'});
+  });
+  
+  var fname = 'SP03_Borang_'+bln+'_'+data.yr+'.pdf';
+  doc.save(fname);
+  toast('&#9989; PDF dimuat turun: '+fname, '#276749');
+}
+
 function approveMLReq(reqId){
   var reqs = getMLReq();
   var idx = reqs.findIndex(function(r){return r.reqId===reqId;});
@@ -1758,8 +2135,7 @@ window.addEventListener('load',function(){
       <span id="s3-cnt" style="font-size:12px;color:#718096"></span>
       <div style="margin-left:auto;display:flex;gap:8px">
         <button class="btn bbl" onclick="openAddSP03Manual()">+ Tambah SP03 Manual</button><button class="btn" style="background:#276749;color:#fff" onclick="openShareSP03()">&#128257; Kongsi SP03</button>
-        <button class="btn bgr" onclick="exSP03()">&#8659; Export Excel</button>
-        <button class="btn bn" onclick="printSP03()">&#128438; Print</button>
+        <button class="btn bgr" onclick="openSP03Download()">&#8659; Download Laporan</button>
       </div>
     </div>
     <div id="s3-info" style="background:#ebf8ff;border-left:4px solid #2b6cb0;padding:8px 18px;font-size:11px;color:#2b6cb0;display:none"></div>
@@ -1767,6 +2143,70 @@ window.addEventListener('load',function(){
   </div>
 
   <!-- MODAL: SP03 EDIT -->
+  
+  <!-- SP03 DOWNLOAD MODAL -->
+  <div class="mov" id="mSP03DL">
+    <div class="mbox" style="max-width:500px">
+      <div class="mh" style="background:#276749">
+        <div><h2>&#8659; Download Laporan SP03</h2><p id="mS3DL-sub">Pilih format dan tetapan</p></div>
+        <button class="mc" onclick="closeM('mSP03DL')">&#10005;</button>
+      </div>
+      <div style="padding:14px">
+        <div class="fg" style="margin-bottom:10px">
+          <label style="font-size:11px;font-weight:700;color:#444;display:block;margin-bottom:4px">FORMAT</label>
+          <select id="dl-format" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:5px;font-size:12px;font-family:inherit">
+            <option value="excel">Excel (.xlsx) - Berwarna</option>
+            <option value="pdf-table">PDF - Senarai Jadual</option>
+            <option value="pdf-form">PDF - Borang SP03 Rasmi (1 muka surat / penternak)</option>
+          </select>
+        </div>
+        
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+          <div class="fg" style="margin:0">
+            <label style="font-size:11px;font-weight:700;color:#444;display:block;margin-bottom:4px">BULAN</label>
+            <select id="dl-mo" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:5px;font-size:12px;font-family:inherit"></select>
+          </div>
+          <div class="fg" style="margin:0">
+            <label style="font-size:11px;font-weight:700;color:#444;display:block;margin-bottom:4px">TAHUN</label>
+            <select id="dl-yr" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:5px;font-size:12px;font-family:inherit"></select>
+          </div>
+        </div>
+        
+        <div id="dl-po-wrap" style="display:none">
+          <div class="fg" style="margin:0 0 10px">
+            <label style="font-size:11px;font-weight:700;color:#444;display:block;margin-bottom:4px">PUSAT OPERASI (PO)</label>
+            <select id="dl-po" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:5px;font-size:12px;font-family:inherit">
+              <option value="ALL">Semua PO</option>
+              <option value="GURUN">GURUN</option>
+              <option value="KULIM">KULIM</option>
+              <option value="SUNGAI PETANI">SUNGAI PETANI</option>
+              <option value="KUALA KETIL">KUALA KETIL</option>
+              <option value="ALOR STAR">ALOR STAR</option>
+              <option value="JITRA">JITRA</option>
+              <option value="KANGAR/PERLIS">KANGAR/PERLIS</option>
+              <option value="SG BAKAP">SG BAKAP</option>
+            </select>
+          </div>
+          
+          <div class="fg" style="margin:0 0 10px">
+            <label style="font-size:11px;font-weight:700;color:#444;display:block;margin-bottom:4px">PEGAWAI</label>
+            <select id="dl-pg" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:5px;font-size:12px;font-family:inherit">
+              <option value="ALL">Semua Pegawai</option>
+            </select>
+          </div>
+        </div>
+        
+        <div style="background:#f0fff4;border-left:3px solid #276749;padding:8px 10px;font-size:10px;color:#22543d;border-radius:3px;margin-bottom:10px">
+          <span id="dl-info">Pilih format dan tarikh untuk download laporan</span>
+        </div>
+      </div>
+      <div class="mft" style="padding:10px 14px;background:#f7fafc;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn bgh" onclick="closeM('mSP03DL')">Batal</button>
+        <button class="btn bn" style="background:#276749" onclick="doSP03Download()">&#8659; Download</button>
+      </div>
+    </div>
+  </div>
+
   <div class="mov" id="mSP03">
   <div class="mbox" style="max-width:1100px">
     <div class="mh" style="background:#0f2d5e"><div><h2 id="mS3-ttl">SP03 - Rekod Lawatan</h2><p id="mS3-sub"></p></div><button class="mc" id="mS3-x">&#10005;</button></div>
