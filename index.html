@@ -4383,7 +4383,13 @@ function renderTS(){
     // Location button
     var hasLoc=false;
     months.forEach(function(mo){var rec=tsd[tsdKey(p.rid,yr,mo)];if(rec&&rec.lat)hasLoc=true;});
-    h+='<td style="border:1px solid #ccc;padding:3px;text-align:center"><button class="bsm" data-pi="'+pt.indexOf(p)+'" data-yr="'+yr+'" data-mo="0" id="loc-'+i+'" style="border-color:#2b6cb0;color:#2b6cb0">'+( hasLoc?'&#128205;':'&#9711;')+'</button></td>';
+    h+='<td style="border:1px solid #ccc;padding:3px;text-align:center">';
+    if(hasLoc){
+      h+='<button onclick="openGoogleMaps(\''+p.lat+'\',\''+p.lng+'\',\''+(p.nm||'').replace(/"/g,'').replace(/\'/g,'')+'\')" style="border:1px solid #c53030;background:#c53030;color:#fff;padding:4px 10px;font-size:14px;border-radius:4px;cursor:pointer" title="Klik untuk navigasi Google Maps">&#128205;</button>';
+    } else {
+      h+='<button class="bsm" data-pi="'+pt.indexOf(p)+'" data-yr="'+yr+'" data-mo="0" id="loc-'+i+'" style="border:1.5px dashed #a0aec0;background:#fff;color:#a0aec0;padding:4px 10px;font-size:14px;border-radius:4px;cursor:pointer" title="Klik untuk set GPS">&#128205;</button>';
+    }
+    h+='</td>';
     months.forEach(function(mo){
       var key=tsdKey(p.rid,yr,mo);
       var rec=tsd[key]||{};
