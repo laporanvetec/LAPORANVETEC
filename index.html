@@ -610,6 +610,50 @@ function renderMLReq(){
 
 
 
+
+// Parse coordinates from Google Maps paste
+function parsePasteCoord(){
+  var input = document.getElementById('gm-paste-coord');
+  if(!input) return;
+  var val = input.value.trim();
+  if(!val){alert('Sila paste koordinat dari Google Maps');return;}
+  
+  // Try multiple formats
+  // Format 1: "6.1184, 100.3685" or "6.1184,100.3685"
+  var m = val.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+  if(m){
+    var lat = parseFloat(m[1]);
+    var lng = parseFloat(m[2]);
+    if(lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180){
+      document.getElementById('gm-lat').value = lat.toFixed(6);
+      document.getElementById('gm-lng').value = lng.toFixed(6);
+      var status = document.getElementById('gm-status');
+      if(status) status.innerHTML = '<span style="color:#276749;font-size:11px">&#9989; Koordinat diset: '+lat.toFixed(6)+', '+lng.toFixed(6)+'</span>';
+      if(typeof updateGMMapLink==='function') updateGMMapLink();
+      input.value = '';
+      return;
+    }
+  }
+  
+  // Format 2: DMS "6°07'06.2\"N 100°22'06.6\"E"
+  var dmsMatch = val.match(/(\d+)[°\s](\d+)['\s](\d+\.?\d*)["\s]*([NS])[\s,]*(\d+)[°\s](\d+)['\s](\d+\.?\d*)["\s]*([EW])/i);
+  if(dmsMatch){
+    var lat = parseInt(dmsMatch[1]) + parseInt(dmsMatch[2])/60 + parseFloat(dmsMatch[3])/3600;
+    if(dmsMatch[4].toUpperCase()==='S') lat = -lat;
+    var lng = parseInt(dmsMatch[5]) + parseInt(dmsMatch[6])/60 + parseFloat(dmsMatch[7])/3600;
+    if(dmsMatch[8].toUpperCase()==='W') lng = -lng;
+    document.getElementById('gm-lat').value = lat.toFixed(6);
+    document.getElementById('gm-lng').value = lng.toFixed(6);
+    var status = document.getElementById('gm-status');
+    if(status) status.innerHTML = '<span style="color:#276749;font-size:11px">&#9989; Koordinat (DMS) diset: '+lat.toFixed(6)+', '+lng.toFixed(6)+'</span>';
+    if(typeof updateGMMapLink==='function') updateGMMapLink();
+    input.value = '';
+    return;
+  }
+  
+  alert('Format tidak dikenali. Contoh yang sah:\n\n6.1184, 100.3685\n6°07\'06.2\"N 100°22\'06.6\"E');
+}
+
 // ─── GOOGLE MAPS NAVIGATION ──────────────────────
 function openGoogleMaps(lat, lng, nm){
   if(!lat || !lng){
@@ -636,13 +680,11 @@ function gpsBtnHTML(p, pi){
   var hasGPS = p && p.lat && p.lng;
   var safeName = (p.nm||'').replace(/"/g,'').replace(/'/g,'');
   if(hasGPS){
-    return '<div style="display:inline-flex;gap:3px;align-items:center">' +
-      '<button class="gps-nav-btn" data-lat="'+p.lat+'" data-lng="'+p.lng+'" data-nm="'+safeName+'" onclick="openGoogleMaps(\''+p.lat+'\',\''+p.lng+'\',\''+safeName+'\')" style="border:1px solid #2b6cb0;color:#fff;background:#2b6cb0;padding:3px 7px;font-size:12px;border-radius:4px;cursor:pointer" title="Buka Google Maps untuk navigasi">&#129517;</button>' +
-      (pi!=null?'<button class="bsm" data-pi="'+pi+'" onclick="openGPSModal('+pi+')" style="border:1px solid #276749;color:#276749;padding:3px 6px;font-size:11px;border-radius:4px;cursor:pointer" title="GPS: '+p.lat+', '+p.lng+' (Edit)">&#128205;</button>':'') +
-      '</div>';
+    // Click pin = direct Google Maps navigation
+    return '<button onclick="openGoogleMaps(\''+p.lat+'\',\''+p.lng+'\',\''+safeName+'\')" style="border:1px solid #c53030;background:#c53030;color:#fff;padding:4px 10px;font-size:14px;border-radius:4px;cursor:pointer" title="Klik untuk navigasi Google Maps&#10;GPS: '+p.lat+', '+p.lng+'">&#128205;</button>';
   } else {
     if(pi!=null){
-      return '<button class="bsm" data-pi="'+pi+'" onclick="openGPSModal('+pi+')" style="border:1px solid #d0d0d0;color:#a0aec0;padding:3px 6px;font-size:11px;border-radius:4px;cursor:pointer" title="Set lokasi GPS">&#128205;</button>';
+      return '<button onclick="openGPSModal('+pi+')" style="border:1.5px dashed #a0aec0;background:#fff;color:#a0aec0;padding:4px 10px;font-size:14px;border-radius:4px;cursor:pointer" title="Klik untuk set GPS">&#128205;</button>';
     }
     return '<span style="color:#a0aec0;font-size:10px">Tiada GPS</span>';
   }
@@ -2173,6 +2215,18 @@ window.addEventListener('load',function(){
         <a href="https://www.google.com/maps" target="_blank" class="btn bbl" style="padding:9px 16px;text-decoration:none;font-size:12px">&#128506; Google Maps</a>
       </div>
       <div id="gm-status" style="font-size:11px;min-height:18px"></div>
+      
+      <!-- Paste from Google Maps helper -->
+      <div style="background:#ebf8ff;border:1px solid #2b6cb0;border-radius:8px;padding:10px;margin-top:10px">
+        <div style="font-size:11px;font-weight:700;color:#2b6cb0;margin-bottom:6px">&#128203; ATAU Paste Koordinat dari Google Maps</div>
+        <div style="font-size:10px;color:#2b6cb0;margin-bottom:6px">
+          Cara: Buka Google Maps &rarr; cari ladang &rarr; <b>klik kanan</b> pada lokasi &rarr; klik koordinat yang muncul (salin) &rarr; tampal di bawah:
+        </div>
+        <div style="display:flex;gap:6px">
+          <input id="gm-paste-coord" placeholder="cth: 6.1184, 100.3685" style="flex:1;padding:8px 10px;border:1.5px solid #2b6cb0;border-radius:5px;font-size:13px;font-family:monospace">
+          <button type="button" class="btn bn" onclick="parsePasteCoord()" style="background:#2b6cb0;padding:8px 14px;font-size:12px">&#10004; Guna</button>
+        </div>
+      </div>
       <div id="gm-map-link" style="display:none;margin-top:8px">
         <a id="gm-open-map" href="#" target="_blank" class="btn bgr" style="text-decoration:none;font-size:12px;padding:7px 14px">&#127758; Lihat Lokasi di Google Maps</a>
       </div>
@@ -3771,12 +3825,11 @@ function renderLD(){
     var hasGPS=p.lat&&p.lng;
     h+='<td style="border:1px solid #d0d0d0;padding:5px;text-align:center">';
     if(hasGPS){
-      h+='<div style="display:flex;gap:3px;justify-content:center;align-items:center">';
-      h+='<button class="bsm ld-nav" data-lat="'+p.lat+'" data-lng="'+p.lng+'" data-nm="'+(p.nm||'').replace(/"/g,'')+'" style="border:1px solid #2b6cb0;color:#fff;background:#2b6cb0;padding:3px 7px;font-size:12px;border-radius:4px;cursor:pointer" title="Buka Google Maps untuk navigasi">&#129517;</button>';
-      h+='<button class="bsm ld-gps" data-pi="'+pi+'" style="border:1px solid #276749;color:#276749;padding:3px 6px;font-size:11px;border-radius:4px;cursor:pointer" title="GPS: '+p.lat+', '+p.lng+'">&#128205;</button>';
-      h+='</div>';
+      // Click pin = direct navigate to Google Maps
+      h+='<button class="bsm ld-nav" data-lat="'+p.lat+'" data-lng="'+p.lng+'" data-nm="'+(p.nm||'').replace(/"/g,'')+'" style="border:1px solid #c53030;background:#c53030;color:#fff;padding:4px 10px;font-size:14px;border-radius:4px;cursor:pointer" title="Klik untuk navigasi Google Maps&#10;GPS: '+p.lat+', '+p.lng+'">&#128205;</button>';
     } else {
-      h+='<button class="bsm ld-gps" data-pi="'+pi+'" style="border-color:#d0d0d0;color:#a0aec0;padding:2px 6px" title="Set lokasi GPS">&#128205;</button>';
+      // No GPS - click to set
+      h+='<button class="bsm ld-gps" data-pi="'+pi+'" style="border:1.5px dashed #a0aec0;background:#fff;color:#a0aec0;padding:4px 10px;font-size:14px;border-radius:4px;cursor:pointer" title="Klik untuk set GPS">&#128205;</button>';
     }
     h+='</td>';
     h+='<td style="text-align:center"><div style="display:flex;gap:3px"><button class="bsm be ep-btn" data-pi="'+pi+'">Edit</button><button class="bsm bd dp-btn" data-pi="'+pi+'">Padam</button></div></td>';
