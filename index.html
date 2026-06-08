@@ -4325,7 +4325,7 @@ function checkLTJValidation(){
   
   // Get LTJ penternak for current user
   var myLTJ = ltj.filter(function(l){
-    return l.pid === CU.pid && l.yr === yr;
+    return l.pegawaiId === CU.pid && l.yr === yr && !l.isDropped;
   });
   
   if(!myLTJ.length) return;
@@ -4333,7 +4333,7 @@ function checkLTJValidation(){
   // Check each LTJ penternak
   var problems = [];
   myLTJ.forEach(function(l){
-    var p = pt.find(function(x){return x.rid === l.rid;});
+    var p = pt.find(function(x){return x.rid === l.farmRid;});
     if(!p) return;
     var count = 0;
     for(var mo = 0; mo < 12; mo++){
@@ -5571,7 +5571,6 @@ function openAddLTJ(){
   });
   document.getElementById('mLTJ-sub').textContent = 'Tahun '+yr+' | PO: '+CU.po;
   document.getElementById('ltj-farm-info').style.display = 'none';
-  document.getElementById('ltj-sas').value = 1;
   document.getElementById('mLTJ').classList.add('on');
 }
 function onLTJFarmSel(){
