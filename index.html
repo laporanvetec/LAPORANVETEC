@@ -2502,13 +2502,38 @@ function renderSP(){
   var c=document.getElementById('sp-content');
   if(!tot){c.innerHTML='<div class="wb"><div style="font-size:30px;margin-bottom:10px">&#9888;&#65039;</div><div style="font-weight:700;color:#c53030;font-size:14px">Senarai penternak kosong</div><div style="color:#718096;font-size:12px;margin:8px 0">Tambah penternak terlebih dahulu.</div><button class="btn bg" onclick="openAddP()" style="margin-top:10px">+ Tambah Penternak</button></div>';return;}
   var h='<div style="background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden"><table class="spt"><thead><tr><th>#</th><th>Nama</th><th>Jenis</th><th>Pengeluaran</th><th>Bantuan</th><th>ID Premis</th><th>Tel</th><th>PPV</th><th>Tarikh Lawatan</th><th>Status</th><th>Tindakan</th></tr></thead><tbody>';
-  list.forEach(function(p,i){
+  lis  // Get pending requests for current user (cache once per render)
+  var _myPendingReqs = [];
+  if(typeof getMLReq === 'function' && CU){
+    _myPendingReqs = getMLReq().filter(function(r){
+      return r.status==='pending' && r.requestedBy===CU.nm && r.requestedPO===CU.po;
+    });
+  }
+  function getReqStatus(nm){
+    if(!nm) return null;
+    var nmU = nm.toUpperCase().trim();
+    return _myPendingReqs.find(function(r){
+      return r.nm && r.nm.toUpperCase().trim()===nmU;
+    });
+  }
+  
+  // Show banner at top if has pending requests
+  if(_myPendingReqs.length > 0 && !isMLAdmin()){
+    var bannerHtml = '<div style="background:#fef3c7;border-left:4px solid #e8a900;padding:8px 12px;margin-bottom:8px;border-radius:4px;font-size:11px;color:#744210">';
+    bannerHtml += '<b>&#128276; Anda ada '+_myPendingReqs.length+' permohonan menunggu kelulusan admin</b><br>';
+    bannerHtml += '<span style="font-size:10px">Penternak bertanda <span style="background:#e8a900;color:#fff;padding:1px 5px;border-radius:3px;font-weight:700">MENUNGGU</span> sedang dikaji. Anda akan dimaklumkan apabila admin meluluskan/menolak.</span>';
+    bannerHtml += '</div>';
+    h = bannerHtml + h;
+  }
+  
+  t.forEach(function(p,i){
     var pi=pt.indexOf(p);
     var vb=vM(p.tr);
     var tc=p.tr?'has':'emp';
-    h+='<tr>';
+    var pendReq = getReqStatus(p.nm);
+    h+='<tr'+(pendReq?' style="background:#fffbeb"':'')+'>';
     h+='<td style="text-align:center;color:#a0aec0">'+(i+1)+'</td>';
-    h+='<td><b>'+p.nm+'</b></td>';
+    h+='<td><b>'+p.nm+'</b>'+(pendReq?' <span style="background:#e8a900;color:#fff;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;margin-left:4px" title="Menunggu kelulusan admin">&#128276; MENUNGGU '+(pendReq.action||'add').toUpperCase()+'</span>':'')+'</td>';
     h+='<td><span class="bj">'+p.j+'</span></td>';
     h+='<td>'+tbadge(p.j)+'</td>';
     h+='<td><span class="bb">'+(p.bn||'-')+'</span></td>';
