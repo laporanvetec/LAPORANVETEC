@@ -1109,6 +1109,104 @@ function approveSP03Clearance(){
   toast('&#9989; SP03 clearance: '+total+' rekod','#276749');
 }
 
+
+// Check if pengeluaran needs update for visited farms this month
+function checkPengeluaranUpdate(typeCode){
+  // typeCode: 'rb', 'rk', or 'ug'
+  if(!CU) return;
+  var now = new Date();
+  var curMo = now.getMonth();
+  var curYr = now.getFullYear();
+  
+  // Get visited farms this month for this type
+  var visited = pt.filter(function(p){
+    if(!p.tr) return false;
+    if(typeCode==='rb' && !isT(p.j,'rb')) return false;
+    if(typeCode==='rk' && !isT(p.j,'rk')) return false;
+    if(typeCode==='ug' && !isT(p.j,'ug')) return false;
+    return p.tr.split(',').some(function(d){
+      var dt = pd(d.trim());
+      return dt && dt.getMonth()===curMo && dt.getFullYear()===curYr;
+    });
+  });
+  
+  if(!visited.length) return;
+  
+  // Get existing pengeluaran records this month
+  var keyMap = {rb:'vu_rb', rk:'vu_rk', ug:'vu_ug'};
+  var allPeng = [];
+  try{ allPeng = JSON.parse(localStorage.getItem(keyMap[typeCode])||'[]'); }catch(e){}
+  var thisMonth = allPeng.filter(function(r){
+    return r.mo===curMo && r.yr===curYr && r.po===CU.po;
+  });
+  var existRids = thisMonth.map(function(r){return r.rid;});
+  
+  // Get keep-as-is acknowledgments
+  var keepLog = JSON.parse(localStorage.getItem('vu_peng_keep')||'{}');
+  
+  // Find farms visited but not yet updated AND not acknowledged
+  var pending = visited.filter(function(p){
+    if(existRids.indexOf(p.rid) >= 0) return false;
+    var keepKey = typeCode+'_'+CU.pid+'_'+curYr+'_'+curMo+'_'+p.rid;
+    if(keepLog[keepKey]) return false;
+    return true;
+  });
+  
+  if(!pending.length) return;
+  
+  // Remove existing banner
+  var bannerId = 'peng-update-banner-'+typeCode;
+  var existing = document.getElementById(bannerId);
+  if(existing) existing.remove();
+  
+  // Find page
+  var pgId = 'pg-'+typeCode;
+  var wrap = document.getElementById(pgId);
+  if(!wrap) return;
+  
+  var html = '<div id="'+bannerId+'" style="background:#fef3c7;border-left:4px solid #e8a900;padding:10px 14px;margin:8px;border-radius:6px;font-size:11px;color:#744210">';
+  html += '<b>&#128276; UPDATE PENGELUARAN:</b> '+pending.length+' penternak telah dilawat bulan ini, sila update atau sahkan tiada perubahan:<br>';
+  html += '<div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">';
+  pending.forEach(function(p){
+    html += '<div style="background:#fff;padding:5px 8px;border-radius:3px;display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap">';
+    html += '<span style="font-size:11px"><b>'+p.nm+'</b> ('+p.j+')</span>';
+    html += '<div style="display:flex;gap:4px">';
+    html += '<button onclick="pengEditNow(\''+p.rid+'\',\''+typeCode+'\')" style="background:#2b6cb0;color:#fff;border:none;border-radius:3px;padding:3px 8px;font-size:10px;cursor:pointer;font-weight:600">&#9999; Edit</button>';
+    html += '<button onclick="pengKeepNoChange(\''+p.rid+'\',\''+typeCode+'\')" style="background:#276749;color:#fff;border:none;border-radius:3px;padding:3px 8px;font-size:10px;cursor:pointer;font-weight:600">&#10004; Tiada Perubahan</button>';
+    html += '</div>';
+    html += '</div>';
+  });
+  html += '</div>';
+  html += '</div>';
+  
+  wrap.insertAdjacentHTML('afterbegin', html);
+}
+
+function pengEditNow(rid, typeCode){
+  // Find the row in pengeluaran and trigger edit
+  var p = pt.find(function(x){return x.rid===rid;});
+  if(!p){alert('Penternak tidak dijumpai');return;}
+  // Use addFromML or open the edit modal
+  if(typeof addFromML==='function'){
+    addFromML(rid, typeCode);
+  } else {
+    alert('Sila pilih penternak '+p.nm+' dari senarai untuk edit');
+  }
+}
+
+function pengKeepNoChange(rid, typeCode){
+  var p = pt.find(function(x){return x.rid===rid;});
+  if(!confirm('Sahkan TIADA PERUBAHAN untuk pengeluaran '+(p?p.nm:'')+' bulan ini?')) return;
+  var now = new Date();
+  var keepLog = JSON.parse(localStorage.getItem('vu_peng_keep')||'{}');
+  var keepKey = typeCode+'_'+CU.pid+'_'+now.getFullYear()+'_'+now.getMonth()+'_'+rid;
+  keepLog[keepKey] = {ackBy:CU.nm, ackAt:new Date().toISOString()};
+  localStorage.setItem('vu_peng_keep', JSON.stringify(keepLog));
+  if(window.GS_READY && typeof rtWrite==='function') rtWrite('vu_peng_keep', JSON.stringify(keepLog));
+  toast('&#9989; Pengesahan disimpan','#276749');
+  checkPengeluaranUpdate(typeCode);
+}
+
 // Helper: assign current officer as ketuaAktiviti for legacy records in their PO
 function claimLegacySP03(){
   if(!CU || isMLAdmin()) return;
@@ -1773,7 +1871,7 @@ function getOfficers(po){
 
 
 var RTDB='https://vetec-utara-default-rtdb.firebaseio.com';
-var GS_KEYS=['vu_g','vu_p','vu_rb','vu_rk','vu_ug','vu_ts','vu_ltj','vu_lt','vu_tkp','vu_tkt','vu_ivi','vu_ivp','vu_kw','vu_sp03','vu_ml','vu_ltk_ov','vu_submit_log','vu_import_hist','vu_officers','vu_ml_req','vu_notif','vu_clearance_log','vu_rpt_imported','vu_rpt_hist'];
+var GS_KEYS=['vu_g','vu_p','vu_rb','vu_rk','vu_ug','vu_ts','vu_ltj','vu_lt','vu_tkp','vu_tkt','vu_ivi','vu_ivp','vu_kw','vu_sp03','vu_ml','vu_ltk_ov','vu_submit_log','vu_import_hist','vu_officers','vu_ml_req','vu_notif','vu_clearance_log','vu_rpt_imported','vu_rpt_hist','vu_peng_keep'];
 var _lsOrig=localStorage.setItem.bind(localStorage);
 window.GS_READY=false;
 window.FB_READY=false;
@@ -4026,6 +4124,7 @@ function svR(){
 
 // RENDER RB - shows penternak list + records
 function renderRB(){
+  setTimeout(function(){if(typeof checkPengeluaranUpdate==='function')checkPengeluaranUpdate('rb');},500);
   ld();
   var bln=document.getElementById('rb-bln').value,thn=document.getElementById('rb-thn').value;
   var mp=myPt('rb');
@@ -4103,6 +4202,7 @@ function renderRB(){
 
 // RENDER RK
 function renderRK(){
+  setTimeout(function(){if(typeof checkPengeluaranUpdate==='function')checkPengeluaranUpdate('rk');},500);
   ld();
   var bln=document.getElementById('rk-bln').value,thn=document.getElementById('rk-thn').value;
   var mp=myPt('rk');
@@ -4132,6 +4232,7 @@ function renderRK(){
 
 // RENDER UG
 function renderUG(){
+  setTimeout(function(){if(typeof checkPengeluaranUpdate==='function')checkPengeluaranUpdate('ug');},500);
   ld();
   var bln=document.getElementById('ug-bln').value,thn=document.getElementById('ug-thn').value;
   var mp=myPt('ug');
