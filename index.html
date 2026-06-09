@@ -6069,7 +6069,25 @@ function openAlasan(idx, type){
   alsIdx = idx; alsType = type;
   var ltj = getLTJ();
   var r = ltj[idx];
+  if(!r){
+    console.error('LTJ record not found at idx:', idx, 'ltj length:', ltj.length);
+    alert('Rekod LTJ tidak dijumpai (idx: '+idx+'). Refresh page.');
+    return;
+  }
+  // Find penternak - check pt first, then all pt across POs for admin
   var p = pt.find(function(x){ return x.rid===r.farmRid; });
+  if(!p){
+    try{
+      var allPt = JSON.parse(localStorage.getItem('vu_p')||'[]');
+      p = allPt.find(function(x){return x.rid===r.farmRid;});
+    }catch(e){}
+  }
+  if(!p){
+    try{
+      var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
+      p = ml.find(function(x){return x.rid===r.farmRid;});
+    }catch(e){}
+  }
   var ttl = type==='drop' ? 'Alasan Keluarkan Projek LTJ' : 'Alasan Gagal Capai Sasaran LTJ';
   var info = type==='drop' ? 'Anda akan mengeluarkan <b>'+( p?p.nm:'?')+'</b> dari senarai LTJ. Sila berikan alasan.' :
     '<b>'+(p?p.nm:'?')+'</b> masih belum mencapai sasaran kumulatif 3 lawatan setahun. Berikan alasan.';
