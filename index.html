@@ -563,9 +563,9 @@ function renderMLReq(){
   
   pending.forEach(function(r, idx){
     var action = r.action || 'add';
-    var actionLabel = {'add':'TAMBAH','delete':'PADAM','edit':'EDIT'}[action] || action.toUpperCase();
-    var actionColor = {'add':'#276749','delete':'#c53030','edit':'#e8a900'}[action] || '#0f2d5e';
-    var actionIcon = {'add':'\u2795','delete':'\u274C','edit':'\u270F\uFE0F'}[action] || '';
+    var actionLabel = {'add':'TAMBAH','delete':'PADAM','edit':'EDIT','ltj_drop':'KELUARKAN LTJ'}[action] || action.toUpperCase();
+    var actionColor = {'add':'#276749','delete':'#c53030','edit':'#e8a900','ltj_drop':'#dd6b20'}[action] || '#0f2d5e';
+    var actionIcon = {'add':'\u2795','delete':'\u274C','edit':'\u270F\uFE0F','ltj_drop':'\u26A0\uFE0F'}[action] || '';
     
     html += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:10px;overflow:hidden">';
     
@@ -597,6 +597,8 @@ function renderMLReq(){
     // For DELETE - warning
     if(action==='delete'){
       html += '<div style="background:#fff5f5;color:#c53030;padding:6px 12px;font-size:10px;font-weight:600;border-top:1px solid #fed7d7">&#9888; Permohonan untuk PADAM penternak dari Senarai Penternak DAN Masterlist</div>';
+    } else if(action==='ltj_drop'){
+      html += '<div style="background:#fff8f0;color:#dd6b20;padding:6px 12px;font-size:10px;font-weight:600;border-top:1px solid #fbd38d">&#9888; Permohonan KELUARKAN dari senarai LTJ '+(r.yr||'')+'<br><b>Alasan:</b> '+(r.sebabDrop||'-')+'</div>';
     } else if(action==='edit' && r.oldData){
       html += '<div style="background:#fffaf0;padding:6px 12px;font-size:10px;color:#744210;border-top:1px solid #fbd38d">Data lama: '+JSON.stringify(r.oldData)+'</div>';
     }
@@ -1644,12 +1646,25 @@ function approveMLReq(reqId){
   var confirmMsg = {
     'add':'Lulus permohonan TAMBAH '+r.nm+' ke Masterlist?',
     'delete':'Lulus permohonan PADAM '+r.nm+'?\n\nIni akan padam dari:\n- Senarai Penternak '+r.requestedBy+'\n- Masterlist (jika ada)\n- SP03 (jika ada)',
-    'edit':'Lulus permohonan EDIT '+r.nm+'?'
+    'edit':'Lulus permohonan EDIT '+r.nm+'?',
+    'ltj_drop':'Lulus permohonan KELUARKAN '+r.nm+' dari LTJ '+(r.yr||'')+'?\nAlasan: '+(r.sebabDrop||'-')
   }[action];
   if(!confirm(confirmMsg)) return;
   
   try{
-    if(action==='add'){
+    if(action==='ltj_drop'){
+      // Approve LTJ drop - actually mark as dropped
+      var ltj = JSON.parse(localStorage.getItem('vu_ltj')||'[]');
+      var ltjIdx = ltj.findIndex(function(l){return l.id===r.ltjId;});
+      if(ltjIdx >= 0){
+        ltj[ltjIdx].isDropped = true;
+        ltj[ltjIdx].sebabDrop = r.sebabDrop;
+        ltj[ltjIdx].droppedApprovedBy = CU.nm;
+        ltj[ltjIdx].droppedAt = new Date().toISOString();
+        localStorage.setItem('vu_ltj', JSON.stringify(ltj));
+        if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ltj', JSON.stringify(ltj));
+      }
+    } else if(action==='add'){
       // Add to masterlist
       var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
       var newEntry = {
@@ -1732,12 +1747,25 @@ function rejectMLReq(reqId){
   var confirmMsg = {
     'add':'Tolak permohonan TAMBAH '+r.nm+'?\n\nPenternak akan dipadam dari Senarai Penternak '+r.requestedBy+'.',
     'delete':'Tolak permohonan PADAM '+r.nm+'?\n\nPenternak akan KEKAL di Senarai Penternak '+r.requestedBy+'.',
-    'edit':'Tolak permohonan EDIT '+r.nm+'?\n\nPerubahan akan dibatalkan.'
+    'edit':'Tolak permohonan EDIT '+r.nm+'?\n\nPerubahan akan dibatalkan.',
+    'ltj_drop':'Tolak permohonan KELUARKAN '+r.nm+' dari LTJ?\n\nLTJ akan KEKAL.'
   }[action];
   if(!confirm(confirmMsg)) return;
   
   try{
-    if(action==='add'){
+    if(action==='ltj_drop'){
+      // Approve LTJ drop - actually mark as dropped
+      var ltj = JSON.parse(localStorage.getItem('vu_ltj')||'[]');
+      var ltjIdx = ltj.findIndex(function(l){return l.id===r.ltjId;});
+      if(ltjIdx >= 0){
+        ltj[ltjIdx].isDropped = true;
+        ltj[ltjIdx].sebabDrop = r.sebabDrop;
+        ltj[ltjIdx].droppedApprovedBy = CU.nm;
+        ltj[ltjIdx].droppedAt = new Date().toISOString();
+        localStorage.setItem('vu_ltj', JSON.stringify(ltj));
+        if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ltj', JSON.stringify(ltj));
+      }
+    } else if(action==='add'){
       // Remove from pt (officer's senarai)
       var allPt = JSON.parse(localStorage.getItem('vu_p')||'[]');
       var ptNew = allPt.filter(function(p){
@@ -1760,7 +1788,7 @@ function rejectMLReq(reqId){
   saveMLReq(reqs);
   renderMLReq();
   
-  var msg = {'add':'ditolak & dipadam','delete':'ditolak','edit':'ditolak'}[action];
+  var msg = {'add':'ditolak & dipadam','delete':'ditolak','edit':'ditolak','ltj_drop':'ditolak'}[action];
   toast('&#10006; Permohonan '+r.nm+' '+msg,'#c53030');
 }
 
@@ -5782,23 +5810,23 @@ function renderLTJ(){
   // Sasaran bulan ini is auto-calculated, no manual input needed
   document.getElementById('ltj-wrap').querySelectorAll('[data-ltj-pilih]').forEach(function(el){
     el.onclick = function(){
-      openLTJDatePicker(+this.dataset['ltj-pilih']);
+      openLTJDatePicker(+this.dataset.ltjPilih);
     };
   });
   document.getElementById('ltj-wrap').querySelectorAll('[data-ltj-drop]').forEach(function(el){
     el.onclick = function(){
-      openAlasan(+this.dataset['ltj-drop'], 'drop');
+      openAlasan(+this.dataset.ltjDrop, 'drop');
     };
   });
   document.getElementById('ltj-wrap').querySelectorAll('[data-ltj-alasan]').forEach(function(el){
     el.onclick = function(){
-      openAlasan(+this.dataset['ltj-alasan'], 'gagal');
+      openAlasan(+this.dataset.ltjAlasan, 'gagal');
     };
   });
   document.getElementById('ltj-wrap').querySelectorAll('[data-ltj-restore]').forEach(function(el){
     el.onclick = function(){
       var ltj = getLTJ();
-      ltj[+this.dataset['ltj-restore']].isDropped = false;
+      ltj[+this.dataset.ltjRestore].isDropped = false;
       saveLTJData(ltj);
       renderLTJ();
       toast('Projek dipulihkan','#276749');
@@ -5941,7 +5969,22 @@ function openLTJDatePicker(idx){
   var ltj = getLTJ();
   var r = ltj[idx];
   if(!r) return;
+  // Find penternak - check pt first, then all pt across POs for admin
   var p = pt.find(function(x){return x.rid===r.farmRid;});
+  if(!p){
+    // Try all pt
+    try{
+      var allPt = JSON.parse(localStorage.getItem('vu_p')||'[]');
+      p = allPt.find(function(x){return x.rid===r.farmRid;});
+    }catch(e){}
+  }
+  if(!p){
+    // Try masterlist
+    try{
+      var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
+      p = ml.find(function(x){return x.rid===r.farmRid;});
+    }catch(e){}
+  }
   if(!p){alert('Penternak tidak dijumpai');return;}
   
   _ltjPickIdx = idx;
@@ -6033,6 +6076,24 @@ function saveAlasan(){
   var txt = document.getElementById('mAls-txt').value.trim();
   if(!txt){ alert('Sila nyatakan alasan!'); return; }
   var ltj = getLTJ();
+  
+  if(alsType==='drop' && !isMLAdmin()){
+    // Officer: send approval request to admin
+    var r = ltj[alsIdx];
+    var p = pt.find(function(x){return x.rid===r.farmRid;});
+    if(!p){alert('Penternak tidak dijumpai');return;}
+    
+    var submitted = submitLTJDropRequest(r, p, txt);
+    if(submitted){
+      document.getElementById('mLTJAlasan').classList.remove('on');
+      toast('&#128276; Permohonan keluarkan LTJ dihantar untuk kelulusan admin','#e8a900');
+    } else {
+      alert('Permohonan sudah wujud untuk LTJ ini.');
+    }
+    return;
+  }
+  
+  // Admin or gagal - apply immediately
   if(alsType==='drop'){
     ltj[alsIdx].isDropped = true;
     ltj[alsIdx].sebabDrop = txt;
@@ -6043,6 +6104,37 @@ function saveAlasan(){
   document.getElementById('mLTJAlasan').classList.remove('on');
   renderLTJ();
   toast('Alasan disimpan','#276749');
+}
+
+// Submit LTJ drop request to admin
+function submitLTJDropRequest(ltjRec, penternak, reason){
+  var reqs = getMLReq();
+  // Check duplicate
+  var dup = reqs.find(function(r){
+    return r.status==='pending' && r.action==='ltj_drop' && r.ltjId===ltjRec.id;
+  });
+  if(dup) return false;
+  
+  reqs.push({
+    reqId: 'req_'+Date.now()+'_'+Math.random().toString(36).substr(2,5),
+    action: 'ltj_drop',
+    ltjId: ltjRec.id,
+    rid: penternak.rid,
+    nm: penternak.nm,
+    id: penternak.id||'',
+    j: penternak.j||'',
+    po: penternak.po||CU.po,
+    al: penternak.al||'',
+    sebabDrop: reason,
+    yr: ltjRec.yr,
+    requestedBy: CU.nm||'',
+    requestedPO: CU.po||'',
+    requestedFrom: 'ltj',
+    requestedAt: new Date().toISOString(),
+    status: 'pending'
+  });
+  saveMLReq(reqs);
+  return true;
 }
 
 // ── EXPORT & PRINT ────────────────────────────────
