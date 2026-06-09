@@ -5683,9 +5683,21 @@ function renderLTJ(){
     var p = pt.find(function(x){ return x.rid===r.farmRid; });
     if(!p) return '';
     bil++;
-    var visMonth = countVisitsMonth(p, mo, yr);
-    var visCum   = countVisitsYear(p, yr);
-    var dates    = getVisitDatesMonth(p, mo, yr);
+    // Use selectedDates for LTJ counting (only the 3 chosen visits)
+    var selDates = (r.selectedDates || []).filter(function(d){
+      var dt = pd(d);
+      return dt && dt.getFullYear() === yr;
+    });
+    var visCum = selDates.length;
+    // For "this month" - count selected dates that fall in current month
+    var visMonth = selDates.filter(function(d){
+      var dt = pd(d);
+      return dt && dt.getMonth() === mo;
+    }).length;
+    var dates = selDates.filter(function(d){
+      var dt = pd(d);
+      return dt && dt.getMonth() === mo;
+    });
     // Also get sasaran from tsd if available
     var tsdRec   = tsd[tsdKey(p.rid, yr, mo)] || {};
     var sasSrc   = tsdRec.sasaran ? tsdRec.sasaran : '';
@@ -5739,9 +5751,8 @@ function renderLTJ(){
     if(visCum < cumTarget) row += '<div style="font-size:9px;color:'+progCol+'">Perlu '+(cumTarget-visCum)+' lagi</div>';
     if(visCum >= cumTarget) row += '<div style="font-size:9px;color:#276749">&#9989; Sasaran Tercapai</div>';
     row += '</td>';
-    // Pencapaian sebenar (total sepanjang tahun)
-    var allYrDates2 = [];
-    if(p.tr){ p.tr.split(',').forEach(function(d){ var dt2=pd(d.trim()); if(dt2&&dt2.getFullYear()===yr) allYrDates2.push(d.trim()); }); }
+    // Pencapaian sebenar (total dari selectedDates sahaja)
+    var allYrDates2 = selDates.slice();
     var sebenarTotal = allYrDates2.length;
     var sBg = sebenarTotal > cumTarget ? '#ebf8ff' : sebenarTotal === cumTarget ? '#c6f6d5' : '#fff';
     var sCol = sebenarTotal > cumTarget ? '#2b6cb0' : sebenarTotal === cumTarget ? '#276749' : '#c53030';
@@ -5764,11 +5775,7 @@ function renderLTJ(){
       row += '<span style="color:#d0d0d0;font-size:11px;font-style:italic">Tiada lawatan bulan ini<br><span style="font-size:10px">Rekod tarikh di Ladang Belum Dilawat</span></span>';
     }
     // Also show all year visits count below
-    var allYearDates = [];
-    if(p.tr){ p.tr.split(',').forEach(function(d){ var dt=pd(d.trim()); if(dt&&dt.getFullYear()===yr) allYearDates.push(d.trim()); }); }
-    if(allYearDates.length > dates.length){
-      row += '<div style="margin-top:4px;font-size:10px;color:#718096">Semua '+yr+': '+allYearDates.join(', ')+'</div>';
-    }
+    // Don't show all year dates - only show selected dates (already in selectedDates display below)
     if(r.selectedDates && r.selectedDates.length){
       row += '<div style="margin-top:6px;padding:5px 8px;background:#ebf8ff;border-radius:4px;border-left:3px solid #2b6cb0">';
       row += '<div style="font-size:10px;color:#2b6cb0;font-weight:700;margin-bottom:3px">&#9989; LTJ Tarikh Dipilih:</div>';
