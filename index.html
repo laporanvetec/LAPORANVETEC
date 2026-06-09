@@ -462,21 +462,29 @@ function saveMLReq(arr){
 
 // Submit ML request - action: 'add', 'delete', 'edit'
 function submitMLActionRequest(penternak, action, source, oldData){
-  // For ADD: check if already in masterlist
+  // For ADD: check if already in masterlist (match nm + jenis)
   if(action==='add'){
     try{
       var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
+      var nmU = (penternak.nm||'').toUpperCase().trim();
+      var jU = (penternak.j||'').toUpperCase().trim();
       var existing = ml.find(function(m){
-        return m.nm && penternak.nm && m.nm.toUpperCase()===penternak.nm.toUpperCase();
+        if(!m.nm) return false;
+        var mnU = m.nm.toUpperCase().trim();
+        var mjU = (m.j||'').toUpperCase().trim();
+        return mnU===nmU && mjU===jU;
       });
       if(existing) return false;
     }catch(e){}
   }
   
-  // Check if already a pending request for same name & action
+  // Check if already a pending request for same nm+jenis & action
   var reqs = getMLReq();
+  var nmU2 = (penternak.nm||'').toUpperCase().trim();
+  var jU2 = (penternak.j||'').toUpperCase().trim();
   var dup = reqs.find(function(r){
-    return r.nm && penternak.nm && r.nm.toUpperCase()===penternak.nm.toUpperCase() && r.status==='pending' && r.action===action;
+    if(!r.nm || r.status!=='pending' || r.action!==action) return false;
+    return r.nm.toUpperCase().trim()===nmU2 && (r.j||'').toUpperCase().trim()===jU2;
   });
   if(dup) return false;
   
