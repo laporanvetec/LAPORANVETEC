@@ -3444,11 +3444,38 @@ var ePI=null,eTI=null,eRI=null,eRT=null,impR=[],tDt=[];
 function isT(j,t){if(!j)return false;var u=j.toUpperCase();return TKW[t].some(function(k){return u.indexOf(k)>=0;});}
 function myPt(t){
   if(!CU)return[];
-  // Admin sees masterlist as senarai
+  // Admin sees masterlist + merged officer data (tr, lat/lng updates)
   if(isMLAdmin()){
     try{
       var ml=JSON.parse(localStorage.getItem('vu_ml')||'[]');
-      return ml.filter(function(p){return !t||isT(p.j,t);});
+      var allPt=JSON.parse(localStorage.getItem('vu_p')||'[]');
+      // Build name+po lookup for officer updates
+      var ptByKey = {};
+      allPt.forEach(function(p){
+        if(!p.nm) return;
+        var key = p.nm.toUpperCase().trim()+'|'+(p.po||'');
+        // Keep one with most data (prefer with tr, then lat/lng)
+        if(!ptByKey[key] || p.tr || p.lat){
+          ptByKey[key] = p;
+        }
+      });
+      // Merge masterlist with officer updates
+      return ml.filter(function(p){return !t||isT(p.j,t);}).map(function(m){
+        var key = (m.nm||'').toUpperCase().trim()+'|'+(m.po||'');
+        var officer = ptByKey[key];
+        if(officer){
+          // Merge officer updates (tr, lat, lng) into masterlist entry
+          var merged = Object.assign({}, m);
+          if(officer.tr) merged.tr = officer.tr;
+          if(officer.lat) merged.lat = officer.lat;
+          if(officer.lng) merged.lng = officer.lng;
+          if(officer.id && !merged.id) merged.id = officer.id;
+          if(officer.tl && !merged.tl) merged.tl = officer.tl;
+          if(officer.pv) merged.pv = officer.pv;
+          return merged;
+        }
+        return m;
+      });
     }catch(e){return[];}
   }
   return pt.filter(function(p){return (p.pid===CU.pid||(!p.pid&&p.po===CU.po))&&(!t||isT(p.j,t));});
