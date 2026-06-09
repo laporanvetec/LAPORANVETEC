@@ -3770,25 +3770,56 @@ function delP(i){
   
   if(isMLAdmin()){
     // Admin: delete immediately + propagate to masterlist
-    if(!confirm('Padam "'+p.nm+'"?\n\nIni juga akan padam dari Senarai Pegawai + Masterlist.'))return;
-    // Delete from pt (any officer's senarai with same nm+po+jenis)
-    var nmU = (p.nm||'').toUpperCase().trim();
-    var jU = (p.j||'').toUpperCase().trim();
+    if(!confirm('Padam "'+p.nm+'" ('+p.j+')?\n\nIni juga akan padam dari Senarai Pegawai + Masterlist.'))return;
+    var targetRid = p.rid || p.id;
+    // Delete from pt - prefer rid match (unique), fallback to nm+po+jenis
     var allPt = JSON.parse(localStorage.getItem('vu_p')||'[]');
-    var ptNew = allPt.filter(function(x){
-      if(!x.nm) return true;
-      return !(x.nm.toUpperCase().trim()===nmU && x.po===p.po && x.j&&x.j.toUpperCase().trim()===jU);
-    });
+    var ptNew;
+    if(targetRid){
+      ptNew = allPt.filter(function(x){return (x.rid||x.id) !== targetRid;});
+      // If no rid match found, also try nm+po+jenis (officers may have copy with diff rid)
+      if(ptNew.length === allPt.length){
+        var nmU = (p.nm||'').toUpperCase().trim();
+        var jU = (p.j||'').toUpperCase().trim();
+        ptNew = allPt.filter(function(x){
+          if(!x.nm) return true;
+          return !(x.nm.toUpperCase().trim()===nmU && x.po===p.po && x.j&&x.j.toUpperCase().trim()===jU);
+        });
+      }
+    } else {
+      var nmU = (p.nm||'').toUpperCase().trim();
+      var jU = (p.j||'').toUpperCase().trim();
+      ptNew = allPt.filter(function(x){
+        if(!x.nm) return true;
+        return !(x.nm.toUpperCase().trim()===nmU && x.po===p.po && x.j&&x.j.toUpperCase().trim()===jU);
+      });
+    }
     localStorage.setItem('vu_p', JSON.stringify(ptNew));
     pt = ptNew;
     if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_p', JSON.stringify(ptNew));
-    // Also delete from masterlist
+    // Also delete from masterlist - use rid first
     try{
       var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
-      var mlNew = ml.filter(function(m){
-        if(!m.nm) return true;
-        return !(m.nm.toUpperCase().trim() === p.nm.toUpperCase().trim() && (m.po === p.po || !m.po));
-      });
+      var mlNew;
+      if(targetRid){
+        mlNew = ml.filter(function(m){return (m.rid||m.id) !== targetRid;});
+        if(mlNew.length === ml.length){
+          // Fallback: match by nm+po+jenis (precise)
+          var nmU2 = (p.nm||'').toUpperCase().trim();
+          var jU2 = (p.j||'').toUpperCase().trim();
+          mlNew = ml.filter(function(m){
+            if(!m.nm) return true;
+            return !(m.nm.toUpperCase().trim()===nmU2 && (m.po===p.po||!m.po) && m.j&&m.j.toUpperCase().trim()===jU2);
+          });
+        }
+      } else {
+        var nmU2 = (p.nm||'').toUpperCase().trim();
+        var jU2 = (p.j||'').toUpperCase().trim();
+        mlNew = ml.filter(function(m){
+          if(!m.nm) return true;
+          return !(m.nm.toUpperCase().trim()===nmU2 && (m.po===p.po||!m.po) && m.j&&m.j.toUpperCase().trim()===jU2);
+        });
+      }
       if(mlNew.length !== ml.length){
         localStorage.setItem('vu_ml', JSON.stringify(mlNew));
         if(window.GS_READY && typeof rtWrite === 'function'){
