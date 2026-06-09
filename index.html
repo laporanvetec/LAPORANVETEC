@@ -2407,6 +2407,29 @@ window.addEventListener('load',function(){
   </div>
 
   <!-- MODAL: TAMBAH LTJ -->
+  <!-- LTJ DATE PICKER MODAL -->
+  <div class="mov" id="mLTJPick">
+    <div class="mbox md">
+      <div class="mh" style="background:#2b6cb0">
+        <div><h2>&#128197; Pilih Tarikh LTJ</h2><p id="mLTJPick-sub"></p></div>
+        <button class="mc" onclick="document.getElementById('mLTJPick').classList.remove('on')">&#10005;</button>
+      </div>
+      <div class="mb">
+        <div style="background:#ebf8ff;border-radius:8px;padding:10px;margin-bottom:14px;font-size:11px;color:#2b6cb0">
+          <b>Pilih sehingga 3 tarikh</b> dari senarai tarikh lawatan tahun ini. Tarikh ini akan direkod sebagai 3 lawatan rasmi LTJ.
+        </div>
+        <div id="ltj-pick-list" style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:6px"></div>
+        <div style="margin-top:14px;padding:10px;background:#f7fafc;border-radius:6px;font-size:11px">
+          <b>Dipilih:</b> <span id="ltj-pick-count">0</span> / 3
+        </div>
+      </div>
+      <div class="mft">
+        <button class="btn bgh" onclick="document.getElementById('mLTJPick').classList.remove('on')">Batal</button>
+        <button class="btn bn" onclick="saveLTJDates()">Simpan</button>
+      </div>
+    </div>
+  </div>
+
   <div class="mov" id="mLTJ">
   <div class="mbox md">
     <div class="mh" style="background:#0f2d5e"><div><h2>+ Tambah Projek LTJ</h2><p id="mLTJ-sub">Pilih penternak untuk program LTJ</p></div><button class="mc" onclick="document.getElementById('mLTJ').classList.remove('on')">&#10005;</button></div>
@@ -5547,7 +5570,7 @@ function renderLTJ(){
   var yr = parseInt(document.getElementById('ltj-yr').value);
   var moNames = ['Januari','Februari','Mac','April','Mei','Jun','Julai','Ogos','September','Oktober','November','Disember'];
   var ltjAll = getLTJ();
-  var myLTJ = ltjAll.filter(function(r){ return r.pegawaiId===CU.pid && r.yr===yr; });
+  var myLTJ = ltjAll.filter(function(r){ return r.yr===yr && (isMLAdmin() || r.pegawaiId===CU.pid); });
   var tsd = getTSD();
   document.getElementById('ltj-cnt').textContent = myLTJ.length+' projek LTJ';
 
@@ -5612,6 +5635,7 @@ function renderLTJ(){
   h += '<th style="border:2px solid #000;padding:8px 10px;color:#000;text-align:center" colspan="2">SASARAN</th>';
   h += '<th style="border:2px solid #000;padding:8px 10px;color:#000;text-align:center" colspan="3">PENCAPAIAN</th>';
   h += '<th style="border:2px solid #000;padding:8px 10px;color:#000;min-width:180px" rowspan="2">CATATAN (TARIKH LAWATAN)</th>';
+  h += '<th style="border:2px solid #000;padding:8px 10px;color:#000;min-width:130px" rowspan="2">TARIKH LTJ (1, 2, 3)</th>';
   h += '<th style="border:2px solid #000;padding:8px 10px;color:#000;min-width:80px" rowspan="2">TINDAKAN</th>';
   h += '</tr>';
   h += '<tr style="background:#FFD740">';
@@ -5717,6 +5741,14 @@ function renderLTJ(){
     if(allYearDates.length > dates.length){
       row += '<div style="margin-top:4px;font-size:10px;color:#718096">Semua '+yr+': '+allYearDates.join(', ')+'</div>';
     }
+    if(r.selectedDates && r.selectedDates.length){
+      row += '<div style="margin-top:6px;padding:5px 8px;background:#ebf8ff;border-radius:4px;border-left:3px solid #2b6cb0">';
+      row += '<div style="font-size:10px;color:#2b6cb0;font-weight:700;margin-bottom:3px">&#9989; LTJ Tarikh Dipilih:</div>';
+      r.selectedDates.forEach(function(d, di){
+        row += '<div style="font-size:10px;color:#2b6cb0"><b>Lawatan '+(di+1)+':</b> '+d+'</div>';
+      });
+      row += '</div>';
+    }
     if(r.sebabDrop) row += '<div style="color:#c53030;font-size:10px;margin-top:4px"><b>Alasan drop:</b> '+r.sebabDrop+'</div>';
     if(r.sebabGagal && visCum < cumTarget) row += '<div style="color:#c53030;font-size:10px;margin-top:4px"><b>Alasan gagal:</b> '+r.sebabGagal+'</div>';
     row += '</td>';
@@ -5724,6 +5756,7 @@ function renderLTJ(){
     row += '<td style="border:1px solid #ccc;padding:5px;text-align:center">';
     row += '<div style="display:flex;flex-direction:column;gap:4px;align-items:center">';
     if(!r.isDropped){
+      row += '<button class="btn" style="background:#ebf8ff;color:#2b6cb0;border:1px solid #2b6cb0;padding:3px 8px;font-size:10px;font-weight:700;border-radius:4px;cursor:pointer;white-space:nowrap" data-ltj-pilih="'+idx+'">Pilih Tarikh</button>';
       row += '<button class="btn" style="background:#fff5f5;color:#c53030;border:1px solid #c53030;padding:3px 8px;font-size:10px;font-weight:700;border-radius:4px;cursor:pointer;white-space:nowrap" data-ltj-drop="'+idx+'">Keluarkan</button>';
       if(visCum < cumTarget){
         row += '<button class="btn" style="background:#fffbeb;color:#744210;border:1px solid #e8a900;padding:3px 8px;font-size:10px;font-weight:700;border-radius:4px;cursor:pointer;white-space:nowrap" data-ltj-alasan="'+idx+'">Beri Alasan</button>';
@@ -5747,6 +5780,11 @@ function renderLTJ(){
 
   // Attach events
   // Sasaran bulan ini is auto-calculated, no manual input needed
+  document.getElementById('ltj-wrap').querySelectorAll('[data-ltj-pilih]').forEach(function(el){
+    el.onclick = function(){
+      openLTJDatePicker(+this.dataset['ltj-pilih']);
+    };
+  });
   document.getElementById('ltj-wrap').querySelectorAll('[data-ltj-drop]').forEach(function(el){
     el.onclick = function(){
       openAlasan(+this.dataset['ltj-drop'], 'drop');
@@ -5814,6 +5852,169 @@ function saveLTJ(){
 
 // ── ALASAN ──────────────────────────────────────
 var alsType = null, alsIdx = null;
+
+// LTJ Tarikh Picker - select from visit dates for LTJ Tarikh 1/2/3
+function openLTJTarikhPicker(ltjIdx, slotIdx){
+  var ltj = getLTJ();
+  var r = ltj[ltjIdx];
+  if(!r){alert('Rekod tidak dijumpai');return;}
+  var p = pt.find(function(x){return x.rid===r.farmRid;});
+  if(!p){alert('Penternak tidak dijumpai');return;}
+  
+  var yr = parseInt(document.getElementById('ltj-yr').value)||new Date().getFullYear();
+  var allDates = [];
+  if(p.tr){
+    p.tr.split(',').forEach(function(d){
+      var dt = pd(d.trim());
+      if(dt && dt.getFullYear()===yr) allDates.push(d.trim());
+    });
+  }
+  
+  if(!allDates.length){
+    alert('Tiada tarikh lawatan untuk '+p.nm+' tahun '+yr+'.\n\nSila rekod tarikh di Ladang Belum Lawat dahulu.');
+    return;
+  }
+  
+  // Build picker modal
+  var existing = document.getElementById('mLTJPicker');
+  if(existing) existing.remove();
+  
+  var currentVal = [r.ltjTarikh1, r.ltjTarikh2, r.ltjTarikh3][slotIdx] || '';
+  
+  var html = '<div class="mov on" id="mLTJPicker" style="z-index:9999"><div class="mbox" style="max-width:400px">';
+  html += '<div class="mh" style="background:#0f2d5e"><div><h2>Pilih Tarikh LTJ '+(slotIdx+1)+'</h2><p style="font-size:11px">'+p.nm+'</p></div><button class="mc" onclick="closeLTJPicker()">&#10005;</button></div>';
+  html += '<div style="padding:14px">';
+  html += '<div style="font-size:11px;color:#444;margin-bottom:10px">Pilih dari tarikh lawatan yang dah direkod ('+allDates.length+' tarikh):</div>';
+  html += '<div style="display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow-y:auto">';
+  
+  // Sort dates
+  allDates.sort(function(a,b){
+    var da = pd(a), db = pd(b);
+    return (da||0) - (db||0);
+  });
+  
+  allDates.forEach(function(d){
+    var isUsed = [r.ltjTarikh1,r.ltjTarikh2,r.ltjTarikh3].indexOf(d) >= 0;
+    var isCurrent = d === currentVal;
+    var bg = isCurrent ? '#c6f6d5' : isUsed ? '#fef3c7' : '#fff';
+    var label = isCurrent ? ' (Pilihan semasa)' : isUsed ? ' (Sudah dipilih untuk slot lain)' : '';
+    html += '<button onclick="selectLTJTarikh('+ltjIdx+','+slotIdx+',\''+d+'\')" style="background:'+bg+';border:1.5px solid #d0d0d0;border-radius:5px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;text-align:left">';
+    html += '&#128197; '+d+label;
+    html += '</button>';
+  });
+  
+  if(currentVal){
+    html += '<button onclick="selectLTJTarikh('+ltjIdx+','+slotIdx+',\'\')" style="background:#fff5f5;border:1.5px solid #c53030;color:#c53030;border-radius:5px;padding:6px 12px;font-size:11px;cursor:pointer;margin-top:8px">&#10006; Kosongkan Slot Ini</button>';
+  }
+  
+  html += '</div></div></div></div>';
+  
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function closeLTJPicker(){
+  var m = document.getElementById('mLTJPicker');
+  if(m) m.remove();
+}
+
+function selectLTJTarikh(ltjIdx, slotIdx, dateStr){
+  var ltj = getLTJ();
+  if(!ltj[ltjIdx]) return;
+  var fieldName = 'ltjTarikh' + (slotIdx+1);
+  ltj[ltjIdx][fieldName] = dateStr;
+  saveLTJData(ltj);
+  // Sync to Firebase
+  if(window.GS_READY && typeof rtWrite === 'function'){
+    rtWrite('vu_ltj', JSON.stringify(ltj));
+  }
+  closeLTJPicker();
+  renderLTJ();
+  toast(dateStr ? '&#9989; Tarikh LTJ disimpan' : '&#10006; Tarikh dikosongkan', '#276749');
+}
+
+
+// ─── LTJ DATE PICKER ─────────────────────────────
+var _ltjPickIdx = null;
+var _ltjPickSelected = [];
+
+function openLTJDatePicker(idx){
+  var ltj = getLTJ();
+  var r = ltj[idx];
+  if(!r) return;
+  var p = pt.find(function(x){return x.rid===r.farmRid;});
+  if(!p){alert('Penternak tidak dijumpai');return;}
+  
+  _ltjPickIdx = idx;
+  _ltjPickSelected = (r.selectedDates||[]).slice();
+  
+  // Get all year visits from p.tr
+  var yr = r.yr;
+  var allDates = [];
+  if(p.tr){
+    p.tr.split(',').forEach(function(d){
+      var dt = pd(d.trim());
+      if(dt && dt.getFullYear()===yr){
+        allDates.push(d.trim());
+      }
+    });
+  }
+  // Sort by date
+  allDates.sort(function(a,b){return (pd(a)||new Date(0))-(pd(b)||new Date(0));});
+  
+  document.getElementById('mLTJPick-sub').textContent = p.nm+' | Tahun '+yr+' | Jumlah lawatan: '+allDates.length;
+  
+  var listEl = document.getElementById('ltj-pick-list');
+  if(!allDates.length){
+    listEl.innerHTML = '<div style="text-align:center;padding:20px;color:#a0aec0;font-size:12px">Tiada tarikh lawatan untuk tahun '+yr+'.<br>Sila tambah tarikh di Ladang Belum Lawat dahulu.</div>';
+  } else {
+    listEl.innerHTML = allDates.map(function(d){
+      var isSelected = _ltjPickSelected.indexOf(d) >= 0;
+      var idx = _ltjPickSelected.indexOf(d);
+      return '<label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1.5px solid '+(isSelected?'#2b6cb0':'#e2e8f0')+';border-radius:6px;cursor:pointer;background:'+(isSelected?'#ebf8ff':'#fff')+';transition:all 0.2s" onclick="toggleLTJDate(\''+d+'\')">'+
+        '<input type="checkbox" '+(isSelected?'checked':'')+' style="margin:0">'+
+        '<div style="flex:1">'+
+          '<div style="font-size:13px;font-weight:700;color:'+(isSelected?'#2b6cb0':'#2d3748')+'">&#128197; '+d+'</div>'+
+          (isSelected?'<div style="font-size:10px;color:#2b6cb0;font-weight:600">Lawatan #'+(idx+1)+'</div>':'')+
+        '</div>'+
+      '</label>';
+    }).join('');
+  }
+  
+  updateLTJPickCount();
+  document.getElementById('mLTJPick').classList.add('on');
+}
+
+function toggleLTJDate(d){
+  var idx = _ltjPickSelected.indexOf(d);
+  if(idx >= 0){
+    _ltjPickSelected.splice(idx, 1);
+  } else {
+    if(_ltjPickSelected.length >= 3){
+      alert('Maksimum 3 tarikh sahaja. Buang dulu satu sebelum tambah.');
+      return false;
+    }
+    _ltjPickSelected.push(d);
+  }
+  // Refresh display
+  openLTJDatePicker(_ltjPickIdx);
+  return false;
+}
+
+function updateLTJPickCount(){
+  var el = document.getElementById('ltj-pick-count');
+  if(el) el.textContent = _ltjPickSelected.length;
+}
+
+function saveLTJDates(){
+  if(_ltjPickIdx === null) return;
+  var ltj = getLTJ();
+  ltj[_ltjPickIdx].selectedDates = _ltjPickSelected.slice();
+  saveLTJData(ltj);
+  document.getElementById('mLTJPick').classList.remove('on');
+  renderLTJ();
+  toast('&#9989; '+_ltjPickSelected.length+' tarikh LTJ disimpan','#276749');
+}
+
 function openAlasan(idx, type){
   alsIdx = idx; alsType = type;
   var ltj = getLTJ();
@@ -6626,7 +6827,7 @@ function renderKW(){
   var waran = (document.getElementById('kw-waran').value||'').trim();
   var moNames = ['JANUARI','FEBRUARI','MAC','APRIL','MEI','JUN','JULAI','OGOS','SEPTEMBER','OKTOBER','NOVEMBER','DISEMBER'];
   var ptj = document.getElementById('kw-ptj') ? document.getElementById('kw-ptj').value : 'KEDAH';
-  var all = getKW().filter(function(r){ return r.po===CU.po&&r.mo===mo&&r.yr===yr&&(r.ptj||'KEDAH')===ptj; });
+  var all = getKW().filter(function(r){ return r.mo===mo&&r.yr===yr&&(r.ptj||'KEDAH')===ptj && (isMLAdmin() || r.po===CU.po); });
 
   // Sort by KOD_ORDER
   all.sort(function(a,b){
@@ -6856,7 +7057,7 @@ function exKW(){
   var waran = document.getElementById('kw-waran').value||'';
   var moNames=['JANUARI','FEBRUARI','MAC','APRIL','MEI','JUN','JULAI','OGOS','SEPTEMBER','OKTOBER','NOVEMBER','DISEMBER'];
   var ptj = document.getElementById('kw-ptj') ? document.getElementById('kw-ptj').value : 'KEDAH';
-  var all = getKW().filter(function(r){ return r.po===CU.po&&r.mo===mo&&r.yr===yr&&(r.ptj||'KEDAH')===ptj; });
+  var all = getKW().filter(function(r){ return r.mo===mo&&r.yr===yr&&(r.ptj||'KEDAH')===ptj && (isMLAdmin() || r.po===CU.po); });
   all.sort(function(a,b){ var ia=KW_KODORDER.indexOf(a.kod);var ib=KW_KODORDER.indexOf(b.kod);if(ia<0)ia=999;if(ib<0)ib=999;return ia-ib; });
   var wb  = XLSX.utils.book_new();
   var ptjEx=document.getElementById('kw-ptj')?document.getElementById('kw-ptj').value:'KEDAH';
@@ -6928,12 +7129,14 @@ function renderTK(){
   var q  = (document.getElementById('tk-q').value||'').toLowerCase();
 
   var promosi = getTKP().filter(function(r){
-    if(r.po!==CU.po||r.yr!==yr) return false;
+    if(r.yr!==yr) return false;
+    if(!isMLAdmin() && r.po!==CU.po) return false;
     if(q && r.pegawai.toLowerCase().indexOf(q)<0 && r.aktiviti.toLowerCase().indexOf(q)<0) return false;
     return true;
   });
   var pemindahan = getTKT().filter(function(r){
-    if(r.po!==CU.po||r.yr!==yr) return false;
+    if(r.yr!==yr) return false;
+    if(!isMLAdmin() && r.po!==CU.po) return false;
     if(q && r.pegawai.toLowerCase().indexOf(q)<0 && r.teknologi.toLowerCase().indexOf(q)<0) return false;
     return true;
   });
@@ -7237,12 +7440,14 @@ function renderIV(){
   var yr=parseInt(document.getElementById('iv-yr').value)||2026;
   var q=(document.getElementById('iv-q').value||'').toLowerCase();
   var inovasi=getIVI().filter(function(r){
-    if(r.po!==CU.po||r.yr!==yr) return false;
+    if(r.yr!==yr) return false;
+    if(!isMLAdmin() && r.po!==CU.po) return false;
     if(q&&r.tajuk.toLowerCase().indexOf(q)<0&&r.pegawai.toLowerCase().indexOf(q)<0) return false;
     return true;
   });
   var penyelidikan=getIVP().filter(function(r){
-    if(r.po!==CU.po||r.yr!==yr) return false;
+    if(r.yr!==yr) return false;
+    if(!isMLAdmin() && r.po!==CU.po) return false;
     if(q&&r.tajuk.toLowerCase().indexOf(q)<0&&r.pegawai.toLowerCase().indexOf(q)<0) return false;
     return true;
   });
@@ -8713,7 +8918,7 @@ function renderLTK(){
   var ov = getLTKOverride();
 
   // Find months with SP03 data
-  var sp03 = getSP03().filter(function(r){ return r.po===CU.po && r.yr===yr; });
+  var sp03 = getSP03().filter(function(r){ return r.yr===yr && (isMLAdmin() || r.po===CU.po); });
   var months = [];
   for(var mo=0; mo<12; mo++){
     var moRecs = sp03.filter(function(r){ return r.mo===mo; });
