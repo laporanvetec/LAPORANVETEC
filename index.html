@@ -9054,8 +9054,8 @@ function renderML(){
     h+='<td style="border:1px solid #e2e8f0;padding:6px 8px;font-size:10px;color:#718096">'+(r.nota||'')+'</td>';
     h+='<td style="border:1px solid #e2e8f0;padding:6px 8px;font-size:10px;font-weight:600;white-space:nowrap">'+status+'</td>';
     h+='<td style="border:1px solid #e2e8f0;padding:4px;text-align:center"><div style="display:flex;flex-direction:column;gap:3px">';
-    h+='<button class="btn bbl" style="padding:2px 7px;font-size:10px" data-ml-edit="'+r.id+'">Edit</button>';
-    h+='<button class="btn" style="padding:2px 7px;font-size:10px;background:#fff5f5;color:#c53030;border:1px solid #c53030" data-ml-del="'+r.id+'">Padam</button>';
+    h+='<button class="btn bbl" style="padding:2px 7px;font-size:10px" data-ml-edit="'+(r.id||r.rid)+'">Edit</button>';
+    h+='<button class="btn" style="padding:2px 7px;font-size:10px;background:#fff5f5;color:#c53030;border:1px solid #c53030" data-ml-del="'+(r.id||r.rid)+'">Padam</button>';
     h+='</div></td>';
     h+='</tr>';
   });
@@ -9067,9 +9067,29 @@ function renderML(){
   });
   document.getElementById('ml-wrap').querySelectorAll('[data-ml-del]').forEach(function(el){
     el.onclick=function(){
-      if(!confirm('Padam dari masterlist?')) return;
-      var d=getML(); var i=d.findIndex(function(r){return r.id===this.dataset.mlDel;}.bind(this));
-      if(i>=0){d.splice(i,1);saveMLData(d);} renderML(); toast('Dipadam dari masterlist','#c53030');
+      var target=this.dataset.mlDel;
+      var d=getML();
+      var i=d.findIndex(function(r){return r.id===target||r.rid===target;});
+      if(i<0){alert('Rekod tidak dijumpai');return;}
+      var nm = d[i].nm || 'rekod';
+      if(!confirm('Padam "'+nm+'" dari Masterlist?\nIni juga akan padam dari Senarai Penternak semua pegawai yang ada penternak ini.')) return;
+      // Also delete from all pt entries
+      try{
+        var allPt = JSON.parse(localStorage.getItem('vu_p')||'[]');
+        var nmU = (d[i].nm||'').toUpperCase().trim();
+        var ptNew = allPt.filter(function(p){
+          if(!p.nm) return true;
+          return p.nm.toUpperCase().trim() !== nmU;
+        });
+        if(ptNew.length !== allPt.length){
+          localStorage.setItem('vu_p', JSON.stringify(ptNew));
+          if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_p', JSON.stringify(ptNew));
+        }
+      }catch(e){console.error(e);}
+      d.splice(i,1);
+      saveMLData(d);
+      renderML();
+      toast('Dipadam dari masterlist','#c53030');
     };
   });
 }
@@ -9240,7 +9260,7 @@ function openAddML(){
   document.getElementById('mML').classList.add('on');
 }
 function openEditML(id){
-  var r=getML().find(function(x){return x.id===id;});if(!r)return;
+  var r=getML().find(function(x){return x.id===id||x.rid===id;});if(!r)return;
   mlEditId=id;
   document.getElementById('mML-ttl').textContent='Kemaskini Masterlist';
   document.getElementById('ml-nm').value=r.nm||'';
