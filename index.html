@@ -3449,19 +3449,18 @@ function myPt(t){
     try{
       var ml=JSON.parse(localStorage.getItem('vu_ml')||'[]');
       var allPt=JSON.parse(localStorage.getItem('vu_p')||'[]');
-      // Build name+po lookup for officer updates
+      // Build name+po+jenis lookup for officer updates (jenis = commodity type)
       var ptByKey = {};
       allPt.forEach(function(p){
         if(!p.nm) return;
-        var key = p.nm.toUpperCase().trim()+'|'+(p.po||'');
-        // Keep one with most data (prefer with tr, then lat/lng)
+        var key = p.nm.toUpperCase().trim()+'|'+(p.po||'')+'|'+(p.j||'').toUpperCase().trim();
         if(!ptByKey[key] || p.tr || p.lat){
           ptByKey[key] = p;
         }
       });
-      // Merge masterlist with officer updates
+      // Merge masterlist with officer updates - match by name+po+jenis
       return ml.filter(function(p){return !t||isT(p.j,t);}).map(function(m){
-        var key = (m.nm||'').toUpperCase().trim()+'|'+(m.po||'');
+        var key = (m.nm||'').toUpperCase().trim()+'|'+(m.po||'')+'|'+(m.j||'').toUpperCase().trim();
         var officer = ptByKey[key];
         if(officer){
           // Merge officer updates (tr, lat, lng) into masterlist entry
