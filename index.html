@@ -3665,7 +3665,7 @@ function renderSP(){
     h+='<td><div style="display:flex;align-items:center;gap:5px"><span class="tc '+tc+'" data-pi="'+pi+'">'+(p.tr||'Klik untuk rekod')+'</span><button data-pi="'+pi+'" style="background:#276749;color:#fff;border:none;border-radius:4px;padding:2px 7px;font-size:10px;cursor:pointer;font-weight:700" class="qt-btn">&#9989;</button></div></td>';
     h+='<td style="text-align:center"><span class="'+(vb?'s1':'s0')+'">'+(vb?'Dilawat':'Belum')+'</span></td>';
     h+='<td style="text-align:center">'+gpsBtnHTML(p, pi)+'</td>';
-    h+='<td><div style="display:flex;gap:3px"><button class="bsm be ep-btn" data-pi="'+pi+'">&#9999;&#65039;</button><button class="bsm bd dp-btn" data-pi="'+pi+'">&#128465;&#65039;</button></div></td>';
+    h+='<td><div style="display:flex;gap:3px"><button class="bsm be ep-btn" data-pi="'+pi+'" data-rid="'+(p.rid||p.id||'')+'">&#9999;&#65039;</button><button class="bsm bd dp-btn" data-pi="'+pi+'" data-rid="'+(p.rid||p.id||'')+'" data-nm="'+(p.nm||'').replace(/"/g,'')+'" data-po="'+(p.po||'')+'" data-j="'+(p.j||'').replace(/"/g,'')+'">&#128465;&#65039;</button></div></td>';
     h+='</tr>';
   });
   h+='</tbody></table></div>';
@@ -3680,7 +3680,20 @@ function renderSP(){
       togglePPV(pi);
     };
   });
-  c.querySelectorAll('.dp-btn').forEach(function(el){el.onclick=function(){delP(+this.dataset.pi);};});
+  c.querySelectorAll('.dp-btn').forEach(function(el){el.onclick=function(){
+    if(isMLAdmin()){
+      // Admin: use the penternak object built from data attributes
+      var p = {
+        nm: this.dataset.nm,
+        po: this.dataset.po,
+        j: this.dataset.j,
+        rid: this.dataset.rid
+      };
+      delP(p);
+    } else {
+      delP(+this.dataset.pi);
+    }
+  };});
 }
 function openAddP(){
   ePI=null;
@@ -3741,14 +3754,34 @@ function saveP(){
   toast('Disimpan. Penternak muncul di '+dest,'#276749');
 }
 function delP(i){
-  if(!pt[i]) return;
-  var p = pt[i];
+  // For admin: pt[i] might not exist because they view merged masterlist
+  // We use a wrapper that accepts either index OR a penternak object
+  var p;
+  if(typeof i === 'object'){
+    p = i;
+  } else if(pt[i]){
+    p = pt[i];
+  } else if(isMLAdmin()){
+    // Try to find from current myPt result by index from rendered list
+    var list = myPt(null);
+    if(list[i]) p = list[i];
+  }
+  if(!p) {alert('Penternak tidak dijumpai');return;}
   
   if(isMLAdmin()){
     // Admin: delete immediately + propagate to masterlist
-    if(!confirm('Padam "'+p.nm+'"?\n\nIni juga akan padam dari Masterlist.'))return;
-    pt.splice(i,1);
-    sv();
+    if(!confirm('Padam "'+p.nm+'"?\n\nIni juga akan padam dari Senarai Pegawai + Masterlist.'))return;
+    // Delete from pt (any officer's senarai with same nm+po+jenis)
+    var nmU = (p.nm||'').toUpperCase().trim();
+    var jU = (p.j||'').toUpperCase().trim();
+    var allPt = JSON.parse(localStorage.getItem('vu_p')||'[]');
+    var ptNew = allPt.filter(function(x){
+      if(!x.nm) return true;
+      return !(x.nm.toUpperCase().trim()===nmU && x.po===p.po && x.j&&x.j.toUpperCase().trim()===jU);
+    });
+    localStorage.setItem('vu_p', JSON.stringify(ptNew));
+    pt = ptNew;
+    if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_p', JSON.stringify(ptNew));
     // Also delete from masterlist
     try{
       var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
@@ -3985,7 +4018,20 @@ function renderLD(){
       openGoogleMaps(lat, lng, nm);
     };
   });
-  document.getElementById('ld-w').querySelectorAll('.dp-btn').forEach(function(el){el.onclick=function(){delP(+this.dataset.pi);};});
+  document.getElementById('ld-w').querySelectorAll('.dp-btn').forEach(function(el){el.onclick=function(){
+    if(isMLAdmin()){
+      // Admin: use the penternak object built from data attributes
+      var p = {
+        nm: this.dataset.nm,
+        po: this.dataset.po,
+        j: this.dataset.j,
+        rid: this.dataset.rid
+      };
+      delP(p);
+    } else {
+      delP(+this.dataset.pi);
+    }
+  };});
 }
 
 // REKOD FORM
