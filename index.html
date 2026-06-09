@@ -5763,27 +5763,33 @@ function renderLTJ(){
       row += '<div style="font-size:9px;color:#718096;margin-top:3px">'+allYrDates2.slice(0,3).join(', ')+(allYrDates2.length>3?' ...':'')+'</div>';
     }
     row += '</td>';
-    // Catatan - tarikh lawatan
-    row += '<td style="border:1px solid #ccc;padding:7px 10px;font-size:11px;max-width:200px">';
-    if(dates.length){
+    // Catatan - SEMUA tarikh lawatan tahun ini (chip boleh diklik untuk pilih kumulatif)
+    row += '<td style="border:1px solid #ccc;padding:7px 10px;font-size:11px;max-width:250px">';
+    var allYearDates = [];
+    if(p.tr){ p.tr.split(',').forEach(function(d){ var dt=pd(d.trim()); if(dt&&dt.getFullYear()===yr) allYearDates.push(d.trim()); }); }
+    allYearDates.sort(function(a,b){return (pd(a)||new Date(0))-(pd(b)||new Date(0));});
+    
+    if(allYearDates.length){
+      row += '<div style="font-size:10px;color:#718096;margin-bottom:4px;font-weight:600">Tarikh Lawatan '+yr+' (klik untuk pilih kumulatif):</div>';
       row += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
-      dates.forEach(function(d){
-        row += '<span style="background:#c6f6d5;color:#276749;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px">&#128197; '+d+'</span>';
+      allYearDates.forEach(function(d){
+        var isSelected = selDates.indexOf(d) >= 0;
+        var bg = isSelected ? '#276749' : '#f7fafc';
+        var col = isSelected ? '#fff' : '#2d3748';
+        var border = isSelected ? '#276749' : '#cbd5e0';
+        var icon = isSelected ? '&#9989;' : '&#9898;';
+        row += '<span class="ltj-date-chip" data-ltj-idx="'+idx+'" data-date="'+d+'" style="background:'+bg+';color:'+col+';padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px;cursor:pointer;border:1.5px solid '+border+';transition:all 0.15s" title="Klik untuk '+(isSelected?'BUANG':'TAMBAH')+' ke kumulatif">'+icon+' '+d+'</span>';
       });
       row += '</div>';
+      if(selDates.length){
+        row += '<div style="margin-top:6px;padding:4px 6px;background:#f0fff4;border-left:3px solid #276749;font-size:10px;color:#276749"><b>Kumulatif dipilih:</b> '+selDates.length+'/3 - '+selDates.join(', ')+'</div>';
+      } else {
+        row += '<div style="margin-top:6px;padding:4px 6px;background:#fff5f5;border-left:3px solid #c53030;font-size:10px;color:#c53030">Belum pilih tarikh kumulatif (klik chip di atas)</div>';
+      }
     } else {
-      row += '<span style="color:#d0d0d0;font-size:11px;font-style:italic">Tiada lawatan bulan ini<br><span style="font-size:10px">Rekod tarikh di Ladang Belum Dilawat</span></span>';
+      row += '<span style="color:#d0d0d0;font-size:11px;font-style:italic">Tiada tarikh lawatan untuk '+yr+'<br><span style="font-size:10px">Rekod tarikh di Ladang Belum Lawat</span></span>';
     }
-    // Also show all year visits count below
-    // Don't show all year dates - only show selected dates (already in selectedDates display below)
-    if(r.selectedDates && r.selectedDates.length){
-      row += '<div style="margin-top:6px;padding:5px 8px;background:#ebf8ff;border-radius:4px;border-left:3px solid #2b6cb0">';
-      row += '<div style="font-size:10px;color:#2b6cb0;font-weight:700;margin-bottom:3px">&#9989; LTJ Tarikh Dipilih:</div>';
-      r.selectedDates.forEach(function(d, di){
-        row += '<div style="font-size:10px;color:#2b6cb0"><b>Lawatan '+(di+1)+':</b> '+d+'</div>';
-      });
-      row += '</div>';
-    }
+    // Selected dates display moved into catatan column
     if(r.sebabDrop) row += '<div style="color:#c53030;font-size:10px;margin-top:4px"><b>Alasan drop:</b> '+r.sebabDrop+'</div>';
     if(r.sebabGagal && visCum < cumTarget) row += '<div style="color:#c53030;font-size:10px;margin-top:4px"><b>Alasan gagal:</b> '+r.sebabGagal+'</div>';
     row += '</td>';
@@ -5815,6 +5821,13 @@ function renderLTJ(){
 
   // Attach events
   // Sasaran bulan ini is auto-calculated, no manual input needed
+  document.getElementById('ltj-wrap').querySelectorAll('.ltj-date-chip').forEach(function(el){
+    el.onclick = function(){
+      var ltjIdx = +this.dataset.ltjIdx;
+      var dateStr = this.dataset.date;
+      toggleLTJDateInline(ltjIdx, dateStr);
+    };
+  });
   document.getElementById('ltj-wrap').querySelectorAll('[data-ltj-pilih]').forEach(function(el){
     el.onclick = function(){
       openLTJDatePicker(+this.dataset.ltjPilih);
@@ -6032,6 +6045,33 @@ function openLTJDatePicker(idx){
   
   updateLTJPickCount();
   document.getElementById('mLTJPick').classList.add('on');
+}
+
+
+function toggleLTJDateInline(ltjIdx, dateStr){
+  var ltj = getLTJ();
+  var r = ltj[ltjIdx];
+  if(!r) return;
+  if(!r.selectedDates) r.selectedDates = [];
+  
+  var idx = r.selectedDates.indexOf(dateStr);
+  if(idx >= 0){
+    // Remove
+    r.selectedDates.splice(idx, 1);
+    toast('Tarikh '+dateStr+' dibuang dari kumulatif','#c53030');
+  } else {
+    // Add - max 3
+    if(r.selectedDates.length >= 3){
+      alert('Maksimum 3 tarikh kumulatif sahaja. Buang dulu satu sebelum tambah.');
+      return;
+    }
+    r.selectedDates.push(dateStr);
+    // Sort
+    r.selectedDates.sort(function(a,b){return (pd(a)||new Date(0))-(pd(b)||new Date(0));});
+    toast('Tarikh '+dateStr+' ditambah ke kumulatif ('+r.selectedDates.length+'/3)','#276749');
+  }
+  saveLTJData(ltj);
+  renderLTJ();
 }
 
 function toggleLTJDate(d){
