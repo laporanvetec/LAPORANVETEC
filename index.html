@@ -5811,10 +5811,18 @@ function renderLTJ(){
     return row;
   }
 
-  activeRows.forEach(function(r){ h += renderLTJRow(r, getLTJ().indexOf(r)); });
+  // Use id-based index lookup since getLTJ() returns new objects each call
+  var allLTJ = ltjAll;
+  activeRows.forEach(function(r){
+    var idxInAll = allLTJ.findIndex(function(x){return x.id===r.id;});
+    h += renderLTJRow(r, idxInAll);
+  });
   if(droppedRows.length){
     h += '<tr><td colspan="10" style="background:#f7fafc;padding:6px 10px;font-size:11px;color:#718096;font-style:italic;border:1px solid #e2e8f0">Projek Yang Dikeluarkan ('+droppedRows.length+')</td></tr>';
-    droppedRows.forEach(function(r){ h += renderLTJRow(r, getLTJ().indexOf(r)); });
+    droppedRows.forEach(function(r){
+    var idxInAll = allLTJ.findIndex(function(x){return x.id===r.id;});
+    h += renderLTJRow(r, idxInAll);
+  });
   }
   h += '</tbody></table></div></div>';
   document.getElementById('ltj-wrap').innerHTML = h;
