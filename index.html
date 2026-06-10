@@ -8,15 +8,15 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Segoe UI',sans-serif;background:#f0f4f8;font-size:13px}
-#lg{min-height:100vh;background:linear-gradient(135deg,#0f2d5e,#1a4a8a);display:flex;align-items:center;justify-content:center;padding:20px}
-.lbox{background:#fff;border-radius:16px;padding:40px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
-.lttl{font-size:20px;font-weight:800;color:#0f2d5e;margin-bottom:4px}
+#lg{min-height:100vh;background:url('login-bg.jpg') center center / cover no-repeat;display:flex;align-items:center;justify-content:center;padding:20px;position:relative}#lg::before{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,rgba(255,255,255,0.1),rgba(255,255,255,0.25));pointer-events:none}
+.lbox{background:#fff;border-radius:18px;padding:32px;width:100%;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,.35);position:relative;z-index:2}.llogo{text-align:center;margin-bottom:6px}.llogo img{max-width:240px;height:auto;display:inline-block}.ltagline{text-align:center;font-size:11px;color:#5a4a8e;margin-bottom:20px;font-weight:600;letter-spacing:.5px}
+.lttl{font-size:20px;font-weight:800;color:#2d1b69;margin-bottom:4px}
 .lsub{font-size:11px;color:#718096;margin-bottom:24px}
 .lfg{margin-bottom:14px}
 .lfg label{display:block;font-size:11px;font-weight:700;color:#444;margin-bottom:5px;text-transform:uppercase}
 .lfg select,.lfg input{width:100%;padding:12px;border:1.5px solid #d0d0d0;border-radius:8px;font-size:14px;font-family:inherit;outline:none}
 .lfg select:focus,.lfg input:focus{border-color:#0f2d5e}
-.lbtn{width:100%;background:#0f2d5e;color:#fff;border:none;border-radius:9px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px}
+.lbtn{width:100%;background:linear-gradient(135deg,#2d1b69,#5b21b6);color:#fff;border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;margin-top:10px;letter-spacing:.3px;box-shadow:0 4px 14px rgba(91,33,182,.35);transition:transform .15s,box-shadow .15s}.lbtn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(91,33,182,.45)}
 .lbtn:hover{background:#1a4a8a}
 #app{display:none;min-height:100vh;flex-direction:row}
 #sb{width:230px;min-height:100vh;background:#0f2d5e;position:fixed;top:0;left:0;bottom:0;overflow-y:auto;display:flex;flex-direction:column;z-index:100;transition:transform 0.3s ease}
@@ -947,6 +947,10 @@ function checkSP03Clearance(){
     var sp03Key = 'sp03_'+CU.pid+'_'+yr+'_'+mo;
     var log = getClearanceLog();
     if(log[sp03Key]) return;
+    // Only show clearance if today is >= 20th of the month AFTER the record month
+    // E.g. Mei records clear on 20 Jun
+    var clearDate = new Date(yr, mo+1, 20); // 20th of next month
+    if(now < clearDate) return;
     pending.push({yr:yr, mo:mo, count:byMonth[key].length, records:byMonth[key]});
   });
   
@@ -2078,10 +2082,11 @@ window.addEventListener('load',function(){
 
 <div id="lg">
 <div class="lbox">
-  <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
-    <div style="width:50px;height:50px;background:#e8a900;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:26px;color:#0f2d5e">V</div>
-    <div><div class="lttl">VetEC Utara</div><div class="lsub">Jabatan Perkhidmatan Veterinar Malaysia</div></div>
+  <div class="llogo">
+    <img src="logo.png" alt="VetEC Sync" onerror="this.style.display='none';document.getElementById('fallback-logo').style.display='block'">
+    <div id="fallback-logo" style="display:none;font-size:32px;font-weight:900;background:linear-gradient(135deg,#2d1b69,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">VetEC Sync</div>
   </div>
+  <div class="ltagline">Sistem Pengurusan Laporan Bulanan VetEC Utara</div>
   <div class="lfg">
     <label>Pusat Operasi (PO)</label>
     <select id="lg-po" onchange="updateLoginNames()">
@@ -2096,7 +2101,7 @@ window.addEventListener('load',function(){
     <select id="lg-nm" style="text-transform:uppercase"><option value="">-- Pilih PO dulu --</option></select>
   </div>
   <button class="lbtn" id="lg-btn" onclick="loginNow()">Masuk &rarr;</button>
-  <p style="text-align:center;margin-top:12px;font-size:11px;color:#a0aec0">Sistem Pengurusan Laporan Bulanan</p>
+  <p style="text-align:center;margin-top:14px;font-size:10px;color:#a0aec0">Jabatan Perkhidmatan Veterinar Malaysia &bull; KEDAH/PERLIS/P.PINANG</p>
 </div>
 </div>
 
@@ -2616,6 +2621,15 @@ window.addEventListener('load',function(){
     <div class="mb">
       <div style="background:#ebf8ff;border-radius:8px;padding:10px;margin-bottom:14px;font-size:11px;color:#2b6cb0">
         Maklumat latihan pegawai VetEC. Semua pegawai dalam PO ini boleh ditambah.
+      </div>
+      <div id="lt-admin-po-row" style="display:none" class="fg">
+        <label>Pilih PO (Admin sahaja)</label>
+        <select id="lt-admin-po" style="width:100%;padding:8px 10px;border:1.5px solid #553c9a;border-radius:5px;font-size:12px;font-family:inherit;background:#faf5ff">
+          <option value="GURUN">GURUN</option><option value="KULIM">KULIM</option>
+          <option value="SUNGAI PETANI">SUNGAI PETANI</option><option value="KUALA KETIL">KUALA KETIL</option>
+          <option value="ALOR STAR">ALOR STAR</option><option value="JITRA">JITRA</option>
+          <option value="KANGAR/PERLIS">KANGAR/PERLIS</option><option value="SG BAKAP">SG BAKAP</option>
+        </select>
       </div>
       <div class="g2">
         <div class="fg"><label>VETEC</label><input id="lt-vetec" value="UTARA" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:5px;font-size:12px;font-family:inherit"></div>
@@ -3731,7 +3745,7 @@ function renderSP(){
     h+='<td><span class="bj">'+p.j+'</span></td>';
     h+='<td>'+tbadge(p.j)+'</td>';
     h+='<td><span class="bb">'+(p.bn||'-')+'</span></td>';
-    h+='<td style="font-size:11px;color:#718096">'+(p.id||'-')+'</td>';
+    h+='<td style="font-size:11px;color:#718096">'+((p.id&&!/^(ml_|pt_)/.test(p.id))?p.id:'-')+'</td>';
     h+='<td style="font-size:11px;color:#718096">'+(p.tl||'-')+'</td>';
     h+='<td style="text-align:center;font-size:10px;font-weight:700;color:'+(p.pv==='YA'?'#276749':'#c53030')+'">'+(p.pv||'TIDAK')+'</td>';
     h+='<td><div style="display:flex;align-items:center;gap:5px"><span class="tc '+tc+'" data-pi="'+pi+'">'+(p.tr||'Klik untuk rekod')+'</span><button data-pi="'+pi+'" style="background:#276749;color:#fff;border:none;border-radius:4px;padding:2px 7px;font-size:10px;cursor:pointer;font-weight:700" class="qt-btn">&#9989;</button></div></td>';
@@ -5558,7 +5572,10 @@ function syncTrFromSebenar(pi, yr, mo, sebenarStr){
 var ltjAlasanCB = null;
 
 function getLTJ(){ return JSON.parse(localStorage.getItem('vu_ltj')||'[]'); }
-function saveLTJData(d){ localStorage.setItem('vu_ltj', JSON.stringify(d)); }
+function saveLTJData(d){ 
+  localStorage.setItem('vu_ltj', JSON.stringify(d));
+  if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ltj', JSON.stringify(d));
+}
 
 function getQuarterTarget(mo){
   // Required cumulative by end of each quarter
@@ -6710,7 +6727,10 @@ document.getElementById('mGM-c').onclick  = function(){ stopCamera(); document.g
 var ltEditId = null;
 
 function getLT(){ return JSON.parse(localStorage.getItem('vu_lt')||'[]'); }
-function saveLTData(d){ localStorage.setItem('vu_lt', JSON.stringify(d)); }
+function saveLTData(d){ 
+  localStorage.setItem('vu_lt', JSON.stringify(d));
+  if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_lt', JSON.stringify(d));
+}
 
 function calcHari(mula, tamat){
   if(!mula||!tamat) return 0;
@@ -6830,9 +6850,12 @@ function renderLT(){
 function openAddLT(){
   ltEditId = null;
   document.getElementById('mLT-ttl').textContent = '+ Tambah Rekod Latihan';
-  document.getElementById('mLT-sub').textContent = 'PO: '+CU.po+' | '+CU.nm;
+  document.getElementById('mLT-sub').textContent = isMLAdmin() ? 'Admin - Boleh tambah untuk semua PO' : ('PO: '+CU.po+' | '+CU.nm);
+  // Show admin PO selector
+  document.getElementById('lt-admin-po-row').style.display = isMLAdmin() ? 'block' : 'none';
+  if(isMLAdmin()) document.getElementById('lt-admin-po').value = 'GURUN';
   document.getElementById('lt-vetec').value  = 'UTARA';
-  document.getElementById('lt-nama').value   = CU.nm;
+  document.getElementById('lt-nama').value   = isMLAdmin() ? '' : CU.nm;
   document.getElementById('lt-gred').value   = '';
   document.getElementById('lt-tahap').value  = '';
   document.getElementById('lt-dirancang').value = '';
@@ -6850,7 +6873,13 @@ function openEditLT(id){
   if(!r) return;
   ltEditId = id;
   document.getElementById('mLT-ttl').textContent = 'Kemaskini Rekod Latihan';
-  document.getElementById('mLT-sub').textContent = r.nama;
+  document.getElementById('mLT-sub').textContent = r.nama+' | PO: '+(r.po||'');
+  // Show admin PO selector  
+  document.getElementById('lt-admin-po-row').style.display = isMLAdmin() ? 'block' : 'none';
+  if(isMLAdmin()){
+    var apoEl = document.getElementById('lt-admin-po');
+    if(apoEl) apoEl.value = r.po||'GURUN';
+  }
   document.getElementById('lt-vetec').value   = r.vetec||'UTARA';
   document.getElementById('lt-nama').value    = r.nama||'';
   document.getElementById('lt-gred').value    = r.gred||'';
@@ -6886,9 +6915,15 @@ function saveLT(){
   var tamat = document.getElementById('lt-tamat').value;
   var hari  = calcHari(mula, tamat);
   var yr    = parseInt(document.getElementById('lt-tahun').value)||new Date().getFullYear();
+  // Admin can save to any PO
+  var targetPO = CU.po;
+  if(isMLAdmin()){
+    var apoEl = document.getElementById('lt-admin-po');
+    if(apoEl) targetPO = apoEl.value;
+  }
   var rec = {
     id: ltEditId || 'lt'+Date.now(),
-    po: CU.po, pegawaiId: CU.pid,
+    po: targetPO, pegawaiId: CU.pid,
     tahun: yr,
     vetec:     document.getElementById('lt-vetec').value.trim()||'UTARA',
     nama:      nama,
@@ -10252,8 +10287,14 @@ function generateReport(){
 }
 
 // Need saveLTJData and saveLTData (might not exist)
-function saveLTJData(d){ localStorage.setItem('vu_ltj', JSON.stringify(d)); }
-function saveLTData(d){ localStorage.setItem('vu_lt', JSON.stringify(d)); }
+function saveLTJData(d){ 
+  localStorage.setItem('vu_ltj', JSON.stringify(d));
+  if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ltj', JSON.stringify(d));
+}
+function saveLTData(d){ 
+  localStorage.setItem('vu_lt', JSON.stringify(d));
+  if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_lt', JSON.stringify(d));
+}
 
 // ═══════════════════════════════════════════════════
 // PELAPORAN — NURSHUHADA (ADMIN) & PEGAWAI LAIN
@@ -11892,15 +11933,17 @@ function addFromML(){
 
   var added = 0;
   selected.forEach(function(r){
-    // Check not already exists
-    var exists = pt.some(function(p){ return normStr(p.nm)===normStr(r.nm)&&normStr(p.po)===normStr(CU.po); });
+    // Check not already exists - match by name + po + jenis (commodity)
+    var exists = pt.some(function(p){ 
+      return normStr(p.nm)===normStr(r.nm) && normStr(p.po)===normStr(CU.po) && normStr(p.j||'')===normStr(r.j||'');
+    });
     if(exists) return;
     pt.push({
       rid: r.rid||('pt_ml_'+Date.now()+'_'+Math.random().toString(36).substr(2,4)),
       pid: CU.pid,
       po: CU.po,
       nm: r.nm,
-      id: r.id||r.idPremis||'',
+      id: r.idPremis||((r.id&&!/^(ml_|pt_)/.test(r.id))?r.id:'')||'',
       j: r.j||'',
       ng: r.ng||'KEDAH',
       bn: r.bn||'',
