@@ -3176,6 +3176,9 @@ window.addEventListener('load',function(){
         <input type="file" id="rpt-import-all" accept=".json" multiple style="display:none" onchange="importPOData(this)">
         <button class="btn bgr" onclick="generateReport()">&#128196; Jana Laporan Gabungan</button>
         <button class="btn" id="btn-laporan-akhir" onclick="openLaporanAkhir()" style="background:#c53030;color:#fff;display:none">&#128196; Jana Laporan Akhir</button>
+        <button class="btn" id="btn-komp-excel" onclick="downloadAdminKomprehensif('excel')" style="background:#276749;color:#fff;display:none">&#128202; Excel</button>
+        <button class="btn" id="btn-komp-pdf" onclick="downloadAdminKomprehensif('pdf')" style="background:#dd6b20;color:#fff;display:none">&#128196; PDF</button>
+        <button class="btn" id="btn-komp-ppt" onclick="downloadAdminKomprehensif('pptx')" style="background:#553c9a;color:#fff;display:none">&#128194; PPT</button>
       </div>
     </div>
 
@@ -10346,6 +10349,21 @@ function renderStaffRPT(mo,yr){
 // ── ADMIN VIEW (NURSHUHADA) ───────────────────────
 
 // ─── DOWNLOAD KOMPREHENSIF (Excel/PDF/PPT) ────────
+
+// Download from admin Pelaporan top bar - use current selected month/year
+function downloadAdminKomprehensif(format){
+  var yr = parseInt(document.getElementById('rpt-yr').value)||new Date().getFullYear();
+  var moEl = document.getElementById('rpt-mo');
+  var moVal = moEl ? moEl.value : '';
+  if(!moVal || moVal===''){
+    // Use current month if 'Semua Bulan' selected
+    var now = new Date();
+    moVal = now.getMonth();
+    toast('Menggunakan bulan semasa: '+BLN_RPT[moVal],'#2b6cb0');
+  }
+  downloadKomprehensif(moVal, yr, format);
+}
+
 function downloadKomprehensif(mo, yr, format){
   mo = parseInt(mo); yr = parseInt(yr);
   var bln = (typeof BLN_RPT!=='undefined'?BLN_RPT[mo]:BLN_SP_FULL[mo]).toUpperCase();
