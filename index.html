@@ -10996,6 +10996,7 @@ function renderAllPOSummary(mo,yr){
     h+='</tr>';
   });
   h+='</tbody></table></div>';
+  if(isMLAdmin() && typeof renderSubmitStatus === 'function') h += renderSubmitStatus();
   return h;
 }
 
@@ -11761,13 +11762,7 @@ function renderSubmitStatus(){
   return h;
 }
 
-// Add submit status to admin RPT summary
-var _origRenderAllPOSummary = renderAllPOSummary;
-function renderAllPOSummary(mo,yr){
-  var base = _origRenderAllPOSummary(mo,yr);
-  if(isMLAdmin()) base += renderSubmitStatus();
-  return base;
-}
+// Submit status now inlined directly in renderAllPOSummary
 
 
 function reloadEmbeddedData(){
