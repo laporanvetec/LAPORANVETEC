@@ -10270,6 +10270,15 @@ var RPT_MODULES=[
 
 function renderRPT(){
   if(!CU) return;
+  // Force show komprehensif buttons for admin
+  var isAdm = isMLAdmin();
+  ['btn-komp-excel','btn-komp-pdf','btn-komp-ppt'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.style.display = isAdm ? 'inline-block' : 'none';
+  });
+  var laBtn = document.getElementById('btn-laporan-akhir');
+  if(laBtn) laBtn.style.display = isAdm ? 'flex' : 'none';
+  
   var mo=parseInt(document.getElementById('rpt-mo').value)||new Date().getMonth();
   var yr=parseInt(document.getElementById('rpt-yr').value)||2026;
   var badge=document.getElementById('rpt-role-badge');
