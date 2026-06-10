@@ -9417,6 +9417,16 @@ function updateMLNav(){
     if(upEl3) upEl3.style.display = isAdm3 ? 'flex' : 'none';
     var mlrEl3=document.getElementById('n-mlr');
     if(mlrEl3) mlrEl3.style.display = isAdm3 ? 'flex' : 'none';
+    // Komprehensif download buttons
+    var kompE3=document.getElementById('btn-komp-excel');
+    if(kompE3) kompE3.style.display = isAdm3 ? 'inline-block' : 'none';
+    var kompP3=document.getElementById('btn-komp-pdf');
+    if(kompP3) kompP3.style.display = isAdm3 ? 'inline-block' : 'none';
+    var kompT3=document.getElementById('btn-komp-ppt');
+    if(kompT3) kompT3.style.display = isAdm3 ? 'inline-block' : 'none';
+    // Laporan Akhir
+    var laBtn3=document.getElementById('btn-laporan-akhir');
+    if(laBtn3) laBtn3.style.display = isAdm3 ? 'flex' : 'none';
     if(isAdm3){ setTimeout(function(){if(typeof updateMLReqBadge==='function')updateMLReqBadge();}, 500); setTimeout(function(){if(typeof notifyAdminPendingReqs==='function')notifyAdminPendingReqs();}, 1000); }
     if(!isAdm3) setTimeout(function(){if(typeof showMyPendingNotifs==='function')showMyPendingNotifs();}, 1500);
   }catch(e){}
