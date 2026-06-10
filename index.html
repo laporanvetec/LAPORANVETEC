@@ -9885,6 +9885,17 @@ function updateRptNav(){
 
 // ── RENDER PELAPORAN PAGE ─────────────────────────
 function renderRPT(){
+  // Force show komprehensif buttons for admin
+  setTimeout(function(){
+    var isAdm = isMLAdmin();
+    ['btn-komp-excel','btn-komp-pdf','btn-komp-ppt'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.style.display = isAdm ? 'inline-block' : 'none';
+    });
+    var laBtn = document.getElementById('btn-laporan-akhir');
+    if(laBtn) laBtn.style.display = isAdm ? 'flex' : 'none';
+  }, 100);
+
   // Module checkboxes
   var ml = document.getElementById('rpt-module-list');
   if(ml){
