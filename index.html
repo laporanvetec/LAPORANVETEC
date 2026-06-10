@@ -3484,6 +3484,12 @@ function loginNow(){
     // Show Laporan Akhir button for admin
     var laBtn=document.getElementById('btn-laporan-akhir');
     if(laBtn) laBtn.style.display=isAdm?'flex':'none';
+    var kompExcel=document.getElementById('btn-komp-excel');
+    if(kompExcel) kompExcel.style.display=isAdm?'inline-block':'none';
+    var kompPdf=document.getElementById('btn-komp-pdf');
+    if(kompPdf) kompPdf.style.display=isAdm?'inline-block':'none';
+    var kompPpt=document.getElementById('btn-komp-ppt');
+    if(kompPpt) kompPpt.style.display=isAdm?'inline-block':'none';
     var laPanel=document.getElementById('rpt-la-panel');
     if(laPanel) laPanel.style.display=isAdm?'block':'none';
     var kwEl=document.getElementById('n-kw');
