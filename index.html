@@ -3573,7 +3573,50 @@ function myPt(t){
       return mergedList;
     }catch(e){return[];}
   }
-  return pt.filter(function(p){return (p.pid===CU.pid||(!p.pid&&p.po===CU.po))&&(!t||isT(p.j,t));});
+  // Officer: their pt + masterlist entries from their PO (auto-include)
+  try{
+    var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
+    var myPO = CU.po;
+    
+    // Build officer pt lookup by nm+po+jenis
+    var ptByKey = {};
+    pt.forEach(function(p){
+      if(!p.nm) return;
+      if(p.pid!==CU.pid && !(!p.pid&&p.po===CU.po)) return; // not officer's
+      var key = p.nm.toUpperCase().trim()+'|'+(p.po||'')+'|'+(p.j||'').toUpperCase().trim();
+      ptByKey[key] = p;
+    });
+    
+    // Get masterlist entries for this PO
+    var mlPO = ml.filter(function(m){
+      return m.po===myPO && (!t||isT(m.j,t));
+    });
+    
+    // Merge - prefer pt version (officer's edits) over masterlist
+    var resultMap = {};
+    mlPO.forEach(function(m){
+      var key = (m.nm||'').toUpperCase().trim()+'|'+(m.po||'')+'|'+(m.j||'').toUpperCase().trim();
+      var officer = ptByKey[key];
+      if(officer){
+        // Use officer's version (has tr, edits etc)
+        resultMap[key] = officer;
+        ptByKey[key] = null;
+      } else {
+        // Use masterlist version
+        resultMap[key] = m;
+      }
+    });
+    // Add remaining officer pt entries not in masterlist
+    Object.keys(ptByKey).forEach(function(key){
+      var p = ptByKey[key];
+      if(!p) return;
+      if(t && !isT(p.j||'', t)) return;
+      resultMap[key] = p;
+    });
+    return Object.values(resultMap);
+  }catch(e){
+    return pt.filter(function(p){return (p.pid===CU.pid||(!p.pid&&p.po===CU.po))&&(!t||isT(p.j,t));});
+  }
 }
 function nv(v){return(v&&v!==0)?v:'';}
 function pd(s){if(!s||!s.trim())return null;var p=s.trim().split('/');if(p.length===3){var d=+p[0],m=+p[1],y=+p[2];if(y<100)y+=2000;return new Date(y,m-1,d);}return null;}
