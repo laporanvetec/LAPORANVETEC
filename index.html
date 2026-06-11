@@ -3359,6 +3359,15 @@ window.addEventListener('load',function(){
       <div class="fg"><label>Bantuan</label><select id="pBn"><option value="">-</option><option>PROPER</option><option>RINTIS</option><option>REZEKI TERNAK</option><option>PIKK 60%</option></select></div>
       <div class="fg"><label>PPV</label><select id="pPV"><option value="TIDAK">TIDAK</option><option value="YA">YA</option></select></div>
     </div>
+    <div id="p-admin-po-row" class="fg" style="display:none;background:#faf5ff;padding:8px;border-radius:6px;border:1.5px solid #553c9a">
+      <label style="color:#553c9a;font-weight:700">Pilih PO (Admin sahaja) *</label>
+      <select id="p-admin-po" style="width:100%;padding:8px 10px;border:1.5px solid #553c9a;border-radius:5px;font-size:12px;font-family:inherit;background:#fff">
+        <option value="GURUN">GURUN</option><option value="KULIM">KULIM</option>
+        <option value="SUNGAI PETANI">SUNGAI PETANI</option><option value="KUALA KETIL">KUALA KETIL</option>
+        <option value="ALOR STAR">ALOR STAR</option><option value="JITRA">JITRA</option>
+        <option value="KANGAR/PERLIS">KANGAR/PERLIS</option><option value="SG BAKAP">SG BAKAP</option>
+      </select>
+    </div>
     <div class="g2">
       <div class="fg"><label>Negeri</label><select id="pNg"><option>Kedah</option><option>Perlis</option><option>Pulau Pinang</option><option>Perak</option></select></div>
       <div class="fg"><label>Alamat</label><input id="pAl" placeholder="Alamat ringkas"></div>
@@ -3815,7 +3824,16 @@ function renderSP(){
   // Attach events
   c.querySelectorAll('.tc').forEach(function(el){el.onclick=function(){openT(+this.dataset.pi);};});
   c.querySelectorAll('.qt-btn').forEach(function(el){el.onclick=function(){qTod(+this.dataset.pi);};});
-  c.querySelectorAll('.ep-btn').forEach(function(el){el.onclick=function(){openEditP(+this.dataset.pi);};});
+  c.querySelectorAll('.ep-btn').forEach(function(el){el.onclick=function(){
+    if(isMLAdmin()){
+      var rid = this.dataset.rid;
+      var list = myPt(null);
+      var p = list.find(function(x){return (x.rid||x.id)===rid;});
+      if(p) openEditP(p); else openEditP(+this.dataset.pi);
+    } else {
+      openEditP(+this.dataset.pi);
+    }
+  };});
   c.querySelectorAll('.ppv-btn').forEach(function(el){
     el.onclick=function(){
       var pi=+this.dataset.pi;
@@ -3840,7 +3858,11 @@ function renderSP(){
 function openAddP(){
   ePI=null;
   document.getElementById('mP-t').textContent='+ Tambah Penternak';
-  document.getElementById('mP-s').textContent=CU.po+' | '+CU.nm;
+  document.getElementById('mP-s').textContent= isMLAdmin() ? 'Admin - Pilih PO untuk penternak' : (CU.po+' | '+CU.nm);
+  // Show admin PO selector
+  var apoRow = document.getElementById('p-admin-po-row');
+  if(apoRow) apoRow.style.display = isMLAdmin() ? 'block' : 'none';
+  if(isMLAdmin()) document.getElementById('p-admin-po').value = 'GURUN';
   ['pNm','pId','pTl','pAl'].forEach(function(id){document.getElementById(id).value='';});
   document.getElementById('pJn').value='LEMBU PEDAGING';
   document.getElementById('pBn').value='';
@@ -3850,7 +3872,20 @@ function openAddP(){
   document.getElementById('mP').classList.add('on');
 }
 function openEditP(i){
-  ePI=i;var p=pt[i];
+  ePI=i;
+  // For admin viewing masterlist merge, pt[i] may not exist
+  var p;
+  if(typeof i === 'object'){ p = i; }
+  else if(pt[i]){ p = pt[i]; }
+  else if(isMLAdmin()){
+    var list = myPt(null);
+    if(list[i]) p = list[i];
+  }
+  if(!p){alert('Penternak tidak dijumpai');return;}
+  // Show admin PO selector
+  var apoRow = document.getElementById('p-admin-po-row');
+  if(apoRow) apoRow.style.display = isMLAdmin() ? 'block' : 'none';
+  if(isMLAdmin()) document.getElementById('p-admin-po').value = p.po||'GURUN';
   document.getElementById('mP-t').textContent='Kemaskini Penternak';
   document.getElementById('pNm').value=p.nm||'';
   document.getElementById('pId').value=p.id||'';
@@ -3867,8 +3902,14 @@ function saveP(){
   var nm=document.getElementById('pNm').value.trim();
   if(!nm){alert('Nama diperlukan!');return;}
   var j=document.getElementById('pJn').value;
+  var targetPO = CU.po;
+  var targetPid = CU.pid;
+  if(isMLAdmin()){
+    var apoEl = document.getElementById('p-admin-po');
+    if(apoEl) targetPO = apoEl.value;
+  }
   var p={
-    pid:CU.pid, po:CU.po,
+    pid:targetPid, po:targetPO,
     rid: ePI!==null ? pt[ePI].rid : 'p'+Date.now(),
     nm:nm, id:document.getElementById('pId').value,
     tl:document.getElementById('pTl').value, j:j,
@@ -4178,7 +4219,16 @@ function renderLD(){
   document.getElementById('ld-w').innerHTML=h;
   document.getElementById('ld-w').querySelectorAll('.ld-tc').forEach(function(el){el.onclick=function(){openT(+this.dataset.pi);};});
   document.getElementById('ld-w').querySelectorAll('.ld-qt').forEach(function(el){el.onclick=function(){qTod(+this.dataset.pi);};});
-  document.getElementById('ld-w').querySelectorAll('.ep-btn').forEach(function(el){el.onclick=function(){openEditP(+this.dataset.pi);};});
+  document.getElementById('ld-w').querySelectorAll('.ep-btn').forEach(function(el){el.onclick=function(){
+    if(isMLAdmin()){
+      var rid = this.dataset.rid;
+      var list = myPt(null);
+      var p = list.find(function(x){return (x.rid||x.id)===rid;});
+      if(p) openEditP(p); else openEditP(+this.dataset.pi);
+    } else {
+      openEditP(+this.dataset.pi);
+    }
+  };});
   document.getElementById('ld-w').querySelectorAll('.ld-gps').forEach(function(el){
     el.onclick=function(){
       var pi=+this.dataset.pi;
