@@ -596,7 +596,7 @@ function renderMLReq(){
     
     // For DELETE - warning
     if(action==='delete'){
-      html += '<div style="background:#fff5f5;color:#c53030;padding:6px 12px;font-size:10px;font-weight:600;border-top:1px solid #fed7d7">&#9888; Permohonan untuk PADAM penternak dari Senarai Penternak DAN Masterlist</div>';
+      html += '<div style="background:#fff5f5;color:#c53030;padding:6px 12px;font-size:10px;font-weight:600;border-top:1px solid #fed7d7">&#9888; Permohonan untuk PADAM penternak (pilih cara padam masa lulus)</div>';
     } else if(action==='ltj_drop'){
       html += '<div style="background:#fff8f0;color:#dd6b20;padding:6px 12px;font-size:10px;font-weight:600;border-top:1px solid #fbd38d">&#9888; Permohonan KELUARKAN dari senarai LTJ '+(r.yr||'')+'<br><b>Alasan:</b> '+(r.sebabDrop||'-')+'</div>';
     } else if(action==='edit' && r.oldData){
@@ -606,7 +606,13 @@ function renderMLReq(){
     // Action buttons
     html += '<div style="padding:8px 12px;background:#f7fafc;border-top:1px solid #e2e8f0;display:flex;gap:8px;justify-content:flex-end">';
     html += '<button onclick="rejectMLReq(\''+r.reqId+'\')" style="background:#fff5f5;color:#c53030;border:1px solid #c53030;border-radius:4px;padding:5px 14px;font-size:11px;cursor:pointer;font-weight:600">&#10006; Tolak</button>';
-    html += '<button onclick="approveMLReq(\''+r.reqId+'\')" style="background:#276749;color:#fff;border:none;border-radius:4px;padding:5px 14px;font-size:11px;cursor:pointer;font-weight:600">&#10004; Lulus</button>';
+    if(action==='delete'){
+      // For delete: show choice modal
+      html += '<button onclick="showApproveDeleteChoice(\''+r.reqId+'\')" style="background:#276749;color:#fff;border:none;border-radius:4px;padding:5px 14px;font-size:11px;cursor:pointer;font-weight:600">&#10004; Lulus...</button>';
+    } else {
+      html += '<button onclick="approveMLReq(\''+r.reqId+'\')" style="background:#276749;color:#fff;border:none;border-radius:4px;padding:5px 14px;font-size:11px;cursor:pointer;font-weight:600">&#10004; Lulus</button>';
+    }
+    /* dummy */ html+=''
     html += '</div>';
     
     html += '</div>';
@@ -1638,6 +1644,153 @@ function exportSP03PDFForm(data){
   var fname = 'SP03_Borang_'+bln+'_'+data.yr+'.pdf';
   doc.save(fname);
   toast('&#9989; PDF dimuat turun: '+fname, '#276749');
+}
+
+
+// Admin choice modal for approving delete request
+function showApproveDeleteChoice(reqId){
+  var reqs = getMLReq();
+  var r = reqs.find(function(x){return x.reqId===reqId;});
+  if(!r){alert('Permohonan tidak dijumpai');return;}
+  
+  var existing = document.getElementById('mApvChoice');
+  if(existing) existing.remove();
+  
+  var modal = document.createElement('div');
+  modal.id = 'mApvChoice';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)';
+  
+  var safeId = reqId.replace(/'/g,"");
+  var html = '<div style="background:#fff;border-radius:14px;max-width:520px;width:100%;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.4)">';
+  html += '<div style="background:linear-gradient(135deg,#276749,#38a169);padding:18px 22px;color:#fff">';
+  html += '<div style="font-size:17px;font-weight:800">&#10004; Lulus Permohonan Padam</div>';
+  html += '<div style="font-size:13px;opacity:.9;margin-top:4px">'+r.nm+' &mdash; '+(r.j||'-')+' ('+(r.po||r.requestedPO||'-')+')</div>';
+  html += '<div style="font-size:11px;opacity:.85;margin-top:3px">Pemohon: '+r.requestedBy+' ('+r.requestedPO+')</div>';
+  html += '</div>';
+  html += '<div style="padding:20px;font-size:13px;color:#2d3748">';
+  html += '<div style="margin-bottom:16px">Pilih jenis padam yang nak diluluskan:</div>';
+  
+  html += '<button onclick="approveDeleteAs(\''+safeId+'\',\'lbl_only\')" style="width:100%;background:#ebf8ff;border:2px solid #2b6cb0;border-radius:8px;padding:14px;margin-bottom:10px;cursor:pointer;text-align:left;display:block">';
+  html += '<div style="font-weight:800;color:#2b6cb0;font-size:13px;margin-bottom:4px">&#128071; Padam dari LBL pegawai SAHAJA</div>';
+  html += '<div style="font-size:11px;color:#2b6cb0">Buang dari Ladang Belum Lawat <b>'+r.requestedBy+'</b> sahaja. Penternak kekal di Masterlist + SP semua pegawai PO.</div>';
+  html += '</button>';
+  
+  html += '<button onclick="approveDeleteAs(\''+safeId+'\',\'po_keep_ml\')" style="width:100%;background:#fffbeb;border:2px solid #e8a900;border-radius:8px;padding:14px;margin-bottom:10px;cursor:pointer;text-align:left;display:block">';
+  html += '<div style="font-weight:800;color:#744210;font-size:13px;margin-bottom:4px">&#128276; Padam dari SP PO + LBL semua pegawai PO</div>';
+  html += '<div style="font-size:11px;color:#744210">Buang dari Senarai Penternak PO <b>'+(r.requestedPO||'')+'</b> + LBL semua pegawai PO ini. <b>Penternak KEKAL di Masterlist</b> (boleh tambah balik via Tambah dari Masterlist).</div>';
+  html += '</button>';
+  
+  html += '<button onclick="approveDeleteAs(\''+safeId+'\',\'full\')" style="width:100%;background:#fff5f5;border:2px solid #c53030;border-radius:8px;padding:14px;margin-bottom:10px;cursor:pointer;text-align:left;display:block">';
+  html += '<div style="font-weight:800;color:#c53030;font-size:13px;margin-bottom:4px">&#10060; Padam SEPENUHNYA (Lupuskan)</div>';
+  html += '<div style="font-size:11px;color:#c53030">Padam dari Masterlist + SP semua PO + SP03. Tidak boleh recover.</div>';
+  html += '</button>';
+  
+  html += '<button onclick="document.getElementById(\'mApvChoice\').remove()" style="width:100%;background:#f7fafc;border:1.5px solid #cbd5e0;border-radius:8px;padding:10px;cursor:pointer;font-weight:700;color:#4a5568">Batal</button>';
+  html += '</div></div>';
+  
+  modal.innerHTML = html;
+  document.body.appendChild(modal);
+}
+
+function approveDeleteAs(reqId, mode){
+  document.getElementById('mApvChoice').remove();
+  var reqs = getMLReq();
+  var idx = reqs.findIndex(function(x){return x.reqId===reqId;});
+  if(idx < 0){alert('Permohonan tidak dijumpai');return;}
+  var r = reqs[idx];
+  var nmU = (r.nm||'').toUpperCase().trim();
+  var jU = (r.j||'').toUpperCase().trim();
+  
+  try{
+    if(mode==='lbl_only'){
+      // Only remove from requester's LBL (their pt entry)
+      var allPt = JSON.parse(localStorage.getItem('vu_p')||'[]');
+      var ptNew = allPt.filter(function(p){
+        if(!p.nm) return true;
+        // Match pid + nm + po + jenis
+        var pn = p.nm.toUpperCase().trim();
+        var pj = (p.j||'').toUpperCase().trim();
+        // Remove if this is the requester's entry matching the penternak
+        return !(pn===nmU && p.po===r.requestedPO && pj===jU && p.requestedBy!==undefined ? false : true);
+      });
+      // Simpler: filter by rid
+      ptNew = allPt.filter(function(p){
+        if((p.rid||p.id)===r.rid) return false;
+        if(!p.nm) return true;
+        var pn = p.nm.toUpperCase().trim();
+        var pj = (p.j||'').toUpperCase().trim();
+        // Match by name+po+jenis but only requester's pid
+        // Need to know requester's pid - lookup from officers
+        return true;
+      });
+      // Re-filter: remove only entries with matching rid OR (nm+po+jenis AND pid corresponds to requester)
+      // For safety, just remove by rid
+      ptNew = allPt.filter(function(p){return (p.rid||p.id) !== r.rid;});
+      localStorage.setItem('vu_p', JSON.stringify(ptNew));
+      pt = ptNew;
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_p', JSON.stringify(ptNew));
+    } else if(mode==='po_keep_ml'){
+      // Remove from ALL pt entries in this PO (all officers' LBL), keep masterlist
+      var allPt = JSON.parse(localStorage.getItem('vu_p')||'[]');
+      var ptNew = allPt.filter(function(p){
+        if(!p.nm) return true;
+        return !(p.nm.toUpperCase().trim()===nmU && p.po===r.requestedPO && (p.j||'').toUpperCase().trim()===jU);
+      });
+      localStorage.setItem('vu_p', JSON.stringify(ptNew));
+      pt = ptNew;
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_p', JSON.stringify(ptNew));
+    } else if(mode==='full'){
+      // Full delete: pt + ml + sp03
+      var allPt = JSON.parse(localStorage.getItem('vu_p')||'[]');
+      var ptNew = allPt.filter(function(p){
+        if(!p.nm) return true;
+        return !(p.nm.toUpperCase().trim()===nmU && (p.j||'').toUpperCase().trim()===jU);
+      });
+      localStorage.setItem('vu_p', JSON.stringify(ptNew));
+      pt = ptNew;
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_p', JSON.stringify(ptNew));
+      
+      var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
+      var mlNew = ml.filter(function(m){
+        if(!m.nm) return true;
+        return !(m.nm.toUpperCase().trim()===nmU && (m.j||'').toUpperCase().trim()===jU);
+      });
+      localStorage.setItem('vu_ml', JSON.stringify(mlNew));
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ml', JSON.stringify(mlNew));
+      
+      var sp03 = JSON.parse(localStorage.getItem('vu_sp03')||'[]');
+      var sp03New = sp03.filter(function(s){
+        var sn = (s.namaPenternak||s.nm||'').toUpperCase().trim();
+        return sn !== nmU;
+      });
+      localStorage.setItem('vu_sp03', JSON.stringify(sp03New));
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_sp03', JSON.stringify(sp03New));
+    }
+    
+    // Mark request as approved
+    reqs[idx].status = 'approved';
+    reqs[idx].approvedBy = CU.nm;
+    reqs[idx].approvedAt = new Date().toISOString();
+    reqs[idx].approveMode = mode;
+    saveMLReq(reqs);
+    
+    // Notify officer
+    if(typeof addNotifFor==='function'){
+      var msgMap = {
+        'lbl_only':'dipadam dari LBL anda sahaja (kekal di Masterlist)',
+        'po_keep_ml':'dipadam dari SP PO (kekal di Masterlist)',
+        'full':'dipadam SEPENUHNYA (Masterlist + semua)'
+      };
+      addNotifFor(r.requestedBy, r.requestedPO, '&#9989; Permohonan padam '+r.nm+' DILULUSKAN - '+msgMap[mode]);
+    }
+    
+    renderMLReq();
+    if(typeof renderSP==='function') renderSP();
+    toast('&#9989; Permohonan padam diluluskan ('+mode+')','#276749');
+  }catch(e){
+    console.error('Approve delete error:', e);
+    alert('Ralat: '+e.message);
+  }
 }
 
 function approveMLReq(reqId){
