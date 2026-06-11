@@ -3537,6 +3537,23 @@ var peg=[],pt=[],rRB=[],rRK=[],rUG=[];
 var ePI=null,eTI=null,eRI=null,eRT=null,impR=[],tDt=[];
 
 function isT(j,t){if(!j)return false;var u=j.toUpperCase();return TKW[t].some(function(k){return u.indexOf(k)>=0;});}
+
+// Officer's personal LBL = their own vu_p entries (unique per officer)
+// Admin's LBL = same as SP (all entries)
+function myLBL(t){
+  if(!CU) return [];
+  if(isMLAdmin()){
+    return myPt(t); // Admin sees all
+  }
+  // Officer: only their own vu_p entries
+  return pt.filter(function(p){
+    if(!p) return false;
+    if(p.pid !== CU.pid) return false;
+    if(t && !isT(p.j||'', t)) return false;
+    return true;
+  });
+}
+
 function myPt(t){
   if(!CU)return[];
   // Admin sees masterlist + merged officer data (tr, lat/lng updates)
@@ -3936,6 +3953,99 @@ function saveP(){
   var dest=isT(j,'rb')?'Pengeluaran RB':isT(j,'rk')?'Pengeluaran RK':isT(j,'ug')?'Pengeluaran UG':'';
   toast('Disimpan. Penternak muncul di '+dest,'#276749');
 }
+
+// ─── ADMIN DELETE PENTERNAK CHOICE MODAL ────────
+function showDeletePenternakChoice(p){
+  var existing = document.getElementById('mDelChoice');
+  if(existing) existing.remove();
+  
+  var modal = document.createElement('div');
+  modal.id = 'mDelChoice';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)';
+  
+  modal.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:480px;width:100%;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.4)">' +
+    '<div style="background:linear-gradient(135deg,#c53030,#e53e3e);padding:18px 22px;color:#fff">' +
+      '<div style="font-size:17px;font-weight:800">&#128465; Padam Penternak</div>' +
+      '<div style="font-size:13px;opacity:.9;margin-top:4px">'+p.nm+' &mdash; '+(p.j||'-')+' ('+(p.po||'-')+')</div>' +
+    '</div>' +
+    '<div style="padding:20px;font-size:13px;color:#2d3748">' +
+      '<div style="margin-bottom:16px">Pilih jenis pemadaman:</div>' +
+      
+      '<button onclick="confirmDeletePenternak(\''+(p.rid||p.id||'')+'\',false)" style="width:100%;background:#fffbeb;border:2px solid #e8a900;border-radius:8px;padding:14px;margin-bottom:10px;cursor:pointer;text-align:left;display:block">' +
+        '<div style="font-weight:800;color:#744210;font-size:13px;margin-bottom:4px">&#128071; Padam dari Senarai Pegawai SAHAJA</div>' +
+        '<div style="font-size:11px;color:#744210">Penternak kekal di Masterlist. Pegawai PO ini tidak akan nampak lagi, tapi pegawai PO lain (kalau ada nama sama) tidak terjejas. Boleh tambah semula via Tambah dari Masterlist.</div>' +
+      '</button>' +
+      
+      '<button onclick="confirmDeletePenternak(\''+(p.rid||p.id||'')+'\',true)" style="width:100%;background:#fff5f5;border:2px solid #c53030;border-radius:8px;padding:14px;margin-bottom:10px;cursor:pointer;text-align:left;display:block">' +
+        '<div style="font-weight:800;color:#c53030;font-size:13px;margin-bottom:4px">&#10060; Padam SEPENUHNYA</div>' +
+        '<div style="font-size:11px;color:#c53030">Padam dari Senarai Pegawai + Masterlist + SP03. Tidak boleh recover.</div>' +
+      '</button>' +
+      
+      '<button onclick="document.getElementById(\'mDelChoice\').remove()" style="width:100%;background:#f7fafc;border:1.5px solid #cbd5e0;border-radius:8px;padding:10px;cursor:pointer;font-weight:700;color:#4a5568">Batal</button>' +
+    '</div>' +
+  '</div>';
+  
+  document.body.appendChild(modal);
+}
+
+function confirmDeletePenternak(targetRid, alsoML){
+  document.getElementById('mDelChoice').remove();
+  if(!targetRid){alert('Target rid tidak dijumpai');return;}
+  
+  // Find p
+  var allPt = JSON.parse(localStorage.getItem('vu_p')||'[]');
+  var p = allPt.find(function(x){return (x.rid||x.id)===targetRid;});
+  if(!p){
+    var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
+    p = ml.find(function(x){return (x.rid||x.id)===targetRid;});
+  }
+  if(!p){alert('Penternak tidak dijumpai');return;}
+  
+  var nmU = (p.nm||'').toUpperCase().trim();
+  var jU = (p.j||'').toUpperCase().trim();
+  
+  // Delete from pt (officers' senarai)
+  var ptNew = allPt.filter(function(x){
+    if((x.rid||x.id) === targetRid) return false;
+    // Also remove other officers' copies with same nm+po+jenis
+    if(x.nm && x.nm.toUpperCase().trim()===nmU && x.po===p.po && (x.j||'').toUpperCase().trim()===jU) return false;
+    return true;
+  });
+  localStorage.setItem('vu_p', JSON.stringify(ptNew));
+  pt = ptNew;
+  if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_p', JSON.stringify(ptNew));
+  
+  if(alsoML){
+    // Delete from masterlist too
+    var ml2 = JSON.parse(localStorage.getItem('vu_ml')||'[]');
+    var mlNew = ml2.filter(function(x){
+      if((x.rid||x.id) === targetRid) return false;
+      if(x.nm && x.nm.toUpperCase().trim()===nmU && (x.po===p.po||!x.po) && (x.j||'').toUpperCase().trim()===jU) return false;
+      return true;
+    });
+    localStorage.setItem('vu_ml', JSON.stringify(mlNew));
+    if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ml', JSON.stringify(mlNew));
+    
+    // Also remove from SP03
+    try{
+      var sp03 = JSON.parse(localStorage.getItem('vu_sp03')||'[]');
+      var sp03New = sp03.filter(function(s){
+        return !(s.nm && s.nm.toUpperCase().trim()===nmU && s.po===p.po);
+      });
+      if(sp03New.length !== sp03.length){
+        localStorage.setItem('vu_sp03', JSON.stringify(sp03New));
+        if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_sp03', JSON.stringify(sp03New));
+      }
+    }catch(e){}
+    
+    toast('&#10060; '+p.nm+' dipadam SEPENUHNYA','#c53030');
+  } else {
+    toast('&#9888; '+p.nm+' dipadam dari Senarai Pegawai (kekal di Masterlist)','#e8a900');
+  }
+  
+  renderSP();
+}
+
 function delP(i){
   // For admin: pt[i] might not exist because they view merged masterlist
   // We use a wrapper that accepts either index OR a penternak object
@@ -3952,8 +4062,18 @@ function delP(i){
   if(!p) {alert('Penternak tidak dijumpai');return;}
   
   if(isMLAdmin()){
-    // Admin: delete immediately + propagate to masterlist
-    if(!confirm('Padam "'+p.nm+'" ('+p.j+')?\n\nIni juga akan padam dari Senarai Pegawai + Masterlist.'))return;
+    // Admin: choice dialog - senarai only OR senarai + masterlist
+    var choice = prompt(
+      'Padam "'+p.nm+'" ('+p.j+')?\n\n'+
+      'Taip:\n'+
+      '1 = Padam dari SENARAI PENTERNAK sahaja (kekal di Masterlist)\n'+
+      '2 = Padam dari SENARAI PENTERNAK + MASTERLIST\n\n'+
+      '(Cancel untuk batal)',
+      '1'
+    );
+    if(choice===null) return;
+    if(choice!=='1' && choice!=='2'){ alert('Batal - sila taip 1 atau 2'); return; }
+    var alsoDeleteML = (choice === '2');
     var targetRid = p.rid || p.id;
     // Delete from pt - prefer rid match (unique), fallback to nm+po+jenis
     var allPt = JSON.parse(localStorage.getItem('vu_p')||'[]');
@@ -3980,7 +4100,8 @@ function delP(i){
     localStorage.setItem('vu_p', JSON.stringify(ptNew));
     pt = ptNew;
     if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_p', JSON.stringify(ptNew));
-    // Also delete from masterlist - use rid first
+    // Also delete from masterlist - only if user chose option 2
+    if(alsoDeleteML){
     try{
       var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
       var mlNew;
@@ -4010,8 +4131,9 @@ function delP(i){
         }
       }
     }catch(e){}
+    } // end if(alsoDeleteML)
     renderSP();
-    toast('Dipadam dari Senarai & Masterlist','#c53030');
+    toast(alsoDeleteML ? 'Dipadam dari Senarai & Masterlist' : 'Dipadam dari Senarai sahaja (Masterlist kekal)','#c53030');
   } else {
     // Officer: send DELETE request to admin
     if(!confirm('Padam "'+p.nm+'"?\n\nPermohonan akan dihantar untuk kelulusan admin.\nPenternak akan kekal sehingga diluluskan.'))return;
@@ -4163,16 +4285,16 @@ function qTod(i){
 function renderLD(){
   var fst=document.getElementById('ld-st').value;
   var q=(document.getElementById('ld-q').value||'').toLowerCase();
-  var all=myPt(null).filter(function(p){
+  var all=myLBL(null).filter(function(p){
     if(fst==='1'&&!vM(p.tr))return false;
     if(fst==='0'&&vM(p.tr))return false;
     if(q&&p.nm.toLowerCase().indexOf(q)<0)return false;
     return true;
   });
   document.getElementById('ld-cnt').textContent=all.length+' rekod';
-  var tot=myPt(null).length;
-  var dB=myPt(null).filter(function(p){return vM(p.tr);}).length;
-  var dT=myPt(null).filter(function(p){return vY(p.tr);}).length;
+  var tot=myLBL(null).length;
+  var dB=myLBL(null).filter(function(p){return vM(p.tr);}).length;
+  var dT=myLBL(null).filter(function(p){return vY(p.tr);}).length;
   var pB=tot?Math.round(dB/tot*100):0,pT=tot?Math.round(dT/tot*100):0;
   document.getElementById('ld-stats').innerHTML=
     '<div class="sc" style="border-left-color:#0f2d5e"><div class="sl">Jumlah</div><div class="sv">'+tot+'</div></div>'+
@@ -4222,7 +4344,7 @@ function renderLD(){
   document.getElementById('ld-w').querySelectorAll('.ep-btn').forEach(function(el){el.onclick=function(){
     if(isMLAdmin()){
       var rid = this.dataset.rid;
-      var list = myPt(null);
+      var list = myLBL(null);
       var p = list.find(function(x){return (x.rid||x.id)===rid;});
       if(p) openEditP(p); else openEditP(+this.dataset.pi);
     } else {
@@ -4422,7 +4544,7 @@ function renderRB(){
   setTimeout(function(){if(typeof checkPengeluaranUpdate==='function')checkPengeluaranUpdate('rb');},500);
   ld();
   var bln=document.getElementById('rb-bln').value,thn=document.getElementById('rb-thn').value;
-  var mp=myPt('rb');
+  var mp=myLBL('rb');
   var f=rRB.filter(function(r){return r.pid===CU.pid&&(!bln||r.bln===bln)&&(!thn||r.thn===thn);});
   document.getElementById('rb-cnt').textContent=mp.length+' penternak | '+f.length+' rekod';
   // Penternak section
@@ -4500,7 +4622,7 @@ function renderRK(){
   setTimeout(function(){if(typeof checkPengeluaranUpdate==='function')checkPengeluaranUpdate('rk');},500);
   ld();
   var bln=document.getElementById('rk-bln').value,thn=document.getElementById('rk-thn').value;
-  var mp=myPt('rk');
+  var mp=myLBL('rk');
   var f=rRK.filter(function(r){return r.pid===CU.pid&&(!bln||r.bln===bln)&&(!thn||r.thn===thn);});
   document.getElementById('rk-cnt').textContent=mp.length+' penternak | '+f.length+' rekod';
   var w=document.getElementById('rk-w');
@@ -4530,7 +4652,7 @@ function renderUG(){
   setTimeout(function(){if(typeof checkPengeluaranUpdate==='function')checkPengeluaranUpdate('ug');},500);
   ld();
   var bln=document.getElementById('ug-bln').value,thn=document.getElementById('ug-thn').value;
-  var mp=myPt('ug');
+  var mp=myLBL('ug');
   var f=rUG.filter(function(r){return r.pid===CU.pid&&(!bln||r.bln===bln)&&(!thn||r.thn===thn);});
   document.getElementById('ug-cnt').textContent=mp.length+' penternak | '+f.length+' rekod';
   var w=document.getElementById('ug-w');
@@ -4777,7 +4899,7 @@ function renderTS(){
   var yr=parseInt(document.getElementById('ts-yr').value)||2026;
   var moFilter=document.getElementById('ts-mo').value;
   var tsd=getTSD();
-  var list=myPt(null);
+  var list=myLBL(null);
   document.getElementById('ts-cnt').textContent=list.length+' ladang';
 
   // Stats
@@ -9907,8 +10029,16 @@ function saveML(){
     updatedAt:new Date().toISOString()
   };
   var d=getML();
-  if(mlEditId){var i=d.findIndex(function(r){return r.id===mlEditId;});if(i>=0)d[i]=rec;else d.push(rec);}
-  else d.push(rec);
+  if(mlEditId){
+    var i=d.findIndex(function(r){return r.id===mlEditId||r.rid===mlEditId;});
+    if(i>=0){
+      // Preserve rid and other existing fields
+      rec.rid = d[i].rid || rec.id;
+      rec.id = d[i].id || mlEditId;
+      // Merge to preserve any other fields
+      d[i] = Object.assign({}, d[i], rec);
+    } else d.push(rec);
+  } else d.push(rec);
   saveMLData(d);
   document.getElementById('mML').classList.remove('on');
   renderML(); toast('Masterlist dikemaskini: '+nm,'#553c9a');
