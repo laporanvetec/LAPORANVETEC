@@ -3986,7 +3986,19 @@ function renderSP(){
     h+='<td><div style="display:flex;align-items:center;gap:5px"><span class="tc '+tc+'" data-pi="'+pi+'">'+(p.tr||'Klik untuk rekod')+'</span><button data-pi="'+pi+'" style="background:#276749;color:#fff;border:none;border-radius:4px;padding:2px 7px;font-size:10px;cursor:pointer;font-weight:700" class="qt-btn">&#9989;</button></div></td>';
     h+='<td style="text-align:center"><span class="'+(vb?'s1':'s0')+'">'+(vb?'Dilawat':'Belum')+'</span></td>';
     h+='<td style="text-align:center">'+gpsBtnHTML(p, pi)+'</td>';
-    h+='<td><div style="display:flex;gap:3px"><button class="bsm be ep-btn" data-pi="'+pi+'" data-rid="'+(p.rid||p.id||'')+'">&#9999;&#65039;</button><button class="bsm bd dp-btn" data-pi="'+pi+'" data-rid="'+(p.rid||p.id||'')+'" data-nm="'+(p.nm||'').replace(/"/g,'')+'" data-po="'+(p.po||'')+'" data-j="'+(p.j||'').replace(/"/g,'')+'">&#128465;&#65039;</button></div></td>';
+    h+='<td><div style="display:flex;gap:3px;justify-content:center">';
+    // For officer: show "+ LBL" button if not yet in their LBL
+    if(!isMLAdmin()){
+      var inMyLBL = pt.some(function(x){return x.pid===CU.pid && (x.rid||x.id)===(p.rid||p.id);});
+      if(!inMyLBL){
+        h+='<button class="bsm add-lbl-btn" data-rid="'+(p.rid||p.id||'')+'" data-nm="'+(p.nm||'').replace(/"/g,'')+'" data-j="'+(p.j||'').replace(/"/g,'')+'" data-po="'+(p.po||'')+'" data-id="'+(p.id||'').replace(/"/g,'')+'" data-tl="'+(p.tl||'').replace(/"/g,'')+'" data-al="'+(p.al||'').replace(/"/g,'')+'" data-bn="'+(p.bn||'').replace(/"/g,'')+'" data-pv="'+(p.pv||'')+'" data-ng="'+(p.ng||'').replace(/"/g,'')+'" style="background:#276749;color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;font-weight:700" title="Tambah ke LBL saya">+LBL</button>';
+      } else {
+        h+='<span style="background:#c6f6d5;color:#276749;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700">&#10004; LBL</span>';
+      }
+    }
+    h+='<button class="bsm be ep-btn" data-pi="'+pi+'" data-rid="'+(p.rid||p.id||'')+'">&#9999;&#65039;</button>';
+    h+='<button class="bsm bd dp-btn" data-pi="'+pi+'" data-rid="'+(p.rid||p.id||'')+'" data-nm="'+(p.nm||'').replace(/"/g,'')+'" data-po="'+(p.po||'')+'" data-j="'+(p.j||'').replace(/"/g,'')+'">&#128465;&#65039;</button>';
+    h+='</div></td>';
     h+='</tr>';
   });
   h+='</tbody></table></div>';
@@ -4008,6 +4020,22 @@ function renderSP(){
     el.onclick=function(){
       var pi=+this.dataset.pi;
       togglePPV(pi);
+    };
+  });
+  c.querySelectorAll('.add-lbl-btn').forEach(function(el){
+    el.onclick=function(){
+      var data = this.dataset;
+      var newP = {
+        pid: CU.pid, po: data.po||CU.po,
+        rid: 'p'+Date.now()+'_'+Math.random().toString(36).substr(2,4),
+        nm: data.nm, id: data.id||'', tl: data.tl||'',
+        j: data.j, bn: data.bn||'', pv: data.pv||'TIDAK',
+        ng: data.ng||'Kedah', al: data.al||'', tr: ''
+      };
+      pt.push(newP);
+      sv();
+      toast('&#9989; '+data.nm+' ditambah ke LBL anda','#276749');
+      renderSP();
     };
   });
   c.querySelectorAll('.dp-btn').forEach(function(el){el.onclick=function(){
@@ -12002,10 +12030,20 @@ function janaLaporanAkhir(){
   });
   S+='</tbody></table></div>';
 
-  // Chart
+  // CHART 1: Pencapaian Pegawai (BP + BA)
   S+='<div style="background:#1a1a2e;border-radius:10px;padding:16px;margin-top:10px">';
-  S+='<div style="text-align:center;color:#fff;font-weight:700;font-size:13px;margin-bottom:12px">PURATA BILANGAN PENTERNAK (BP) DAN AKTIVITI (BA) — TAHUN '+yr+'</div>';
+  S+='<div style="text-align:center;color:#fff;font-weight:700;font-size:13px;margin-bottom:12px">&#128202; PENCAPAIAN PEGAWAI - BP & BA - '+yr+'</div>';
   S+='<canvas id="la-chart" style="max-height:350px"></canvas></div>';
+  
+  // CHART 2: Pencapaian Per PO
+  S+='<div style="background:#1a3a52;border-radius:10px;padding:16px;margin-top:10px">';
+  S+='<div style="text-align:center;color:#fff;font-weight:700;font-size:13px;margin-bottom:12px">&#127970; PENCAPAIAN PER PUSAT OPERASI - '+yr+'</div>';
+  S+='<canvas id="la-chart-po" style="max-height:350px"></canvas></div>';
+  
+  // CHART 3: Pencapaian Keseluruhan (Pie/Doughnut)
+  S+='<div style="background:#2d1b69;border-radius:10px;padding:16px;margin-top:10px">';
+  S+='<div style="text-align:center;color:#fff;font-weight:700;font-size:13px;margin-bottom:12px">&#127942; PENCAPAIAN KESELURUHAN - '+yr+'</div>';
+  S+='<canvas id="la-chart-overall" style="max-height:350px"></canvas></div>';
   S+='</div></div>';
 
   // Ranking table BP
@@ -12043,19 +12081,19 @@ function janaLaporanAkhir(){
 
   out.innerHTML = S;
 
-  // Draw chart
+  // Draw charts
   setTimeout(function(){
     var ctx=document.getElementById('la-chart');
     if(!ctx) return;
-    if(LA_CHART) LA_CHART.destroy();
+    if(window.LA_CHART) window.LA_CHART.destroy();
     var labels=pegArr.map(function(p){return p.nm.length>20?p.nm.substring(0,18)+'..':p.nm;});
-    LA_CHART=new Chart(ctx,{
+    window.LA_CHART=new Chart(ctx,{
       type:'bar',
       data:{
         labels:labels,
         datasets:[
-          {label:'BP (Bilangan Penternak)',data:pegArr.map(function(p){return p.bp;}),backgroundColor:'rgba(220,53,69,0.8)',borderColor:'#c53030',borderWidth:1},
-          {label:'BA (Bilangan Aktiviti)',data:pegArr.map(function(p){return p.ba;}),backgroundColor:'rgba(148,0,211,0.8)',borderColor:'#553c9a',borderWidth:1}
+          {label:'BP (Bilangan Penternak)',data:pegArr.map(function(p){return p.bp;}),backgroundColor:'rgba(220,53,69,0.85)',borderColor:'#c53030',borderWidth:2},
+          {label:'BA (Bilangan Aktiviti)',data:pegArr.map(function(p){return p.ba;}),backgroundColor:'rgba(148,0,211,0.85)',borderColor:'#553c9a',borderWidth:2}
         ]
       },
       options:{
@@ -12067,6 +12105,68 @@ function janaLaporanAkhir(){
         }
       }
     });
+    
+    // CHART 2: Per PO
+    var ctxPO = document.getElementById('la-chart-po');
+    if(ctxPO){
+      if(window.LA_CHART_PO) window.LA_CHART_PO.destroy();
+      // Aggregate by PO
+      var byPO = {};
+      pegArr.forEach(function(p){
+        if(!byPO[p.po]) byPO[p.po] = {bp:0, ba:0, count:0};
+        byPO[p.po].bp += p.bp;
+        byPO[p.po].ba += p.ba;
+        byPO[p.po].count++;
+      });
+      var poNames = Object.keys(byPO);
+      window.LA_CHART_PO = new Chart(ctxPO, {
+        type:'bar',
+        data:{
+          labels: poNames,
+          datasets:[
+            {label:'Jumlah BP', data: poNames.map(function(po){return byPO[po].bp;}), backgroundColor:'rgba(56,178,172,0.85)', borderColor:'#319795', borderWidth:2},
+            {label:'Jumlah BA', data: poNames.map(function(po){return byPO[po].ba;}), backgroundColor:'rgba(237,137,54,0.85)', borderColor:'#dd6b20', borderWidth:2}
+          ]
+        },
+        options:{
+          responsive:true,
+          plugins:{legend:{labels:{color:'#fff',font:{size:11}}}},
+          scales:{
+            x:{ticks:{color:'#ccc',font:{size:10},maxRotation:45},grid:{color:'rgba(255,255,255,.1)'}},
+            y:{ticks:{color:'#ccc',font:{size:10}},grid:{color:'rgba(255,255,255,.1)'},beginAtZero:true}
+          }
+        }
+      });
+    }
+    
+    // CHART 3: Overall (Doughnut)
+    var ctxOv = document.getElementById('la-chart-overall');
+    if(ctxOv){
+      if(window.LA_CHART_OV) window.LA_CHART_OV.destroy();
+      var totalBP = pegArr.reduce(function(s,p){return s+p.bp;}, 0);
+      var totalBA = pegArr.reduce(function(s,p){return s+p.ba;}, 0);
+      var pendingBP = Math.max(0, baseline - totalBP);
+      window.LA_CHART_OV = new Chart(ctxOv, {
+        type:'doughnut',
+        data:{
+          labels:['Penternak Dilawat ('+totalBP+')', 'Penternak Belum Lawat ('+pendingBP+')', 'Aktiviti Pegawai ('+totalBA+')'],
+          datasets:[{
+            data:[totalBP, pendingBP, totalBA],
+            backgroundColor:['rgba(72,187,120,0.9)','rgba(229,62,62,0.9)','rgba(159,122,234,0.9)'],
+            borderColor:['#fff','#fff','#fff'],
+            borderWidth:2
+          }]
+        },
+        options:{
+          responsive:true,
+          plugins:{
+            legend:{position:'right', labels:{color:'#fff',font:{size:11}, padding:14}},
+            tooltip:{enabled:true}
+          }
+        }
+      });
+    }
+    
     toast('&#9989; Laporan Akhir berjaya dijana!','#276749');
   },300);
 }
