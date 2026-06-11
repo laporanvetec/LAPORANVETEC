@@ -3545,7 +3545,7 @@ function myPt(t){
         }
       });
       // Merge masterlist with officer updates - match by name+po+jenis
-      return ml.filter(function(p){return !t||isT(p.j,t);}).map(function(m){
+      var mergedList = ml.filter(function(p){return !t||isT(p.j,t);}).map(function(m){
         var key = (m.nm||'').toUpperCase().trim()+'|'+(m.po||'')+'|'+(m.j||'').toUpperCase().trim();
         var officer = ptByKey[key];
         if(officer){
@@ -3557,10 +3557,20 @@ function myPt(t){
           if(officer.id && !merged.id) merged.id = officer.id;
           if(officer.tl && !merged.tl) merged.tl = officer.tl;
           if(officer.pv) merged.pv = officer.pv;
+          // Mark this officer entry as used
+          ptByKey[key] = null;
           return merged;
         }
         return m;
       });
+      // Add officer pt entries that are NOT in masterlist (admin direct adds, etc)
+      Object.keys(ptByKey).forEach(function(key){
+        var p = ptByKey[key];
+        if(!p) return; // already merged
+        if(t && !isT(p.j||'', t)) return;
+        mergedList.push(p);
+      });
+      return mergedList;
     }catch(e){return[];}
   }
   return pt.filter(function(p){return (p.pid===CU.pid||(!p.pid&&p.po===CU.po))&&(!t||isT(p.j,t));});
