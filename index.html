@@ -4269,106 +4269,23 @@ function confirmDeletePenternak(targetRid, alsoML){
 }
 
 function delP(i){
-  // For admin: pt[i] might not exist because they view merged masterlist
-  // We use a wrapper that accepts either index OR a penternak object
+  // Find p
   var p;
-  if(typeof i === 'object'){
-    p = i;
-  } else if(pt[i]){
-    p = pt[i];
-  } else if(isMLAdmin()){
-    // Try to find from current myPt result by index from rendered list
+  if(typeof i === 'object'){ p = i; }
+  else if(pt[i]){ p = pt[i]; }
+  else if(isMLAdmin()){
     var list = myPt(null);
     if(list[i]) p = list[i];
   }
-  if(!p) {alert('Penternak tidak dijumpai');return;}
+  if(!p){alert('Penternak tidak dijumpai');return;}
   
   if(isMLAdmin()){
-    // Admin: choice dialog - senarai only OR senarai + masterlist
-    var choice = prompt(
-      'Padam "'+p.nm+'" ('+p.j+')?\n\n'+
-      'Taip:\n'+
-      '1 = Padam dari SENARAI PENTERNAK sahaja (kekal di Masterlist)\n'+
-      '2 = Padam dari SENARAI PENTERNAK + MASTERLIST\n\n'+
-      '(Cancel untuk batal)',
-      '1'
-    );
-    if(choice===null) return;
-    if(choice!=='1' && choice!=='2'){ alert('Batal - sila taip 1 atau 2'); return; }
-    var alsoDeleteML = (choice === '2');
-    var targetRid = p.rid || p.id;
-    // Delete from pt - prefer rid match (unique), fallback to nm+po+jenis
-    var allPt = JSON.parse(localStorage.getItem('vu_p')||'[]');
-    var ptNew;
-    if(targetRid){
-      ptNew = allPt.filter(function(x){return (x.rid||x.id) !== targetRid;});
-      // If no rid match found, also try nm+po+jenis (officers may have copy with diff rid)
-      if(ptNew.length === allPt.length){
-        var nmU = (p.nm||'').toUpperCase().trim();
-        var jU = (p.j||'').toUpperCase().trim();
-        ptNew = allPt.filter(function(x){
-          if(!x.nm) return true;
-          return !(x.nm.toUpperCase().trim()===nmU && x.po===p.po && x.j&&x.j.toUpperCase().trim()===jU);
-        });
-      }
-    } else {
-      var nmU = (p.nm||'').toUpperCase().trim();
-      var jU = (p.j||'').toUpperCase().trim();
-      ptNew = allPt.filter(function(x){
-        if(!x.nm) return true;
-        return !(x.nm.toUpperCase().trim()===nmU && x.po===p.po && x.j&&x.j.toUpperCase().trim()===jU);
-      });
-    }
-    localStorage.setItem('vu_p', JSON.stringify(ptNew));
-    pt = ptNew;
-    if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_p', JSON.stringify(ptNew));
-    // Also delete from masterlist - only if user chose option 2
-    if(alsoDeleteML){
-    try{
-      var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
-      var mlNew;
-      if(targetRid){
-        mlNew = ml.filter(function(m){return (m.rid||m.id) !== targetRid;});
-        if(mlNew.length === ml.length){
-          // Fallback: match by nm+po+jenis (precise)
-          var nmU2 = (p.nm||'').toUpperCase().trim();
-          var jU2 = (p.j||'').toUpperCase().trim();
-          mlNew = ml.filter(function(m){
-            if(!m.nm) return true;
-            return !(m.nm.toUpperCase().trim()===nmU2 && (m.po===p.po||!m.po) && m.j&&m.j.toUpperCase().trim()===jU2);
-          });
-        }
-      } else {
-        var nmU2 = (p.nm||'').toUpperCase().trim();
-        var jU2 = (p.j||'').toUpperCase().trim();
-        mlNew = ml.filter(function(m){
-          if(!m.nm) return true;
-          return !(m.nm.toUpperCase().trim()===nmU2 && (m.po===p.po||!m.po) && m.j&&m.j.toUpperCase().trim()===jU2);
-        });
-      }
-      if(mlNew.length !== ml.length){
-        localStorage.setItem('vu_ml', JSON.stringify(mlNew));
-        if(window.GS_READY && typeof rtWrite === 'function'){
-          rtWrite('vu_ml', JSON.stringify(mlNew));
-        }
-      }
-    }catch(e){}
-    } // end if(alsoDeleteML)
-    renderSP();
-    toast(alsoDeleteML ? 'Dipadam dari Senarai & Masterlist' : 'Dipadam dari Senarai sahaja (Masterlist kekal)','#c53030');
+    showDeletePenternakChoice(p, true);
   } else {
-    // Officer: send DELETE request to admin
-    if(!confirm('Padam "'+p.nm+'"?\n\nPermohonan akan dihantar untuk kelulusan admin.\nPenternak akan kekal sehingga diluluskan.'))return;
-    var submitted = submitMLActionRequest(p, 'delete', 'sp');
-    if(submitted){
-      toast('&#128276; Permohonan padam dihantar untuk kelulusan admin','#e8a900');
-    } else {
-      toast('Permohonan sudah wujud untuk penternak ini','#e8a900');
-    }
+    showDeletePenternakChoice(p, false);
   }
 }
 
-// TARIKH LAWATAN
 function renderCh(){
   var el=document.getElementById('tCh');if(!el)return;
   if(!tDt.length){el.innerHTML='<span style="color:#a0aec0;font-size:12px">Belum ada</span>';return;}
