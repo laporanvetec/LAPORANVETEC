@@ -3578,13 +3578,16 @@ function myPt(t){
     var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
     var myPO = CU.po;
     
-    // Build officer pt lookup by nm+po+jenis
+    // Build officer pt lookup by nm+po+jenis - include all PO entries
     var ptByKey = {};
     pt.forEach(function(p){
       if(!p.nm) return;
-      if(p.pid!==CU.pid && !(!p.pid&&p.po===CU.po)) return; // not officer's
+      if(p.po !== CU.po) return; // only this officer's PO
       var key = p.nm.toUpperCase().trim()+'|'+(p.po||'')+'|'+(p.j||'').toUpperCase().trim();
-      ptByKey[key] = p;
+      // Keep one with most data
+      if(!ptByKey[key] || p.tr || p.lat){
+        ptByKey[key] = p;
+      }
     });
     
     // Get masterlist entries for this PO
