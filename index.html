@@ -8584,7 +8584,21 @@ function renderSP03(){
     });
     h+='<td style="border:1px solid #e2e8f0;padding:4px;text-align:center">';
     h+='<div style="display:flex;flex-direction:column;gap:3px;align-items:center">';
-    h+='<button class="btn bbl" style="padding:3px 8px;font-size:10px;white-space:nowrap" data-s3-edit="'+r.id+'">&#9998; Edit</button>';
+    // Check if officer can edit (current month only) or admin (always)
+    var rMo = parseInt(r.bulanIdx); 
+    if(isNaN(rMo)){
+      // Try to get from bulan name
+      var bMap = {'JANUARI':0,'FEBRUARI':1,'MAC':2,'APRIL':3,'MEI':4,'JUN':5,'JULAI':6,'OGOS':7,'SEPTEMBER':8,'OKTOBER':9,'NOVEMBER':10,'DISEMBER':11};
+      rMo = bMap[(r.bulan||'').toUpperCase()] !== undefined ? bMap[(r.bulan||'').toUpperCase()] : -1;
+    }
+    var nowDt = new Date();
+    var canEdit = isMLAdmin() || (rMo === nowDt.getMonth() && (r.yr||nowDt.getFullYear()) === nowDt.getFullYear());
+    if(canEdit){
+      h+='<button class="btn bbl" style="padding:3px 8px;font-size:10px;white-space:nowrap" data-s3-edit="'+r.id+'">&#9998; Edit</button>';
+    } else {
+      h+='<button class="btn" style="padding:3px 8px;font-size:10px;white-space:nowrap;background:#f7fafc;color:#a0aec0;border:1px solid #cbd5e0;cursor:not-allowed" title="Hanya boleh edit bulan semasa. Untuk bulan lain, edit di Ladang Belum Lawat">&#9998; Edit (bulan lalu)</button>';
+    }
+    h+='<button class="btn" style="padding:3px 8px;font-size:10px;white-space:nowrap;background:#ebf8ff;color:#2b6cb0;border:1px solid #2b6cb0" data-s3-copy="'+r.id+'" title="Copy SP03 ini untuk penternak lain">&#128203; Copy</button>';
     h+='<button class="btn" style="padding:3px 8px;font-size:10px;white-space:nowrap;background:#fff5f5;color:#c53030;border:1px solid #c53030" data-s3-del="'+r.id+'">&#128465; Padam</button>';
     h+='</div></td>';
     h += '</tr>';
@@ -8594,6 +8608,9 @@ function renderSP03(){
 
   document.getElementById('s3-wrap').querySelectorAll('[data-s3-edit]').forEach(function(el){
     el.onclick = function(){ openSP03Edit(this.dataset.s3Edit); };
+  });
+  document.getElementById('s3-wrap').querySelectorAll('[data-s3-copy]').forEach(function(el){
+    el.onclick = function(){ copySP03(this.dataset.s3Copy); };
   });
   document.getElementById('s3-wrap').querySelectorAll('[data-s3-del]').forEach(function(el){
     el.onclick = function(){
@@ -8643,6 +8660,62 @@ function removePegRow(i){
 function updatePegRow(i, val){
   if(!window._sp03PegList) return;
   window._sp03PegList[i] = val;
+}
+
+
+// Copy SP03 record - pre-fills modal with source data
+function copySP03(srcId){
+  var recs = getSP03();
+  var src = recs.find(function(r){return r.id===srcId;});
+  if(!src){alert('SP03 tidak dijumpai');return;}
+  
+  // Show prompt to choose new penternak
+  var nm = prompt('Copy SP03 ke penternak baru.\n\nMaklumat aktiviti (mesyuarat, tindakan, dll) akan dicopy.\nID Premis, alamat, stok akhir TIDAK dicopy (perlu isi baru).\n\nMasukkan nama penternak baru:', '');
+  if(!nm) return;
+  nm = nm.trim().toUpperCase();
+  if(!nm) return;
+  
+  // Find penternak
+  var p = pt.find(function(x){
+    if(!x.nm) return false;
+    return x.nm.toUpperCase().trim() === nm && x.po === CU.po;
+  });
+  if(!p){
+    // Also check masterlist
+    var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
+    p = ml.find(function(x){
+      if(!x.nm) return false;
+      return x.nm.toUpperCase().trim() === nm && x.po === CU.po;
+    });
+  }
+  if(!p){
+    alert('Penternak "'+nm+'" tidak dijumpai dalam Senarai Penternak PO '+CU.po+'.\nSila tambah penternak dahulu di Senarai Penternak.');
+    return;
+  }
+  
+  // Create new SP03 by copying fields from src
+  var newId = 'sp03_'+Date.now()+'_'+Math.random().toString(36).substr(2,5);
+  var newRec = Object.assign({}, src);
+  newRec.id = newId;
+  newRec.namaPenternak = p.nm;
+  newRec.idPremis = p.id||'';
+  newRec.alamat = p.al||'';
+  // Reset stok akhir - user must fill new
+  newRec.stokAkhirRB = newRec.stokAkhirRK = newRec.stokAkhirUG = '';
+  // Reset visit-specific fields
+  newRec.tarikhAktiviti = '';
+  newRec.createdBy = CU.nm;
+  newRec.createdAt = new Date().toISOString();
+  newRec.copiedFrom = srcId;
+  
+  recs.push(newRec);
+  saveSP03Data(recs);
+  if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_sp03', JSON.stringify(recs));
+  
+  toast('&#128203; SP03 disalin untuk '+p.nm+' - sila edit untuk lengkapkan','#2b6cb0');
+  renderSP03();
+  // Open edit modal
+  setTimeout(function(){ openSP03Edit(newId); }, 300);
 }
 
 function openSP03Edit(id){
