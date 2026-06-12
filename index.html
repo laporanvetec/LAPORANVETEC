@@ -8403,18 +8403,28 @@ function migrateSP03Records(){
   var recs = JSON.parse(localStorage.getItem('vu_sp03')||'[]');
   var changed = false;
   var bMap = {'JANUARI':0,'FEBRUARI':1,'MAC':2,'APRIL':3,'MEI':4,'JUN':5,'JULAI':6,'OGOS':7,'SEPTEMBER':8,'OKTOBER':9,'NOVEMBER':10,'DISEMBER':11};
+  var bArr = ['JANUARI','FEBRUARI','MAC','APRIL','MEI','JUN','JULAI','OGOS','SEPTEMBER','OKTOBER','NOVEMBER','DISEMBER'];
   recs.forEach(function(r){
-    if(r.mo === undefined || r.mo === null){
-      // Try tarikhAktiviti
-      if(r.tarikhAktiviti){
-        var dt = pd(r.tarikhAktiviti);
-        if(dt){ r.mo = dt.getMonth(); r.yr = dt.getFullYear(); changed = true; return; }
+    // ALWAYS sync mo/yr/bulan from tarikhAktiviti (source of truth)
+    if(r.tarikhAktiviti){
+      var dt = pd(r.tarikhAktiviti);
+      if(dt){
+        var newMo = dt.getMonth();
+        var newYr = dt.getFullYear();
+        var newBulan = bArr[newMo];
+        if(r.mo !== newMo || r.yr !== newYr || r.bulan !== newBulan){
+          r.mo = newMo;
+          r.yr = newYr;
+          r.bulan = newBulan;
+          changed = true;
+        }
+        return;
       }
-      // Fallback to bulan
-      if(r.bulan){
-        var idx = bMap[(r.bulan||'').toUpperCase()];
-        if(idx !== undefined){ r.mo = idx; changed = true; }
-      }
+    }
+    // Fallback - if no tarikh, use bulan field
+    if((r.mo === undefined || r.mo === null) && r.bulan){
+      var idx = bMap[(r.bulan||'').toUpperCase()];
+      if(idx !== undefined){ r.mo = idx; changed = true; }
     }
   });
   if(changed){
