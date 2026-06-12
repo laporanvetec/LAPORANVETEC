@@ -8716,47 +8716,18 @@ function updatePegRow(i, val){
 }
 
 
-// Copy SP03 record - pre-fills modal with source data
+// Copy SP03 record - simple duplicate (full copy, edit later)
 function copySP03(srcId){
   var recs = getSP03();
   var src = recs.find(function(r){return r.id===srcId;});
   if(!src){alert('SP03 tidak dijumpai');return;}
   
-  // Show prompt to choose new penternak
-  var nm = prompt('Copy SP03 ke penternak baru.\n\nMaklumat aktiviti (mesyuarat, tindakan, dll) akan dicopy.\nID Premis, alamat, stok akhir TIDAK dicopy (perlu isi baru).\n\nMasukkan nama penternak baru:', '');
-  if(!nm) return;
-  nm = nm.trim().toUpperCase();
-  if(!nm) return;
+  if(!confirm('Salin SP03 untuk "'+src.namaPenternak+'"?\n\nSemua maklumat akan disalin. Anda boleh edit selepas itu.')) return;
   
-  // Find penternak
-  var p = pt.find(function(x){
-    if(!x.nm) return false;
-    return x.nm.toUpperCase().trim() === nm && x.po === CU.po;
-  });
-  if(!p){
-    // Also check masterlist
-    var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
-    p = ml.find(function(x){
-      if(!x.nm) return false;
-      return x.nm.toUpperCase().trim() === nm && x.po === CU.po;
-    });
-  }
-  if(!p){
-    alert('Penternak "'+nm+'" tidak dijumpai dalam Senarai Penternak PO '+CU.po+'.\nSila tambah penternak dahulu di Senarai Penternak.');
-    return;
-  }
-  
-  // Create new SP03 by copying fields from src
+  // Duplicate everything except ID
   var newId = 'sp03_'+Date.now()+'_'+Math.random().toString(36).substr(2,5);
   var newRec = Object.assign({}, src);
   newRec.id = newId;
-  newRec.namaPenternak = p.nm;
-  newRec.idPremis = p.id||'';
-  newRec.alamat = p.al||'';
-  // Reset stok akhir - user must fill new
-  newRec.stokAkhirRB = newRec.stokAkhirRK = newRec.stokAkhirUG = '';
-  // Reset visit-specific fields
-  newRec.tarikhAktiviti = '';
   newRec.createdBy = CU.nm;
   newRec.createdAt = new Date().toISOString();
   newRec.copiedFrom = srcId;
@@ -8765,10 +8736,8 @@ function copySP03(srcId){
   saveSP03Data(recs);
   if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_sp03', JSON.stringify(recs));
   
-  toast('&#128203; SP03 disalin untuk '+p.nm+' - sila edit untuk lengkapkan','#2b6cb0');
+  toast('&#128203; SP03 disalin - klik Edit untuk ubah','#2b6cb0');
   renderSP03();
-  // Open edit modal
-  setTimeout(function(){ openSP03Edit(newId); }, 300);
 }
 
 function openSP03Edit(id){
