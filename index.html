@@ -8397,7 +8397,35 @@ function genSP03(){
 }
 
 // ── RENDER LIST ───────────────────────────────────
+
+// Migrate old SP03 records that don't have mo/yr/bulanIdx
+function migrateSP03Records(){
+  var recs = JSON.parse(localStorage.getItem('vu_sp03')||'[]');
+  var changed = false;
+  var bMap = {'JANUARI':0,'FEBRUARI':1,'MAC':2,'APRIL':3,'MEI':4,'JUN':5,'JULAI':6,'OGOS':7,'SEPTEMBER':8,'OKTOBER':9,'NOVEMBER':10,'DISEMBER':11};
+  recs.forEach(function(r){
+    if(r.mo === undefined || r.mo === null){
+      // Try tarikhAktiviti
+      if(r.tarikhAktiviti){
+        var dt = pd(r.tarikhAktiviti);
+        if(dt){ r.mo = dt.getMonth(); r.yr = dt.getFullYear(); changed = true; return; }
+      }
+      // Fallback to bulan
+      if(r.bulan){
+        var idx = bMap[(r.bulan||'').toUpperCase()];
+        if(idx !== undefined){ r.mo = idx; changed = true; }
+      }
+    }
+  });
+  if(changed){
+    localStorage.setItem('vu_sp03', JSON.stringify(recs));
+    if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_sp03', JSON.stringify(recs));
+    console.log('Migrated SP03 records');
+  }
+}
+
 function renderSP03(){
+  migrateSP03Records();
   if(!CU) return;
   // Check for pending SP03 clearance
   setTimeout(function(){if(typeof checkSP03Clearance==='function')checkSP03Clearance();}, 500);
@@ -8408,7 +8436,22 @@ function renderSP03(){
   if(typeof autoGenSP03==='function') autoGenSP03(mo, yr);
   
   var recs = getSP03().filter(function(r){
-    if(r.mo!==mo||r.yr!==yr) return false;
+    // Get effective month from tarikhAktiviti or bulan field
+    var rMo = r.mo;
+    var rYr = r.yr;
+    if(rMo === undefined || rMo === null){
+      // Try parse tarikhAktiviti
+      if(r.tarikhAktiviti){
+        var dt = pd(r.tarikhAktiviti);
+        if(dt){ rMo = dt.getMonth(); rYr = dt.getFullYear(); }
+      }
+      // Fallback to bulan name
+      if(rMo === undefined && r.bulan){
+        var bMap = {'JANUARI':0,'FEBRUARI':1,'MAC':2,'APRIL':3,'MEI':4,'JUN':5,'JULAI':6,'OGOS':7,'SEPTEMBER':8,'OKTOBER':9,'NOVEMBER':10,'DISEMBER':11};
+        rMo = bMap[(r.bulan||'').toUpperCase()];
+      }
+    }
+    if(rMo!==mo||rYr!==yr) return false;
     var cuNm = (CU.nm||'').toUpperCase().trim();
     
     // Admin: see all records in their PO + records where they are listed (any PO)
