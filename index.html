@@ -8790,10 +8790,47 @@ function openSP03Edit(id){
   b += '<div style="background:#0f2d5e;color:#fff;padding:8px 14px;font-weight:700;font-size:12px">1. MAKLUMAT ASAS</div>';
   b += '<div style="padding:12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">';
   [['VETEC','vetec'],['BULAN','bulan'],['PUSAT OPERASI','pusat'],['NEGERI','negeri'],['TARIKH AKTIVITI','tarikhAktiviti'],['NAMA PENTERNAK','namaPenternak'],['ID PREMIS','idPremis'],['ALAMAT PREMIS','alamat'],['DAERAH','daerah']].forEach(function(f){
-    var isReadOnly = (f[1]==='tarikhAktiviti'||f[1]==='namaPenternak'||f[1]==='bulan'||f[1]==='pusat');
+    // Check who owns this penternak in LBL (which officer added it)
+    var nmCheck = (r.namaPenternak||'').toUpperCase().trim();
+    var lblOwners = [];
+    var isInMyLBL = false;
+    pt.forEach(function(x){
+      if(!x.nm) return;
+      if(x.nm.toUpperCase().trim() !== nmCheck) return;
+      if(x.po !== CU.po) return;
+      if(x.pid === CU.pid){ isInMyLBL = true; }
+      // Find owner name from officers
+      try{
+        var officers = JSON.parse(localStorage.getItem('vu_officers')||'{}');
+        var poOfficers = officers[x.po] || [];
+        var ownerNm = (typeof x.pid === 'string') ? x.pid : '';
+        // Try lookup by pid - officers store {nm, pid}
+        poOfficers.forEach(function(o){
+          if(typeof o === 'object' && o.pid === x.pid){ ownerNm = o.nm; }
+          else if(typeof o === 'string' && x.pegawai === o){ ownerNm = o; }
+        });
+        if(x.pegawai) ownerNm = x.pegawai;
+        if(!ownerNm) ownerNm = 'Pegawai PO';
+        if(lblOwners.indexOf(ownerNm) < 0) lblOwners.push(ownerNm);
+      }catch(e){}
+    });
+    var isInOthersLBL = lblOwners.length > 0 && !isInMyLBL;
+    var isReadOnly = (f[1]==='namaPenternak'||f[1]==='bulan'||f[1]==='pusat');
+    // tarikhAktiviti readonly: if in own LBL OR in other officer's LBL (non-admin)
+    if(f[1]==='tarikhAktiviti' && !isMLAdmin()){
+      if(isInMyLBL || isInOthersLBL) isReadOnly = true;
+    }
     var note = '';
     if(f[1]==='tarikhAktiviti'){
-      note = '<div style="font-size:10px;color:#c53030;margin-top:3px;font-weight:600;background:#fff5f5;padding:3px 6px;border-radius:3px;border-left:3px solid #c53030">&#9432; Untuk ubah tarikh, sila pergi ke <b>Ladang Belum Lawat</b></div>';
+      if(isInMyLBL){
+        note = '<div style="font-size:10px;color:#c53030;margin-top:3px;font-weight:600;background:#fff5f5;padding:3px 6px;border-radius:3px;border-left:3px solid #c53030">&#9432; Penternak ini ada dalam LBL anda - sila edit tarikh di <b>Ladang Belum Lawat</b></div>';
+      } else if(isInOthersLBL){
+        note = '<div style="font-size:10px;color:#dd6b20;margin-top:3px;font-weight:600;background:#fff7ed;padding:3px 6px;border-radius:3px;border-left:3px solid #dd6b20">&#9432; Penternak ini dalam LBL <b>'+lblOwners.join(', ')+'</b>. Sila minta beliau edit, atau hubungi admin.</div>';
+      } else if(isMLAdmin()){
+        note = '<div style="font-size:10px;color:#553c9a;margin-top:3px;font-weight:600;background:#faf5ff;padding:3px 6px;border-radius:3px;border-left:3px solid #553c9a">&#9432; Admin: tarikh boleh diedit terus</div>';
+      } else {
+        note = '<div style="font-size:10px;color:#276749;margin-top:3px;font-weight:600;background:#f0fff4;padding:3px 6px;border-radius:3px;border-left:3px solid #276749">&#9432; Tarikh boleh diedit terus di sini (aktiviti ad-hoc / penternak tiada di LBL pegawai)</div>';
+      }
     }
     b+='<div class="fg" style="margin-bottom:0"><label style="font-size:10px;font-weight:700;color:#444;display:block;margin-bottom:3px;text-transform:uppercase">'+f[0]+'</label>';
     b+='<input data-s3f="'+f[1]+'" value="'+( r[f[1]]||'')+'" '+(isReadOnly?'readonly style="background:#f7fafc;cursor:not-allowed;width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;font-family:inherit;text-transform:uppercase"':'style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:11px;font-family:inherit;text-transform:uppercase"')+'>'+note+'</div>';
