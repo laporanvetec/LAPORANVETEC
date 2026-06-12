@@ -8784,7 +8784,16 @@ function openSP03Edit(id){
       }catch(e){}
     });
     var isInOthersLBL = lblOwners.length > 0 && !isInMyLBL;
-    var isReadOnly = (f[1]==='namaPenternak'||f[1]==='bulan'||f[1]==='pusat');
+    // Default readonly fields - but allow if no LBL ownership (ad-hoc/meeting)
+    var isLockedField = (f[1]==='namaPenternak'||f[1]==='bulan'||f[1]==='pusat');
+    var hasLBLOwnership = isInMyLBL || isInOthersLBL;
+    var isReadOnly = false;
+    if(isLockedField){
+      // Only readonly if penternak is in someone's LBL (real penternak)
+      if(hasLBLOwnership && !isMLAdmin()) isReadOnly = true;
+      // Admin always editable for these fields too
+      if(isMLAdmin()) isReadOnly = false;
+    }
     // tarikhAktiviti readonly: if in own LBL OR in other officer's LBL (non-admin)
     if(f[1]==='tarikhAktiviti' && !isMLAdmin()){
       if(isInMyLBL || isInOthersLBL) isReadOnly = true;
