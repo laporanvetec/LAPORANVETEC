@@ -9600,8 +9600,13 @@ function calcLTKMonth(po, yr, mo){
   var recs = getSP03().filter(function(r){ return r.po===po && r.yr===yr && r.mo===mo; });
   if(!recs.length) return null;
 
-  // A: BILANGAN PENTERNAK
-  var bilPenternak = recs.length;
+  // A: BILANGAN PENTERNAK - count unique penternak names (ignore duplicates)
+  var uniqNames = {};
+  recs.forEach(function(r){
+    var nm = (r.namaPenternak||'').toUpperCase().trim();
+    if(nm) uniqNames[nm] = true;
+  });
+  var bilPenternak = Object.keys(uniqNames).length;
 
   // KHIDMAT NASIHAT (A in formula)
   var khidmatNasihat = recs.filter(function(r){ return r.skop && r.skop['KHIDMAT NASIHAT']; }).length;
