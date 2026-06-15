@@ -8643,20 +8643,7 @@ function renderSP03(){
     });
     h+='<td style="border:1px solid #e2e8f0;padding:4px;text-align:center">';
     h+='<div style="display:flex;flex-direction:column;gap:3px;align-items:center">';
-    // Check if officer can edit (current month only) or admin (always)
-    var rMo = parseInt(r.bulanIdx); 
-    if(isNaN(rMo)){
-      // Try to get from bulan name
-      var bMap = {'JANUARI':0,'FEBRUARI':1,'MAC':2,'APRIL':3,'MEI':4,'JUN':5,'JULAI':6,'OGOS':7,'SEPTEMBER':8,'OKTOBER':9,'NOVEMBER':10,'DISEMBER':11};
-      rMo = bMap[(r.bulan||'').toUpperCase()] !== undefined ? bMap[(r.bulan||'').toUpperCase()] : -1;
-    }
-    var nowDt = new Date();
-    var canEdit = isMLAdmin() || (rMo === nowDt.getMonth() && (r.yr||nowDt.getFullYear()) === nowDt.getFullYear());
-    if(canEdit){
-      h+='<button class="btn bbl" style="padding:3px 8px;font-size:10px;white-space:nowrap" data-s3-edit="'+r.id+'">&#9998; Edit</button>';
-    } else {
-      h+='<button class="btn" style="padding:3px 8px;font-size:10px;white-space:nowrap;background:#f7fafc;color:#a0aec0;border:1px solid #cbd5e0;cursor:not-allowed" title="Hanya boleh edit bulan semasa. Untuk bulan lain, edit di Ladang Belum Lawat">&#9998; Edit (bulan lalu)</button>';
-    }
+    h+='<button class="btn bbl" style="padding:3px 8px;font-size:10px;white-space:nowrap" data-s3-edit="'+r.id+'">&#9998; Edit</button>';
     h+='<button class="btn" style="padding:3px 8px;font-size:10px;white-space:nowrap;background:#ebf8ff;color:#2b6cb0;border:1px solid #2b6cb0" data-s3-copy="'+r.id+'" title="Copy SP03 ini untuk penternak lain">&#128203; Copy</button>';
     h+='<button class="btn" style="padding:3px 8px;font-size:10px;white-space:nowrap;background:#fff5f5;color:#c53030;border:1px solid #c53030" data-s3-del="'+r.id+'">&#128465; Padam</button>';
     h+='</div></td>';
