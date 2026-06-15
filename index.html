@@ -9146,22 +9146,23 @@ function cariPt4SP03(){
   }
   res.style.display='block';
   res.innerHTML = found.slice(0,15).map(function(p){
-    return '<div onclick="pilihPt4SP03(\''+p.rid+'\')" style="padding:8px 10px;cursor:pointer;font-size:11px;border-bottom:1px solid #f0f0f0;background:#fff" onmouseover="this.style.background=\'#f0f4f8\'" onmouseout="this.style.background=\'#fff\'">'
+    var pKey = p.rid || p.id || p.nm;
+    return '<div onclick="pilihPt4SP03(\''+pKey.replace(/\'/g,\'\')+'\')" style="padding:8px 10px;cursor:pointer;font-size:11px;border-bottom:1px solid #f0f0f0;background:#fff" onmouseover="this.style.background=\'#f0f4f8\'" onmouseout="this.style.background=\'#fff\'">'
       +'<b>'+p.nm+'</b> <span style="color:#718096">(PO: '+(p.po||'-')+')</span><br>'
       +'<span style="font-size:10px;color:#2b6cb0">'+(p.j||'-')+' | '+(p.id||'Tiada ID Premis')+'</span></div>';
   }).join('');
 }
 
-function pilihPt4SP03(rid){
-  var p = pt.find(function(x){ return x.rid===rid; });
+function pilihPt4SP03(key){
+  // Try rid, then id, then nm
+  var p = pt.find(function(x){ return (x.rid===key) || (x.id===key) || (x.nm===key); });
   if(!p){
-    // Search in masterlist
     try{
       var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
-      p = ml.find(function(x){ return x.rid===rid; });
+      p = ml.find(function(x){ return (x.rid===key) || (x.id===key) || (x.nm===key); });
     }catch(e){}
   }
-  if(!p){alert('Penternak tidak dijumpai');return;}
+  if(!p){alert('Penternak tidak dijumpai: '+key);return;}
   document.getElementById('s3add-nm').value = p.nm;
   document.getElementById('s3add-id').value = p.id||'';
   document.getElementById('s3add-al').value = p.al||'';
