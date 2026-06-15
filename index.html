@@ -8495,7 +8495,7 @@ function renderSP03(){
     var nb = (b.namaPenternak||'').toString();
     return na.localeCompare(nb, undefined, {numeric:true, sensitivity:'base'});
   });
-  recs.sort(function(a,b){ return (a.namaPenternak||'').localeCompare(b.namaPenternak||''); });
+  // removed - sort already done above with natural order
   document.getElementById('s3-cnt').textContent = recs.length+' rekod SP03';
 
   var info = document.getElementById('s3-info');
