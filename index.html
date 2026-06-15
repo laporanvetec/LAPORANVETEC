@@ -1312,10 +1312,13 @@ function getSP03DataForDownload(){
   allSP03.sort(function(a,b){
     var da = a.tarikhAktiviti ? pd((a.tarikhAktiviti.split(',')[0]||'').trim()) : null;
     var db = b.tarikhAktiviti ? pd((b.tarikhAktiviti.split(',')[0]||'').trim()) : null;
-    if(!da && !db) return 0;
-    if(!da) return 1;
-    if(!db) return -1;
-    return da - db;
+    if(da && db && da.getTime() !== db.getTime()) return da - db;
+    if(!da && db) return 1;
+    if(da && !db) return -1;
+    // Same date or both null - natural sort by name (PENTERNAK 1, 2, ... 10, 11)
+    var na = (a.namaPenternak||'').toString();
+    var nb = (b.namaPenternak||'').toString();
+    return na.localeCompare(nb, undefined, {numeric:true, sensitivity:'base'});
   });
   var filtered = allSP03.filter(function(r){
     if(r.mo !== mo || r.yr !== yr) return false;
@@ -8484,10 +8487,13 @@ function renderSP03(){
   recs.sort(function(a,b){
     var da = a.tarikhAktiviti ? pd((a.tarikhAktiviti.split(',')[0]||'').trim()) : null;
     var db = b.tarikhAktiviti ? pd((b.tarikhAktiviti.split(',')[0]||'').trim()) : null;
-    if(!da && !db) return 0;
-    if(!da) return 1;
-    if(!db) return -1;
-    return da - db;
+    if(da && db && da.getTime() !== db.getTime()) return da - db;
+    if(!da && db) return 1;
+    if(da && !db) return -1;
+    // Same date or both null - natural sort by name (PENTERNAK 1, 2, ... 10, 11)
+    var na = (a.namaPenternak||'').toString();
+    var nb = (b.namaPenternak||'').toString();
+    return na.localeCompare(nb, undefined, {numeric:true, sensitivity:'base'});
   });
   recs.sort(function(a,b){ return (a.namaPenternak||'').localeCompare(b.namaPenternak||''); });
   document.getElementById('s3-cnt').textContent = recs.length+' rekod SP03';
