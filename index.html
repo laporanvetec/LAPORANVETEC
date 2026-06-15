@@ -4112,20 +4112,85 @@ function saveP(){
     var apoEl = document.getElementById('p-admin-po');
     if(apoEl) targetPO = apoEl.value;
   }
+  
+  // Handle admin edit case where ePI is the penternak object (not pt index)
+  var existingP = null;
+  var existingIdx = -1;
+  if(ePI !== null && ePI !== undefined){
+    if(typeof ePI === 'object' && ePI !== null){
+      existingP = ePI;
+      // Find in pt by rid or nm+po+jenis
+      var targetRid = (existingP && (existingP.rid || existingP.id)) || null;
+      existingIdx = pt.findIndex(function(x){
+        if(!x || !x.nm) return false;
+        if(targetRid && (x.rid===targetRid || x.id===targetRid)) return true;
+        if(existingP.nm && x.nm.toUpperCase().trim()===existingP.nm.toUpperCase().trim() 
+           && x.po===existingP.po 
+           && (x.j||'').toUpperCase().trim()===(existingP.j||'').toUpperCase().trim()) return true;
+        return false;
+      });
+    } else if(typeof ePI === 'number' && pt[ePI]){
+      existingP = pt[ePI];
+      existingIdx = ePI;
+    }
+  }
+  
   var p={
-    pid:targetPid, po:targetPO,
-    rid: ePI!==null ? pt[ePI].rid : 'p'+Date.now(),
+    pid: existingP ? (existingP.pid||targetPid) : targetPid,
+    po: targetPO,
+    rid: existingP ? (existingP.rid || existingP.id || 'p'+Date.now()) : 'p'+Date.now(),
     nm:nm, id:document.getElementById('pId').value,
     tl:document.getElementById('pTl').value, j:j,
     bn:document.getElementById('pBn').value,
     pv:document.getElementById('pPV').value,
     ng:document.getElementById('pNg').value,
     al:document.getElementById('pAl').value,
-    tr: ePI!==null ? pt[ePI].tr : ''
+    tr: existingP ? (existingP.tr||'') : '',
+    lat: existingP ? existingP.lat : '',
+    lng: existingP ? existingP.lng : ''
   };
-  var isNew = ePI===null;
-  if(ePI!==null) pt[ePI]=p; else pt.push(p);
-  sv(); closeM('mP'); renderSP();
+  var isNew = existingP===null;
+  
+  if(existingIdx >= 0){
+    pt[existingIdx] = p;
+  } else if(existingP){
+    // Admin editing masterlist-only entry - add to pt
+    pt.push(p);
+  } else {
+    pt.push(p);
+  }
+  sv();
+  
+  // For ADMIN: also update masterlist
+  if(isMLAdmin()){
+    try{
+      var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
+      var targetRid = p.rid;
+      var nmU = p.nm.toUpperCase().trim();
+      var jU = (p.j||'').toUpperCase().trim();
+      var mlIdx = ml.findIndex(function(m){
+        if((m.rid||m.id)===targetRid) return true;
+        if(m.nm && m.nm.toUpperCase().trim()===nmU && m.po===p.po && (m.j||'').toUpperCase().trim()===jU) return true;
+        return false;
+      });
+      var mlRec = {
+        rid: p.rid, nm: p.nm, j: p.j, po: p.po,
+        ng: p.ng||'KEDAH', idPremis: p.id||'',
+        tl: p.tl||'', al: p.al||'', bn: p.bn||'', pv: p.pv||''
+      };
+      if(mlIdx >= 0){
+        ml[mlIdx] = Object.assign({}, ml[mlIdx], mlRec);
+      } else {
+        mlRec.addedBy = 'ADMIN_DIRECT';
+        mlRec.addedAt = new Date().toISOString();
+        ml.push(mlRec);
+      }
+      localStorage.setItem('vu_ml', JSON.stringify(ml));
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ml', JSON.stringify(ml));
+    }catch(e){console.error('ML sync error:', e);}
+  }
+  
+  closeM('mP'); renderSP();
   
   // For non-admin officers, submit new penternak as approval request
   if(isNew && !isMLAdmin() && typeof submitMLRequest==='function'){
