@@ -3125,9 +3125,9 @@ window.addEventListener('load',function(){
       <div class="g2">
         <div class="fg"><label>Jenis Ternakan</label>
           <select id="s3add-jenis" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:5px;font-size:12px;font-family:inherit">
-            <optgroup label="Ruminan Besar"><option>LEMBU PEDAGING</option><option>LEMBU TENUSU</option><option>KERBAU PEDAGING</option></optgroup>
-            <optgroup label="Ruminan Kecil"><option>KAMBING PEDAGING</option><option>BEBIRI</option></optgroup>
-            <optgroup label="Unggas"><option>AYAM PEDAGING</option><option>ITIK</option><option>BURUNG PUYUH</option></optgroup>
+            <optgroup label="Ruminan Besar"><option>LEMBU PEDAGING</option><option>LEMBU TENUSU</option><option>LEMBU PEMBIAK</option><option>KERBAU PEDAGING</option><option>KERBAU TENUSU</option></optgroup>
+            <optgroup label="Ruminan Kecil"><option>KAMBING PEDAGING</option><option>KAMBING TENUSU</option><option>BEBIRI</option></optgroup>
+            <optgroup label="Unggas"><option>AYAM PEDAGING</option><option>AYAM TELUR</option><option>ITIK</option><option>BURUNG PUYUH</option><option>ANGSA</option></optgroup>
             <option>LAIN-LAIN</option>
           </select>
         </div>
@@ -3506,7 +3506,7 @@ window.addEventListener('load',function(){
       <label>Jenis Ternakan * <span id="pJtag"></span></label>
       <select id="pJn" onchange="jtag()">
         <optgroup label="Ruminan Besar - Pengeluaran RB"><option>LEMBU PEDAGING</option><option>LEMBU TENUSU</option><option>LEMBU PEMBIAK</option><option>KERBAU PEDAGING</option><option>KERBAU TENUSU</option></optgroup>
-        <optgroup label="Ruminan Kecil - Pengeluaran RK"><option>KAMBING PEDAGING</option><option>KAMBING TENUSU</option><option>KAMBING BOER</option><option>BEBIRI</option></optgroup>
+        <optgroup label="Ruminan Kecil - Pengeluaran RK"><option>KAMBING PEDAGING</option><option>KAMBING TENUSU</option><option>BEBIRI</option></optgroup>
         <optgroup label="Unggas - Pengeluaran UG"><option>AYAM PEDAGING</option><option>AYAM TELUR</option><option>ITIK</option><option>BURUNG PUYUH</option><option>ANGSA</option></optgroup>
         <option>LAIN-LAIN</option>
       </select>
@@ -3731,15 +3731,18 @@ function myPt(t){
         var key = (m.nm||'').toUpperCase().trim()+'|'+(m.po||'')+'|'+(m.j||'').toUpperCase().trim();
         var officer = ptByKey[key];
         if(officer){
-          // Merge officer updates (tr, lat, lng) into masterlist entry
+          // Merge officer updates - officer data OVERRIDES masterlist (latest wins)
           var merged = Object.assign({}, m);
           if(officer.tr) merged.tr = officer.tr;
           if(officer.lat) merged.lat = officer.lat;
           if(officer.lng) merged.lng = officer.lng;
-          if(officer.id && !merged.id) merged.id = officer.id;
-          if(officer.tl && !merged.tl) merged.tl = officer.tl;
+          if(officer.id) merged.id = officer.id;
+          if(officer.tl) merged.tl = officer.tl;
+          if(officer.al) merged.al = officer.al;
+          if(officer.bn) merged.bn = officer.bn;
           if(officer.pv) merged.pv = officer.pv;
-          // Mark this officer entry as used
+          if(officer.ng) merged.ng = officer.ng;
+          // Preserve rid from masterlist for delete operations
           ptByKey[key] = null;
           return merged;
         }
@@ -8260,13 +8263,13 @@ function getKomoditiFromJenis(jenis){
   var out = {};
   if(j.indexOf('LEMBU PEDAGING')>=0 && j.indexOf('TENUSU')<0) out['LEMBU PEDAGING'] = 1;
   if(j.indexOf('LEMBU TENUSU')>=0 && j.indexOf('PEDAGING')<0) out['LEMBU TENUSU'] = 1;
-  if(j.indexOf('LEMBU PEDAGING TENUSU')>=0) out['LEMBU PEDAGING TENUSU'] = 1;
+  // Removed LEMBU PEDAGING TENUSU - no longer used
   if(j.indexOf('KERBAU PEDAGING')>=0 && j.indexOf('TENUSU')<0) out['KERBAU PEDAGING'] = 1;
   if(j.indexOf('KERBAU PEDAGING TENUSU')>=0) out['KERBAU PEDAGING TENUSU'] = 1;
   if(j.indexOf('KAMBING')>=0) out['KAMBING BEBIRI'] = 1;
   if(j.indexOf('BEBIRI')>=0) out['KAMBING BEBIRI'] = 1;
   if(j.indexOf('AYAM PEDAGING')>=0 && j.indexOf('PENELUR')<0) out['AYAM PEDAGING'] = 1;
-  if(j.indexOf('AYAM TELUR')>=0||j.indexOf('PENELUR')>=0) out['AYAM PEDAGING PENELUR'] = 1;
+  if(j.indexOf('AYAM TELUR')>=0||j.indexOf('PENELUR')>=0) out['AYAM TELUR'] = 1;
   if(j.indexOf('ITIK DAGING')>=0||j.indexOf('ITIK PEDAGING')>=0) out['ITIK DAGING'] = 1;
   if(j.indexOf('ITIK TELUR')>=0||j.indexOf('ITIK PENELUR')>=0) out['ITIK PENELUR'] = 1;
   if(j.indexOf('PUYUH DAGING')>=0) out['PUYUH DAGING'] = 1;
@@ -8553,7 +8556,7 @@ function renderSP03(){
 
   // Row 2
   var moA=['VETEC','BULAN','PO','NEGERI','TARIKH AKTIVITI','NAMA PENTERNAK','ID PREMIS','ALAMAT PREMIS','DAERAH','MASA'];
-  var koA=['LEMBU PEDAGING','LB PEDAGING TENUSU','LEMBU TENUSU','KERBAU PEDAGING','KB PEDAGING TENUSU','KAMBING BEBIRI','KAMBING BAKA','RUSA','BABI','AYAM PEDAGING','AYAM PED. PENELUR','AYAM KPG PENELUR','AYAM BAKA BROILER','AYAM PENELUR','PUYUH DAGING','PUYUH PENELUR','ITIK DAGING','ITIK PENELUR','ANEKA HAIWAN','ANJING','KUCING','LAIN-LAIN'];
+  var koA=['LEMBU PEDAGING','LEMBU TENUSU','KERBAU PEDAGING','KERBAU TENUSU','KAMBING PEDAGING','KAMBING TENUSU','BEBIRI','RUSA','BABI','AYAM PEDAGING','AYAM PENELUR','AYAM KAMPUNG','PUYUH DAGING','PUYUH PENELUR','ITIK DAGING','ITIK PENELUR','ANEKA HAIWAN','ANJING','KUCING','LAIN-LAIN'];
   var amA=['INTENSIF','SEMI-INTENSIF','EKSTENSIF','OPEN HOUSE','CLOSE HOUSE'];
   var jsA=['FIDLOT','BREEDLOT','GREENLOT','INTEGRASI','LADANG SATELIT','PADANG RAGUT','TKPM','LEPAS BEBAS'];
   var bnA=['PERSEKUTUAN','NEGERI','LAIN-LAIN AGENSI','NILAI (RM)'];
@@ -8587,7 +8590,7 @@ function renderSP03(){
   h += '</tr>';
   h += '</thead><tbody>';
 
-  var KO_KEYS = ['LEMBU PEDAGING','LEMBU PEDAGING TENUSU','LEMBU TENUSU','KERBAU PEDAGING','KERBAU PEDAGING TENUSU','KAMBING BEBIRI','KAMBING BAKA','RUSA','BABI','AYAM PEDAGING','AYAM PEDAGING PENELUR','AYAM KAMPUNG PENELUR','AYAM BAKA BROILER','AYAM PENELUR','PUYUH DAGING','PUYUH PENELUR','ITIK DAGING','ITIK PENELUR','ANEKA HAIWAN','ANJING','KUCING','LAIN-LAIN'];
+  var KO_KEYS = ['LEMBU PEDAGING','LEMBU TENUSU','KERBAU PEDAGING','KERBAU TENUSU','KAMBING PEDAGING','KAMBING TENUSU','BEBIRI','RUSA','BABI','AYAM PEDAGING','AYAM PENELUR','AYAM KAMPUNG','PUYUH DAGING','PUYUH PENELUR','ITIK DAGING','ITIK PENELUR','ANEKA HAIWAN','ANJING','KUCING','LAIN-LAIN'];
 
   recs.forEach(function(r,i){
     var bg = i%2?'#FAFFF7':'#fff';
@@ -8843,7 +8846,7 @@ function openSP03Edit(id){
   b += '</div></div>';
 
   // Section 2: Komoditi
-  var KO_KEYS2=['LEMBU PEDAGING','LEMBU PEDAGING TENUSU','LEMBU TENUSU','KERBAU PEDAGING','KERBAU PEDAGING TENUSU','KAMBING BEBIRI','KAMBING BAKA','RUSA','BABI','AYAM PEDAGING','AYAM PEDAGING PENELUR','AYAM KAMPUNG PENELUR','AYAM BAKA BROILER','AYAM PENELUR','PUYUH DAGING','PUYUH PENELUR','ITIK DAGING','ITIK PENELUR','ANEKA HAIWAN','ANJING','KUCING','LAIN-LAIN'];
+  var KO_KEYS2=['LEMBU PEDAGING','LEMBU TENUSU','KERBAU PEDAGING','KERBAU TENUSU','KAMBING PEDAGING','KAMBING TENUSU','BEBIRI','RUSA','BABI','AYAM PEDAGING','AYAM PENELUR','AYAM KAMPUNG','PUYUH DAGING','PUYUH PENELUR','ITIK DAGING','ITIK PENELUR','ANEKA HAIWAN','ANJING','KUCING','LAIN-LAIN'];
   b += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">';
   b += '<div style="background:#7EC8E3;color:#0f2d5e;padding:8px 14px;font-weight:700;font-size:12px">2. JENIS KOMODITI TERNAKAN (Stok Akhir / Bilangan)</div>';
   b += '<div style="padding:10px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px">';
@@ -9067,7 +9070,7 @@ function exSP03(){
   var recs=getSP03().filter(function(r){return r.po===CU.po&&r.mo===mo&&r.yr===yr;});
   if(!recs.length){alert('Tiada data SP03.');return;}
   var wb=XLSX.utils.book_new();
-  var KK=['LEMBU PEDAGING','LEMBU PEDAGING TENUSU','LEMBU TENUSU','KERBAU PEDAGING','KERBAU PEDAGING TENUSU','KAMBING BEBIRI','KAMBING BAKA','RUSA','BABI','AYAM PEDAGING','AYAM PED. PENELUR','AYAM KPG PENELUR','AYAM BAKA BROILER','AYAM PENELUR','PUYUH DAGING','PUYUH PENELUR','ITIK DAGING','ITIK PENELUR','ANEKA HAIWAN','ANJING','KUCING','LAIN-LAIN'];
+  var KK=['LEMBU PEDAGING','LEMBU TENUSU','KERBAU PEDAGING','KERBAU TENUSU','KAMBING PEDAGING','KAMBING TENUSU','BEBIRI','RUSA','BABI','AYAM PEDAGING','AYAM PENELUR','AYAM KAMPUNG','PUYUH DAGING','PUYUH PENELUR','ITIK DAGING','ITIK PENELUR','ANEKA HAIWAN','ANJING','KUCING','LAIN-LAIN'];
   var hdrs=['BIL','VETEC','BULAN','PUSAT OPERASI','NEGERI','TARIKH AKTIVITI','NAMA PENTERNAK','ID PREMIS','ALAMAT PREMIS','DAERAH','MASA MULA','MASA SELESAI'].concat(KK).concat(['INTENSIF','SEMI-INTENSIF','EKSTENSIF','OPEN HOUSE','CLOSE HOUSE']).concat(['FIDLOT','BREEDLOT','GREENLOT','INTEGRASI','LADANG SATELIT','PADANG RAGUT','TKPM','LEPAS BEBAS']).concat(['BANTUAN PERSEKUTUAN','BANTUAN NEGERI','BANTUAN AGENSI','NILAI INSENTIF']).concat(['LTJ','KESIHATAN/SURVEILAN','LAWAT SIASAT','AUDIT/VERIFIKASI','KHIDMAT NASIHAT','URUSAN PERJANJIAN','PENGUATKUASAAN','PAMERAN','LAIN-LAIN SKOP','KESIHATAN GEROMPOK']).concat(['NYAH CACING','NYAH KUTU','FAMACHA','RAWATAN BIASA','PEMBEDAHAN','UJIAN BRUCELLA','DELVO TEST','AB TEST','MBRT','CMT/RMT','PLATFORM T','LAIN-LAIN MPOK']).concat(['FMD','RB51','PASTEURELLA','HS','ND/AI','LAIN-LAIN VAK']).concat(['DEDAK','AIR','TANAH','TINJA','SWAB','DARAH','ORGAN','SUSU','LAIN-LAIN SAM']).concat(['AI','FERTILITY','PD','POST PARTUM','SYNCHRONIZE','ULTRASOUND','BSE','SEMEN TEST','LAIN-LAIN BIK']).concat(['KETUA AKTIVITI','PEGAWAI 1','PEGAWAI 2','PEGAWAI 3','RUJUKAN','KEPUASAN','CATATAN','TELEFON']);
   var rows=[['SP03 - REKOD AKTIVITI LAWATAN LADANG'],['PO: '+CU.po+' | '+BLN_SP[mo]+' '+yr],[],hdrs];
   recs.forEach(function(r,i){
@@ -9507,7 +9510,7 @@ function downloadBlob(blob,filename){
 }
 
 function buildSP03ExcelBlob(recs,mo,yr,cb){
-  var KK=['LEMBU PEDAGING','LEMBU PEDAGING TENUSU','LEMBU TENUSU','KERBAU PEDAGING','KERBAU PEDAGING TENUSU','KAMBING BEBIRI','KAMBING BAKA','RUSA','BABI','AYAM PEDAGING','AYAM PEDAGING PENELUR','AYAM KAMPUNG PENELUR','AYAM BAKA BROILER','AYAM PENELUR','PUYUH DAGING','PUYUH PENELUR','ITIK DAGING','ITIK PENELUR','ANEKA HAIWAN','ANJING','KUCING','LAIN-LAIN'];
+  var KK=['LEMBU PEDAGING','LEMBU TENUSU','KERBAU PEDAGING','KERBAU TENUSU','KAMBING PEDAGING','KAMBING TENUSU','BEBIRI','RUSA','BABI','AYAM PEDAGING','AYAM PENELUR','AYAM KAMPUNG','PUYUH DAGING','PUYUH PENELUR','ITIK DAGING','ITIK PENELUR','ANEKA HAIWAN','ANJING','KUCING','LAIN-LAIN'];
   var hdrs=['BIL','VETEC','BULAN','PO','NEGERI','TARIKH AKTIVITI','NAMA PENTERNAK','ID PREMIS','ALAMAT','DAERAH','MASA MULA','MASA SELESAI'].concat(KK).concat(['KETUA AKTIVITI','PEGAWAI 1','PEGAWAI 2','CATATAN','KEPUASAN']);
   var rows=[['SP03 - REKOD AKTIVITI LAWATAN LADANG'],['PO: '+CU.po+' | '+BLN_SP[mo]+' '+yr+' | Dikongsi oleh: '+CU.nm],[],hdrs];
   recs.forEach(function(r,i){
