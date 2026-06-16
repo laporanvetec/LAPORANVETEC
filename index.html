@@ -8506,7 +8506,9 @@ function autoGenSP03(mo, yr){
   if(!CU)return;
   var existing = getSP03().filter(function(r){ return r.po===CU.po&&r.mo===mo&&r.yr===yr; });
   var existRids = existing.map(function(r){ return r.farmRid; });
-  var visited = myPt(null).filter(function(p){
+  // Use LBL for officer (their own visits with tarikh), full pt for admin
+  var src = (typeof myLBL==='function') ? myLBL(null) : myPt(null);
+  var visited = src.filter(function(p){
     if(existRids.indexOf(p.rid)>=0) return false;
     if(!p.tr) return false;
     return p.tr.split(',').some(function(d){
@@ -8724,7 +8726,8 @@ function renderSP03(){
   document.getElementById('s3-cnt').textContent = recs.length+' rekod SP03';
 
   var info = document.getElementById('s3-info');
-  var unvisited = myPt(null).filter(function(p){
+  var srcCounter = (typeof myLBL==='function' && !isMLAdmin()) ? myLBL(null) : myPt(null);
+  var unvisited = srcCounter.filter(function(p){
     return p.tr && p.tr.split(',').some(function(d){ var dt=pd(d.trim()); return dt&&dt.getMonth()===mo&&dt.getFullYear()===yr; });
   }).length;
   var existing = recs.length;
