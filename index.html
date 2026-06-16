@@ -8592,7 +8592,10 @@ function janaSP03Now(){
 
 function autoGenSP03(mo, yr){
   if(!CU)return;
-  var existing = getSP03().filter(function(r){ return r.po===CU.po&&r.mo===mo&&r.yr===yr; });
+  // Existing check per-officer (each officer has their own SP03 for their LBL visits)
+  var existing = getSP03().filter(function(r){ 
+    return r.pegawaiId===CU.pid && r.mo===mo && r.yr===yr; 
+  });
   var existRids = existing.map(function(r){ return r.farmRid; });
   // Use LBL for officer (their own visits with tarikh), full pt for admin
   var src = (typeof myLBL==='function') ? myLBL(null) : myPt(null);
