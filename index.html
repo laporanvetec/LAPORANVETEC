@@ -271,7 +271,7 @@ function mergeDuplicateOfficers(){
       pt.forEach(function(p){
         if(pidMap[p.pid])p.pid=pidMap[p.pid];
       });
-      _lsOrig('vu_g',JSON.stringify(newPeg));
+      _lsOrig('vu_g','vu_pid_map',JSON.stringify(newPeg));
       _lsOrig('vu_p',JSON.stringify(pt));
       console.log('Merged officers, mapped pids:',pidMap);
     }
@@ -3601,6 +3601,15 @@ function loginNow(){
   document.getElementById('sb-nm').textContent=cu.nm;
   document.getElementById('sb-po').textContent='PO '+cu.po;
   try{CU=cu;window.CU=cu;}catch(e){window.CU=cu;}
+  // Register pid->name mapping for officer lookups
+  try{
+    var reg = JSON.parse(localStorage.getItem('vu_pid_map')||'{}');
+    if(cu.pid && cu.nm){
+      reg[cu.pid] = {nm:cu.nm, po:cu.po};
+      localStorage.setItem('vu_pid_map', JSON.stringify(reg));
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_pid_map', JSON.stringify(reg));
+    }
+  }catch(e){}
   // Show/hide restricted nav items — same pattern as Kewangan
   var _mlEl=document.getElementById('n-ml');
   if(_mlEl) _mlEl.style.display=isMLAdmin()?'flex':'none';
@@ -3709,27 +3718,45 @@ function getOfficerColor(nm){
 // Migrate old pt entries - add pegawai name from pid
 function migratePtPegawai(){
   var changed = false;
-  var officers = {};
+  // Build pid -> name map from all sources
+  var pidMap = {};
+  
+  // 1. vu_pid_map (primary)
   try{
-    officers = JSON.parse(localStorage.getItem('vu_officers')||'{}');
+    var pm = JSON.parse(localStorage.getItem('vu_pid_map')||'{}');
+    Object.keys(pm).forEach(function(pid){
+      if(pm[pid] && pm[pid].nm) pidMap[pid] = pm[pid].nm;
+    });
   }catch(e){}
   
-  // Build pid -> name map
-  var pidMap = {};
-  Object.keys(officers).forEach(function(po){
-    (officers[po]||[]).forEach(function(o){
-      if(typeof o === 'object' && o.pid && o.nm) pidMap[o.pid] = o.nm;
+  // 2. vu_g (registered officers)
+  try{
+    var vg = JSON.parse(localStorage.getItem('vu_g')||'[]');
+    vg.forEach(function(g){
+      if(g.id && g.nm && !pidMap[g.id]) pidMap[g.id] = g.nm;
     });
-  });
-  // Also from submit_log
+  }catch(e){}
+  
+  // 3. vu_officers (could be objects)
+  try{
+    var officers = JSON.parse(localStorage.getItem('vu_officers')||'{}');
+    Object.keys(officers).forEach(function(po){
+      (officers[po]||[]).forEach(function(o){
+        if(typeof o === 'object' && o.pid && o.nm && !pidMap[o.pid]) pidMap[o.pid] = o.nm;
+      });
+    });
+  }catch(e){}
+  
+  // 4. submit_log
   try{
     var subLog = JSON.parse(localStorage.getItem('vu_submit_log')||'[]');
     subLog.forEach(function(s){
       if(s.pid && s.nm && !pidMap[s.pid]) pidMap[s.pid] = s.nm;
     });
   }catch(e){}
-  // Add current user
-  if(CU && CU.pid && CU.nm) pidMap[CU.pid] = CU.nm;
+  
+  // 5. Current user
+  if(CU && CU.pid && CU.nm && !pidMap[CU.pid]) pidMap[CU.pid] = CU.nm;
   
   pt.forEach(function(x){
     if(!x.pegawai && x.pid && pidMap[x.pid]){
@@ -3768,14 +3795,26 @@ function findLBLOwner(penternak){
           if(typeof o === 'object' && o.pid === x.pid) return o.nm;
         }
       }catch(e){}
-      // 3. Lookup via submit_log or login records
+      // 3. Lookup via vu_pid_map (built on each login)
+      try{
+        var pidMap = JSON.parse(localStorage.getItem('vu_pid_map')||'{}');
+        if(pidMap[x.pid] && pidMap[x.pid].nm) return pidMap[x.pid].nm;
+      }catch(e){}
+      // 4. Lookup via vu_g (registered officers)
+      try{
+        var vg = JSON.parse(localStorage.getItem('vu_g')||'[]');
+        for(var gi=0;gi<vg.length;gi++){
+          if(vg[gi].id === x.pid && vg[gi].nm) return vg[gi].nm;
+        }
+      }catch(e){}
+      // 5. Submit log
       try{
         var subLog = JSON.parse(localStorage.getItem('vu_submit_log')||'[]');
         for(var si=0;si<subLog.length;si++){
           if(subLog[si].pid === x.pid && subLog[si].nm) return subLog[si].nm;
         }
       }catch(e){}
-      // 4. If pid matches current user, return their name
+      // 6. Current user
       if(CU && x.pid === CU.pid) return CU.nm;
     }
     return 'Pegawai (tidak dikenali)';
