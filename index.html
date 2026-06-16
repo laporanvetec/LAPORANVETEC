@@ -3705,6 +3705,46 @@ function getOfficerColor(nm){
   for(var i=0;i<nm.length;i++) hash = (hash*31 + nm.charCodeAt(i)) >>> 0;
   return palette[hash % palette.length];
 }
+
+// Migrate old pt entries - add pegawai name from pid
+function migratePtPegawai(){
+  var changed = false;
+  var officers = {};
+  try{
+    officers = JSON.parse(localStorage.getItem('vu_officers')||'{}');
+  }catch(e){}
+  
+  // Build pid -> name map
+  var pidMap = {};
+  Object.keys(officers).forEach(function(po){
+    (officers[po]||[]).forEach(function(o){
+      if(typeof o === 'object' && o.pid && o.nm) pidMap[o.pid] = o.nm;
+    });
+  });
+  // Also from submit_log
+  try{
+    var subLog = JSON.parse(localStorage.getItem('vu_submit_log')||'[]');
+    subLog.forEach(function(s){
+      if(s.pid && s.nm && !pidMap[s.pid]) pidMap[s.pid] = s.nm;
+    });
+  }catch(e){}
+  // Add current user
+  if(CU && CU.pid && CU.nm) pidMap[CU.pid] = CU.nm;
+  
+  pt.forEach(function(x){
+    if(!x.pegawai && x.pid && pidMap[x.pid]){
+      x.pegawai = pidMap[x.pid];
+      changed = true;
+    }
+  });
+  
+  if(changed){
+    localStorage.setItem('vu_p', JSON.stringify(pt));
+    if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_p', JSON.stringify(pt));
+    console.log('Migrated pegawai field for pt entries');
+  }
+}
+
 function findLBLOwner(penternak){
   if(!penternak || !penternak.nm) return null;
   var nmU = penternak.nm.toUpperCase().trim();
@@ -3716,7 +3756,9 @@ function findLBLOwner(penternak){
     if(x.po !== po) continue;
     if(x.nm.toUpperCase().trim() !== nmU) continue;
     if((x.j||'').toUpperCase().trim() !== jU) continue;
+    // 1. Direct pegawai field
     if(x.pegawai) return x.pegawai;
+    // 2. Lookup via vu_officers
     if(x.pid){
       try{
         var officers = JSON.parse(localStorage.getItem('vu_officers')||'{}');
@@ -3726,8 +3768,17 @@ function findLBLOwner(penternak){
           if(typeof o === 'object' && o.pid === x.pid) return o.nm;
         }
       }catch(e){}
+      // 3. Lookup via submit_log or login records
+      try{
+        var subLog = JSON.parse(localStorage.getItem('vu_submit_log')||'[]');
+        for(var si=0;si<subLog.length;si++){
+          if(subLog[si].pid === x.pid && subLog[si].nm) return subLog[si].nm;
+        }
+      }catch(e){}
+      // 4. If pid matches current user, return their name
+      if(CU && x.pid === CU.pid) return CU.nm;
     }
-    return 'Pegawai PO';
+    return 'Pegawai (tidak dikenali)';
   }
   return null;
 }
@@ -3974,6 +4025,7 @@ function jtag(){
   else t.innerHTML='';
 }
 function renderSP(){
+  if(typeof migratePtPegawai==='function') migratePtPegawai();
   var jf=document.getElementById('sp-jenis').value;
   var q=(document.getElementById('sp-q').value||'').toLowerCase();
   var list=myPt(jf||null).filter(function(p){return !q||p.nm.toLowerCase().indexOf(q)>=0;});
