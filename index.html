@@ -8584,8 +8584,9 @@ function janaSP03Now(){
   var yr = parseInt(document.getElementById('s3-yr').value)||2026;
   if(typeof autoGenSP03==='function'){
     autoGenSP03(mo, yr);
-    toast('&#9889; Jana SP03 selesai','#276749');
-    setTimeout(renderSP03, 200);
+    toast('⚡ Jana SP03 selesai','#276749');
+    // Force re-render
+    renderSP03();
   }
 }
 
