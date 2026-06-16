@@ -8627,7 +8627,8 @@ function autoGenSP03(mo, yr){
       alamat: (p.al||'').toUpperCase(), daerah: CU.po,
       jenisTernakan: p.j||'', noTel: p.tl||'',
       bantuan: p.bn||'', ppv: p.pv||'TIDAK',
-      stokAkhir: stok
+      stokAkhir: stok,
+      ketuaAktiviti: CU.nm
     });
   });
   saveSP03Data(allRecs);
@@ -8718,6 +8719,31 @@ function genSP03(){
 
 // Migrate old SP03 records that don't have mo/yr/bulanIdx
 function migrateSP03Records(){
+  // Auto-set ketuaAktiviti for records that have pegawaiId but no ketua
+  try{
+    var officers = JSON.parse(localStorage.getItem('vu_pid_map')||'{}');
+    var vg = JSON.parse(localStorage.getItem('vu_g')||'[]');
+    var pidMap = {};
+    Object.keys(officers).forEach(function(pid){
+      if(officers[pid] && officers[pid].nm) pidMap[pid] = officers[pid].nm;
+    });
+    vg.forEach(function(g){ if(g.id && g.nm && !pidMap[g.id]) pidMap[g.id] = g.nm; });
+    if(CU && CU.pid && CU.nm) pidMap[CU.pid] = CU.nm;
+    
+    var sp03Recs = JSON.parse(localStorage.getItem('vu_sp03')||'[]');
+    var changed = 0;
+    sp03Recs.forEach(function(r){
+      if(!r.ketuaAktiviti && r.pegawaiId && pidMap[r.pegawaiId]){
+        r.ketuaAktiviti = pidMap[r.pegawaiId];
+        changed++;
+      }
+    });
+    if(changed){
+      localStorage.setItem('vu_sp03', JSON.stringify(sp03Recs));
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_sp03', JSON.stringify(sp03Recs));
+      console.log('Set ketuaAktiviti for '+changed+' SP03 records');
+    }
+  }catch(e){}
   var recs = JSON.parse(localStorage.getItem('vu_sp03')||'[]');
   var changed = false;
   var bMap = {'JANUARI':0,'FEBRUARI':1,'MAC':2,'APRIL':3,'MEI':4,'JUN':5,'JULAI':6,'OGOS':7,'SEPTEMBER':8,'OKTOBER':9,'NOVEMBER':10,'DISEMBER':11};
@@ -8789,7 +8815,8 @@ function renderSP03(){
       return false;
     }
     
-    // Officer: see records where they are Ketua OR Pegawai Lain (regardless of PO)
+    // Officer: see records where they are Ketua OR Pegawai Lain OR pegawaiId matches
+    if(r.pegawaiId === CU.pid) return true;
     if((r.ketuaAktiviti||'').toUpperCase().trim() === cuNm) return true;
     var pegList = [];
     if(r.pegawaiLain) pegList = r.pegawaiLain.split(',').map(function(x){return x.trim().toUpperCase();});
