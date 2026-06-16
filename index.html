@@ -3696,6 +3696,42 @@ function isT(j,t){if(!j)return false;var u=j.toUpperCase();return TKW[t].some(fu
 
 // Officer's personal LBL = their own vu_p entries (unique per officer)
 // Admin's LBL = same as SP (all entries)
+
+// Get color for officer (hash-based, consistent)
+function getOfficerColor(nm){
+  if(!nm) return '#a0aec0';
+  var palette = ['#e53e3e','#dd6b20','#d69e2e','#38a169','#319795','#3182ce','#553c9a','#b83280','#d53f8c','#805ad5','#2c5282','#276749'];
+  var hash = 0;
+  for(var i=0;i<nm.length;i++) hash = (hash*31 + nm.charCodeAt(i)) >>> 0;
+  return palette[hash % palette.length];
+}
+function findLBLOwner(penternak){
+  if(!penternak || !penternak.nm) return null;
+  var nmU = penternak.nm.toUpperCase().trim();
+  var jU = (penternak.j||'').toUpperCase().trim();
+  var po = penternak.po;
+  for(var i=0;i<pt.length;i++){
+    var x = pt[i];
+    if(!x.nm) continue;
+    if(x.po !== po) continue;
+    if(x.nm.toUpperCase().trim() !== nmU) continue;
+    if((x.j||'').toUpperCase().trim() !== jU) continue;
+    if(x.pegawai) return x.pegawai;
+    if(x.pid){
+      try{
+        var officers = JSON.parse(localStorage.getItem('vu_officers')||'{}');
+        var poList = officers[po] || [];
+        for(var oi=0;oi<poList.length;oi++){
+          var o = poList[oi];
+          if(typeof o === 'object' && o.pid === x.pid) return o.nm;
+        }
+      }catch(e){}
+    }
+    return 'Pegawai PO';
+  }
+  return null;
+}
+
 function myLBL(t){
   if(!CU) return [];
   if(isMLAdmin()){
@@ -3993,13 +4029,21 @@ function renderSP(){
     h+='<td style="text-align:center"><span class="'+(vb?'s1':'s0')+'">'+(vb?'Dilawat':'Belum')+'</span></td>';
     h+='<td style="text-align:center">'+gpsBtnHTML(p, pi)+'</td>';
     h+='<td><div style="display:flex;gap:3px;justify-content:center">';
-    // For officer: show "+ LBL" button if not yet in their LBL
+    // For officer: show +LBL button with color-coded ownership
     if(!isMLAdmin()){
-      var inMyLBL = pt.some(function(x){return x.pid===CU.pid && (x.rid||x.id)===(p.rid||p.id);});
-      if(!inMyLBL){
-        h+='<button class="bsm add-lbl-btn" data-rid="'+(p.rid||p.id||'')+'" data-nm="'+(p.nm||'').replace(/"/g,'')+'" data-j="'+(p.j||'').replace(/"/g,'')+'" data-po="'+(p.po||'')+'" data-id="'+(p.id||'').replace(/"/g,'')+'" data-tl="'+(p.tl||'').replace(/"/g,'')+'" data-al="'+(p.al||'').replace(/"/g,'')+'" data-bn="'+(p.bn||'').replace(/"/g,'')+'" data-pv="'+(p.pv||'')+'" data-ng="'+(p.ng||'').replace(/"/g,'')+'" style="background:#276749;color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;font-weight:700" title="Tambah ke LBL saya">+LBL</button>';
+      var owner = findLBLOwner(p);
+      var isMine = pt.some(function(x){
+        if(x.pid !== CU.pid || !x.nm) return false;
+        return x.nm.toUpperCase().trim()===(p.nm||'').toUpperCase().trim() && 
+               x.po===p.po && (x.j||'').toUpperCase().trim()===(p.j||'').toUpperCase().trim();
+      });
+      if(isMine){
+        h+='<span style="background:#c6f6d5;color:#276749;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700" title="Penternak dalam LBL anda">&#10004; LBL Saya</span>';
+      } else if(owner){
+        var oc = getOfficerColor(owner);
+        h+='<span style="background:'+oc+';color:#fff;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;cursor:not-allowed" title="Dalam LBL '+owner+' (tidak boleh tambah)">&#128274; '+owner+'</span>';
       } else {
-        h+='<span style="background:#c6f6d5;color:#276749;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700">&#10004; LBL</span>';
+        h+='<button class="bsm add-lbl-btn" data-rid="'+(p.rid||p.id||'')+'" data-nm="'+(p.nm||'').replace(/"/g,'')+'" data-j="'+(p.j||'').replace(/"/g,'')+'" data-po="'+(p.po||'')+'" data-id="'+(p.id||'').replace(/"/g,'')+'" data-tl="'+(p.tl||'').replace(/"/g,'')+'" data-al="'+(p.al||'').replace(/"/g,'')+'" data-bn="'+(p.bn||'').replace(/"/g,'')+'" data-pv="'+(p.pv||'')+'" data-ng="'+(p.ng||'').replace(/"/g,'')+'" style="background:#276749;color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;font-weight:700" title="Tambah ke LBL saya">+LBL</button>';
       }
     }
     h+='<button class="bsm be ep-btn" data-pi="'+pi+'" data-rid="'+(p.rid||p.id||'')+'">&#9999;&#65039;</button>';
@@ -4031,8 +4075,14 @@ function renderSP(){
   c.querySelectorAll('.add-lbl-btn').forEach(function(el){
     el.onclick=function(){
       var data = this.dataset;
+      var owner = findLBLOwner({nm:data.nm, po:data.po, j:data.j});
+      if(owner){
+        alert('Penternak ini sudah ditambah oleh '+owner+'.\nLBL adalah unik per pegawai - hanya satu pegawai per penternak/komoditi.');
+        renderSP();
+        return;
+      }
       var newP = {
-        pid: CU.pid, po: data.po||CU.po,
+        pid: CU.pid, po: data.po||CU.po, pegawai: CU.nm,
         rid: 'p'+Date.now()+'_'+Math.random().toString(36).substr(2,4),
         nm: data.nm, id: data.id||'', tl: data.tl||'',
         j: data.j, bn: data.bn||'', pv: data.pv||'TIDAK',
@@ -4094,7 +4144,21 @@ function openEditP(i){
   document.getElementById('pNm').value=p.nm||'';
   document.getElementById('pId').value=p.id||'';
   document.getElementById('pTl').value=p.tl||'';
-  document.getElementById('pJn').value=p.j||'LEMBU PEDAGING';
+  // Ensure jenis exists as option (handle legacy 'KAMBING' without subtype)
+  var pJnSel = document.getElementById('pJn');
+  var jVal = p.j || 'LEMBU PEDAGING';
+  var hasOption = false;
+  for(var oi=0; oi<pJnSel.options.length; oi++){
+    if(pJnSel.options[oi].value === jVal){ hasOption = true; break; }
+  }
+  if(!hasOption){
+    var opt = document.createElement('option');
+    opt.value = jVal;
+    opt.text = jVal + ' (LEGACY - sila tukar ke jenis standard)';
+    opt.style.color = '#c53030';
+    pJnSel.appendChild(opt);
+  }
+  pJnSel.value = jVal;
   document.getElementById('pBn').value=p.bn||'';
   document.getElementById('pPV').value=p.pv||'TIDAK';
   document.getElementById('pNg').value=p.ng||'Kedah';
@@ -6367,7 +6431,9 @@ function openAddLTJ(){
   var existRids = ltj.filter(function(r){ return r.pegawaiId===CU.pid&&r.yr===yr; }).map(function(r){ return r.farmRid; });
   var sel = document.getElementById('ltj-farm-sel');
   sel.innerHTML = '<option value="">-- Pilih penternak --</option>';
-  myPt(null).forEach(function(p){
+  // Only show penternak from officer's OWN LBL (LTJ must be from LBL)
+  var lblList = (typeof myLBL==='function') ? myLBL(null) : myPt(null);
+  lblList.forEach(function(p){
     var already = existRids.indexOf(p.rid) >= 0;
     sel.innerHTML += '<option value="'+p.rid+'"'+(already?' disabled style="color:#a0aec0"':'')+'>'+p.nm+' — '+p.j+(already?' (sudah ada)':'')+'</option>';
   });
