@@ -3127,7 +3127,7 @@ window.addEventListener('load',function(){
           <select id="s3add-jenis" style="width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:5px;font-size:12px;font-family:inherit">
             <optgroup label="Ruminan Besar"><option>LEMBU PEDAGING</option><option>LEMBU TENUSU</option><option>LEMBU PEMBIAK</option><option>KERBAU PEDAGING</option><option>KERBAU TENUSU</option></optgroup>
             <optgroup label="Ruminan Kecil"><option>KAMBING PEDAGING</option><option>KAMBING TENUSU</option><option>BEBIRI</option></optgroup>
-            <optgroup label="Unggas"><option>AYAM PEDAGING</option><option>AYAM TELUR</option><option>ITIK</option><option>BURUNG PUYUH</option><option>ANGSA</option></optgroup>
+            <optgroup label="Unggas"><option>AYAM PEDAGING</option><option>AYAM TELUR</option><option>AYAM KAMPUNG</option><option>ITIK</option><option>BURUNG PUYUH</option><option>ANGSA</option></optgroup>
             <option>LAIN-LAIN</option>
           </select>
         </div>
@@ -3507,7 +3507,7 @@ window.addEventListener('load',function(){
       <select id="pJn" onchange="jtag()">
         <optgroup label="Ruminan Besar - Pengeluaran RB"><option>LEMBU PEDAGING</option><option>LEMBU TENUSU</option><option>LEMBU PEMBIAK</option><option>KERBAU PEDAGING</option><option>KERBAU TENUSU</option></optgroup>
         <optgroup label="Ruminan Kecil - Pengeluaran RK"><option>KAMBING PEDAGING</option><option>KAMBING TENUSU</option><option>BEBIRI</option></optgroup>
-        <optgroup label="Unggas - Pengeluaran UG"><option>AYAM PEDAGING</option><option>AYAM TELUR</option><option>ITIK</option><option>BURUNG PUYUH</option><option>ANGSA</option></optgroup>
+        <optgroup label="Unggas - Pengeluaran UG"><option>AYAM PEDAGING</option><option>AYAM TELUR</option><option>AYAM KAMPUNG</option><option>ITIK</option><option>BURUNG PUYUH</option><option>ANGSA</option></optgroup>
         <option>LAIN-LAIN</option>
       </select>
     </div>
@@ -3770,6 +3770,79 @@ function migratePtPegawai(){
     if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_p', JSON.stringify(pt));
     console.log('Migrated pegawai field for pt entries');
   }
+}
+
+
+// Standardize jenis komoditi in masterlist + pt
+function standardizeJenisKomoditi(){
+  var mapping = {
+    'LEMBU PEMBIAK':'LEMBU PEDAGING',
+    'KAMBING PEMBIAK':'KAMBING PEDAGING',
+    'BEBIRI PEDAGING':'BEBIRI',
+    'KAMBING':'KAMBING PEDAGING',
+    'LEMBU BAKA':'LEMBU PEDAGING',
+    'LEMBU PEDAGING/LEMBU BAKA':'LEMBU PEDAGING',
+    'KERBAU':'KERBAU PEDAGING',
+    'LRMBU PEDAGING':'LEMBU PEDAGING',
+    'LEMBU':'LEMBU PEDAGING',
+    'LEMBU SADO':'LEMBU PEDAGING'
+  };
+  var standardList = ['LEMBU PEDAGING','LEMBU TENUSU','LEMBU PEMBIAK','KERBAU PEDAGING','KERBAU TENUSU',
+                      'KAMBING PEDAGING','KAMBING TENUSU','BEBIRI',
+                      'AYAM PEDAGING','AYAM TELUR','AYAM KAMPUNG','ITIK','BURUNG PUYUH','ANGSA','LAIN-LAIN'];
+  
+  var changedML = 0, changedPT = 0, unknown = {};
+  
+  // Migrate masterlist
+  try{
+    var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
+    ml.forEach(function(m){
+      var jU = (m.j||'').toUpperCase().trim();
+      if(!jU) return;
+      if(mapping[jU]){
+        m.j = mapping[jU];
+        changedML++;
+      } else if(standardList.indexOf(jU) < 0){
+        unknown[jU] = (unknown[jU]||0)+1;
+      }
+    });
+    if(changedML){
+      localStorage.setItem('vu_ml', JSON.stringify(ml));
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ml', JSON.stringify(ml));
+    }
+  }catch(e){}
+  
+  // Migrate pt
+  try{
+    var ptAll = JSON.parse(localStorage.getItem('vu_p')||'[]');
+    ptAll.forEach(function(p){
+      var jU = (p.j||'').toUpperCase().trim();
+      if(!jU) return;
+      if(mapping[jU]){
+        p.j = mapping[jU];
+        changedPT++;
+      } else if(standardList.indexOf(jU) < 0){
+        unknown[jU] = (unknown[jU]||0)+1;
+      }
+    });
+    if(changedPT){
+      localStorage.setItem('vu_p', JSON.stringify(ptAll));
+      pt = ptAll;
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_p', JSON.stringify(ptAll));
+    }
+  }catch(e){}
+  
+  var msg = 'Standardize Jenis Komoditi:\n';
+  msg += 'Masterlist: '+changedML+' diubah\n';
+  msg += 'Senarai Penternak: '+changedPT+' diubah\n';
+  if(Object.keys(unknown).length){
+    msg += '\nJenis TIDAK STANDARD (tiada mapping):\n';
+    Object.keys(unknown).forEach(function(j){
+      msg += '- '+j+' ('+unknown[j]+'x)\n';
+    });
+  }
+  alert(msg);
+  if(typeof renderSP === 'function') renderSP();
 }
 
 function findLBLOwner(penternak){
