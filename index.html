@@ -1817,10 +1817,8 @@ function approveMLReq(reqId){
       var ltj = JSON.parse(localStorage.getItem('vu_ltj')||'[]');
       var ltjIdx = ltj.findIndex(function(l){return l.id===r.ltjId;});
       if(ltjIdx >= 0){
-        ltj[ltjIdx].isDropped = true;
-        ltj[ltjIdx].sebabDrop = r.sebabDrop;
-        ltj[ltjIdx].droppedApprovedBy = CU.nm;
-        ltj[ltjIdx].droppedAt = new Date().toISOString();
+        // Actually delete the LTJ record on drop approval
+        ltj.splice(ltjIdx, 1);
         localStorage.setItem('vu_ltj', JSON.stringify(ltj));
         if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ltj', JSON.stringify(ltj));
       }
@@ -1918,10 +1916,8 @@ function rejectMLReq(reqId){
       var ltj = JSON.parse(localStorage.getItem('vu_ltj')||'[]');
       var ltjIdx = ltj.findIndex(function(l){return l.id===r.ltjId;});
       if(ltjIdx >= 0){
-        ltj[ltjIdx].isDropped = true;
-        ltj[ltjIdx].sebabDrop = r.sebabDrop;
-        ltj[ltjIdx].droppedApprovedBy = CU.nm;
-        ltj[ltjIdx].droppedAt = new Date().toISOString();
+        // Actually delete the LTJ record on drop approval
+        ltj.splice(ltjIdx, 1);
         localStorage.setItem('vu_ltj', JSON.stringify(ltj));
         if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ltj', JSON.stringify(ltj));
       }
