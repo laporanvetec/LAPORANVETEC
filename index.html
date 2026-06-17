@@ -4139,6 +4139,31 @@ function jtag(){
   else if(isT(j,'ug'))t.innerHTML='<span class="bug">&#8594; Pengeluaran UG</span>';
   else t.innerHTML='';
 }
+
+// Clean up bn="LAIN-LAIN" entries (set to empty since custom value was lost)
+(function migrateBnLainLain(){
+  try{
+    var ptAll = JSON.parse(localStorage.getItem('vu_p')||'[]');
+    var changed = 0;
+    ptAll.forEach(function(p){
+      if(p.bn === 'LAIN-LAIN'){ p.bn = ''; changed++; }
+    });
+    if(changed){
+      localStorage.setItem('vu_p', JSON.stringify(ptAll));
+      console.log('Cleaned '+changed+' bn=LAIN-LAIN entries in pt');
+    }
+    var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
+    var changedML = 0;
+    ml.forEach(function(m){
+      if(m.bn === 'LAIN-LAIN'){ m.bn = ''; changedML++; }
+    });
+    if(changedML){
+      localStorage.setItem('vu_ml', JSON.stringify(ml));
+      console.log('Cleaned '+changedML+' bn=LAIN-LAIN entries in ml');
+    }
+  }catch(e){}
+})();
+
 function renderSP(){
   if(typeof migratePtPegawai==='function') migratePtPegawai();
   var jf=document.getElementById('sp-jenis').value;
