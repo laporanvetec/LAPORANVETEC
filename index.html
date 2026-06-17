@@ -4140,8 +4140,8 @@ function jtag(){
   else t.innerHTML='';
 }
 
-// Clean up bn="LAIN-LAIN" entries (set to empty since custom value was lost)
-(function migrateBnLainLain(){
+// Clean up bn="LAIN-LAIN" entries (called from renderSP)
+function migrateBnLainLain(){
   try{
     var ptAll = JSON.parse(localStorage.getItem('vu_p')||'[]');
     var changed = 0;
@@ -4150,6 +4150,8 @@ function jtag(){
     });
     if(changed){
       localStorage.setItem('vu_p', JSON.stringify(ptAll));
+      pt = ptAll;
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_p', JSON.stringify(ptAll));
       console.log('Cleaned '+changed+' bn=LAIN-LAIN entries in pt');
     }
     var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
@@ -4159,13 +4161,15 @@ function jtag(){
     });
     if(changedML){
       localStorage.setItem('vu_ml', JSON.stringify(ml));
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ml', JSON.stringify(ml));
       console.log('Cleaned '+changedML+' bn=LAIN-LAIN entries in ml');
     }
   }catch(e){}
-})();
+}
 
 function renderSP(){
   if(typeof migratePtPegawai==='function') migratePtPegawai();
+  if(typeof migrateBnLainLain==='function') migrateBnLainLain();
   var jf=document.getElementById('sp-jenis').value;
   var q=(document.getElementById('sp-q').value||'').toLowerCase();
   var list=myPt(jf||null).filter(function(p){return !q||p.nm.toLowerCase().indexOf(q)>=0;});
