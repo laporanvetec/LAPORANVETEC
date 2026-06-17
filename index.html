@@ -8718,6 +8718,36 @@ function genSP03(){
 
 // Migrate old SP03 records that don't have mo/yr/bulanIdx
 function migrateSP03Records(){
+  // Split records with multiple tarikh into separate records
+  try{
+    var sp03 = JSON.parse(localStorage.getItem('vu_sp03')||'[]');
+    var newList = [];
+    var splitCount = 0;
+    sp03.forEach(function(r){
+      if(r.tarikhAktiviti && r.tarikhAktiviti.indexOf(',') >= 0){
+        // Multiple dates - split
+        var dates = r.tarikhAktiviti.split(',').map(function(d){return d.trim();}).filter(Boolean);
+        dates.forEach(function(d, i){
+          var clone = Object.assign({}, r);
+          clone.id = r.id + '_s' + i;
+          clone.tarikhAktiviti = d;
+          // Update mo/yr from date
+          var dt = pd(d);
+          if(dt){ clone.mo = dt.getMonth(); clone.yr = dt.getFullYear(); }
+          newList.push(clone);
+          splitCount++;
+        });
+      } else {
+        newList.push(r);
+      }
+    });
+    if(splitCount > sp03.length){
+      localStorage.setItem('vu_sp03', JSON.stringify(newList));
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_sp03', JSON.stringify(newList));
+      console.log('Split '+splitCount+' SP03 records (from '+sp03.length+' originals)');
+    }
+  }catch(e){console.error('Split error:', e);}
+  
   // Auto-set ketuaAktiviti for records that have pegawaiId but no ketua
   try{
     var officers = JSON.parse(localStorage.getItem('vu_pid_map')||'{}');
