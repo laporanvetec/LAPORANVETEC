@@ -4428,7 +4428,18 @@ function saveP(){
     rid: existingP ? (existingP.rid || existingP.id || 'p'+Date.now()) : 'p'+Date.now(),
     nm:nm, id:document.getElementById('pId').value,
     tl:document.getElementById('pTl').value, j:j,
-    bn:document.getElementById('pBn').value,
+    bn:(function(){
+      var sel = document.getElementById('pBn').value;
+      if(sel === 'LAIN-LAIN'){
+        var cust = document.getElementById('pBn-custom').value.trim().toUpperCase();
+        if(!cust){
+          alert('Sila taip jenis bantuan untuk pilihan LAIN-LAIN');
+          throw new Error('Bantuan custom kosong');
+        }
+        return cust;
+      }
+      return sel;
+    })(),
     pv:document.getElementById('pPV').value,
     ng:document.getElementById('pNg').value,
     al:document.getElementById('pAl').value,
