@@ -8741,10 +8741,10 @@ function migrateSP03Records(){
         newList.push(r);
       }
     });
-    if(splitCount > sp03.length){
+    if(newList.length > sp03.length){
       localStorage.setItem('vu_sp03', JSON.stringify(newList));
       if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_sp03', JSON.stringify(newList));
-      console.log('Split '+splitCount+' SP03 records (from '+sp03.length+' originals)');
+      console.log('Split SP03: '+sp03.length+' -> '+newList.length+' records');
     }
   }catch(e){console.error('Split error:', e);}
   
