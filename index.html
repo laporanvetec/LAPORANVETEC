@@ -3508,7 +3508,14 @@ window.addEventListener('load',function(){
       </select>
     </div>
     <div class="g2">
-      <div class="fg"><label>Bantuan</label><select id="pBn"><option value="">-</option><option>PROPER</option><option>RINTIS</option><option>REZEKI TERNAK</option><option>PIKK 60%</option></select></div>
+      <div class="fg"><label>Bantuan</label>
+        <select id="pBn" onchange="togglePBnCustom()">
+          <option value="">-</option>
+          <option>PROPER</option><option>RINTIS</option><option>REZEKI TERNAK</option>
+          <option>PIKK 60%</option><option value="LAIN-LAIN">LAIN-LAIN (taip sendiri)</option>
+        </select>
+        <input type="text" id="pBn-custom" placeholder="Taip jenis bantuan..." style="width:100%;margin-top:4px;padding:6px 8px;border:1.5px solid #2b6cb0;border-radius:4px;font-size:12px;display:none">
+      </div>
       <div class="fg"><label>PPV</label><select id="pPV"><option value="TIDAK">TIDAK</option><option value="YA">YA</option></select></div>
     </div>
     <div id="p-admin-po-row" class="fg" style="display:none;background:#faf5ff;padding:8px;border-radius:6px;border:1.5px solid #553c9a">
@@ -4280,11 +4287,26 @@ function openAddP(){
   ['pNm','pId','pTl','pAl'].forEach(function(id){document.getElementById(id).value='';});
   document.getElementById('pJn').value='LEMBU PEDAGING';
   document.getElementById('pBn').value='';
+  var pBnCustom = document.getElementById('pBn-custom');
+  if(pBnCustom){ pBnCustom.value=''; pBnCustom.style.display='none'; }
   document.getElementById('pPV').value='TIDAK';
   document.getElementById('pNg').value='Kedah';
   jtag();
   document.getElementById('mP').classList.add('on');
 }
+
+function togglePBnCustom(){
+  var sel = document.getElementById('pBn');
+  var inp = document.getElementById('pBn-custom');
+  if(sel.value === 'LAIN-LAIN'){
+    inp.style.display = 'block';
+    inp.focus();
+  } else {
+    inp.style.display = 'none';
+    inp.value = '';
+  }
+}
+
 function openEditP(i){
   ePI=i;
   // For admin viewing masterlist merge, pt[i] may not exist
@@ -4319,7 +4341,19 @@ function openEditP(i){
     pJnSel.appendChild(opt);
   }
   pJnSel.value = jVal;
-  document.getElementById('pBn').value=p.bn||'';
+  // Bantuan - check if standard or custom
+  var pBnVal = p.bn||'';
+  var standardBn = ['','PROPER','RINTIS','REZEKI TERNAK','PIKK 60%'];
+  if(pBnVal && standardBn.indexOf(pBnVal) < 0){
+    // Custom value
+    document.getElementById('pBn').value = 'LAIN-LAIN';
+    document.getElementById('pBn-custom').value = pBnVal;
+    document.getElementById('pBn-custom').style.display = 'block';
+  } else {
+    document.getElementById('pBn').value = pBnVal;
+    document.getElementById('pBn-custom').value = '';
+    document.getElementById('pBn-custom').style.display = 'none';
+  }
   document.getElementById('pPV').value=p.pv||'TIDAK';
   document.getElementById('pNg').value=p.ng||'Kedah';
   document.getElementById('pAl').value=p.al||'';
