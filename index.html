@@ -9625,64 +9625,47 @@ function renderSP03(){
   recs.forEach(function(r,i){
     var bg = i%2?'#FAFFF7':'#fff';
     h += '<tr style="background:'+bg+'">';
-    h += '<td style="border:1px solid #e2e8f0;padding:5px;text-align:center;color:#a0aec0;font-size:10px">'+(i+1)+'</td>';
-    // Maklumat asas
-    [r.vetec||'UTARA',r.bulan||BLN_SP[mo].toUpperCase(),r.pusat||CU.po,r.negeri||'',r.tarikhAktiviti||'',r.namaPenternak||'',r.idPremis||'',r.alamat||'',r.daerah||''].forEach(function(v){
-      h+='<td style="border:1px solid #e2e8f0;padding:5px 4px;font-size:10px;white-space:normal;max-width:120px">'+v+'</td>';
-    });
-    h+='<td style="border:1px solid #e2e8f0;padding:5px 4px;font-size:10px;text-align:center">'+(r.masaMula||'')+'</td>';
-    h+='<td style="border:1px solid #e2e8f0;padding:5px 4px;font-size:10px;text-align:center">'+(r.masaSelesai||'')+'</td>';
-    // Komoditi
-    KO_KEYS.forEach(function(k){
-      var val=(r.komoditi&&r.komoditi[k])?r.komoditi[k]:'';
-      h+='<td style="border:1px solid #e2e8f0;padding:5px;text-align:center;font-size:11px;font-weight:700;color:#276749">'+(val||'')+'</td>';
-    });
-    // Amalan
-    ['INTENSIF','SEMI-INTENSIF','EKSTENSIF','OPEN HOUSE','CLOSE HOUSE'].forEach(function(k){
-      h+='<td style="border:1px solid #e2e8f0;padding:5px;text-align:center;font-size:11px;font-weight:700;color:#276749">'+((r.amalan&&r.amalan[k])?'1':'')+'</td>';
-    });
-    // Jenis sistem
-    ['FIDLOT','BREEDLOT','GREENLOT','INTEGRASI','LADANG SATELIT','PADANG RAGUT','TKPM','LEPAS BEBAS'].forEach(function(k){
-      h+='<td style="border:1px solid #e2e8f0;padding:5px;text-align:center;font-size:11px;font-weight:700;color:#276749">'+((r.jenisSistem&&r.jenisSistem[k])?'1':'')+'</td>';
-    });
-    // Bantuan
-    h+='<td style="border:1px solid #e2e8f0;padding:5px;font-size:9px;text-align:center">'+Object.keys(r.bantuanPersekutuan||{}).filter(function(k){return r.bantuanPersekutuan[k];}).join(', ')+'</td>';
-    h+='<td style="border:1px solid #e2e8f0;padding:5px;font-size:9px;text-align:center">'+Object.keys(r.bantuanNegeri||{}).filter(function(k){return r.bantuanNegeri[k];}).join(', ')+'</td>';
-    h+='<td style="border:1px solid #e2e8f0;padding:5px;font-size:9px;text-align:center">'+Object.keys(r.bantuanAgensi||{}).filter(function(k){return r.bantuanAgensi[k];}).join(', ')+'</td>';
-    h+='<td style="border:1px solid #e2e8f0;padding:5px;text-align:center;font-size:10px">'+(r.nilaiInsentif||'')+'</td>';
-    // Skop
-    ['LTJ','KESIHATAN/SURVEILAN','LAWAT SIASAT/PM/ADUAN','AUDIT/VERIFIKASI','KHIDMAT NASIHAT','URUSAN PERJANJIAN','PENGUATKUASAAN','PAMERAN/SIDANG TERNAK','LAIN-LAIN','KESIHATAN GEROMPOK'].forEach(function(k){
-      h+='<td style="border:1px solid #e2e8f0;padding:5px;text-align:center;font-size:11px;font-weight:700;color:#c53030">'+((r.skop&&r.skop[k])?'1':'')+'</td>';
-    });
-    // MPOK
-    ['NYAH CACING','NYAH KUTU','FAMACHA','RAWATAN BIASA','PEMBEDAHAN','UJIAN BRUCELLA/IBR','DELVO TEST','AB TEST','MBRT','CMT/RMT','PLATFORM T','LAIN-LAIN'].forEach(function(k){
-      h+='<td style="border:1px solid #e2e8f0;padding:5px;text-align:center;font-size:10px">'+((r.mpok&&r.mpok[k])?r.mpok[k]:'')+'</td>';
-    });
-    // Vaksin
-    ['FMD','RB51','PASTEURELLA','HS','ND/AI','LAIN-LAIN'].forEach(function(k){
-      h+='<td style="border:1px solid #e2e8f0;padding:5px;text-align:center;font-size:10px">'+((r.vaksin&&r.vaksin[k])?r.vaksin[k]:'')+'</td>';
-    });
-    // Sampel
-    ['MAKANAN/DEDAK','AIR','TANAH','TINJA','SWAB','DARAH','ORGAN','SUSU','LAIN-LAIN'].forEach(function(k){
-      h+='<td style="border:1px solid #e2e8f0;padding:5px;text-align:center;font-size:10px">'+((r.sampel&&r.sampel[k])?r.sampel[k]:'')+'</td>';
-    });
-    // Biakbaka
-    ['AI','FERTILITY FEMALE','PD','POST PARTUM','SYNCHRONIZE','ULTRASOUND','BSE','SEMEN TEST','LAIN-LAIN'].forEach(function(k){
-      h+='<td style="border:1px solid #e2e8f0;padding:5px;text-align:center;font-size:10px">'+((r.biak&&r.biak[k])?r.biak[k]:'')+'</td>';
-    });
-    // Pegawai
-    [r.ketuaAktiviti||'',r.pegawai1||'',r.pegawai2||'',r.pegawaiRujukan||'',r.catatan||'',r.kepuasan||''].forEach(function(v){
+    // MAKLUMAT ASAS - 12 cells (BIL + moA)
+    var mai = [(i+1), r.vetec||'UTARA',r.bulan||BLN_SP[mo].toUpperCase(),r.pusat||CU.po,r.negeri||'',r.tarikhAktiviti||'',r.namaPenternak||'',r.idPremis||'',r.alamat||'',r.daerah||'',r.masaMula||'',r.masaSelesai||''];
+    mai.forEach(function(v){ h+='<td style="border:1px solid #e2e8f0;padding:5px 4px;font-size:10px;white-space:normal;max-width:120px">'+v+'</td>'; });
+    // KOMODITI - 19 cells (without anjing/kucing/lain-lain)
+    var koCells = ['LEMBU PEDAGING','LEMBU TENUSU','KERBAU PEDAGING','KERBAU TENUSU','KAMBING PEDAGING','KAMBING TENUSU','BEBIRI','RUSA','BABI','AYAM BAKA','AYAM PEDAGING','AYAM PENELUR','AYAM KAMPUNG','COLOUR BROILER','PUYUH DAGING','PUYUH PENELUR','ITIK DAGING','ITIK PENELUR','ANEKA HAIWAN'];
+    koCells.forEach(function(k){ var v=(r.komoditi&&r.komoditi[k])?r.komoditi[k]:''; h+='<td style="border:1px solid #e2e8f0;padding:5px;text-align:center;font-size:11px;font-weight:700;color:#276749">'+(v||'')+'</td>'; });
+    // HAIWAN KESAYANGAN - 3 cells
+    ['ANJING','KUCING','LAIN-LAIN'].forEach(function(k){ var v=(r.haiwan&&r.haiwan[k])?r.haiwan[k]:((r.komoditi&&r.komoditi[k])?r.komoditi[k]:''); h+='<td style="border:1px solid #e2e8f0;padding:5px;text-align:center;font-size:11px;font-weight:700;color:#276749">'+(v||'')+'</td>'; });
+    // AMALAN - 5 cells
+    ['INTENSIF','SEMI-INTENSIF','EKSTENSIF','OPEN HOUSE','CLOSE HOUSE'].forEach(function(k){ h+='<td style="border:1px solid #e2e8f0;padding:5px;text-align:center;font-size:11px;color:#276749">'+((r.amalan&&r.amalan[k])?'1':'')+'</td>'; });
+    // JENIS SISTEM - 8 cells
+    ['FIDLOT','BREEDLOT','GREENLOT','INTEGRASI','LADANG SATELIT','PADANG RAGUT','TKPM','LEPAS BEBAS'].forEach(function(k){ h+='<td style="border:1px solid #e2e8f0;padding:5px;text-align:center;font-size:11px;color:#276749">'+((r.jenisSistem&&r.jenisSistem[k])?'1':'')+'</td>'; });
+    // BANTUAN - 31 cells (10+4+13+4)
+    ['TRUST','PROPER','PIKK 60%','EPP13','REZEKI TERNAK','AGROPREUNEUR MUDA','PIKK 100%','HIP','E-KASIH','AAPT'].forEach(function(k){ var b=r.bantuanPersekutuan||r.bantuanIns||{}; h+='<td style="border:1px solid #e2e8f0;padding:5px;text-align:center;font-size:10px">'+(b[k]||'')+'</td>'; });
+    ['PINTAF','PPR (U)','PPR (R)','TEKUN'].forEach(function(k){ var b=r.bantuanNegeri||r.bantuanIns||{}; h+='<td style="border:1px solid #e2e8f0;padding:5px;text-align:center;font-size:10px">'+(b[k]||'')+'</td>'; });
+    ['DOA','MADA','KADA','KEDA','MPOB','PPK','ANGKASA','SKM','FAMA','LEMBAGA NENAS','PPN','RISDA','MARDI'].forEach(function(k){ var b=r.bantuanAgensi||r.bantuanIns||{}; h+='<td style="border:1px solid #e2e8f0;padding:5px;text-align:center;font-size:10px">'+(b[k]||'')+'</td>'; });
+    ['IN-KIND','MATCHING GRANT','REIMBURSE','LAIN-LAIN'].forEach(function(k){ var b=r.nilaiInsentif||r.bantuanIns||{}; var v = (typeof b === 'object')?(b[k]||''):(k==='IN-KIND'?b:''); h+='<td style="border:1px solid #e2e8f0;padding:5px;text-align:center;font-size:10px">'+v+'</td>'; });
+    // SKOP - 9 cells (no KESIHATAN GEROMPOK)
+    ['LTJ','KESIHATAN/SURVELAN','LAWAT SIASAT/PM/ADUAN','AUDIT/VERIFIKASI','KHIDMAT NASIHAT','URUSAN PERJANJIAN','PENGUATKUASAAN','PAMERAN/SIDANG TERNAK','LAIN-LAIN'].forEach(function(k){ h+='<td style="border:1px solid #e2e8f0;padding:5px;text-align:center;font-size:11px;color:#c53030">'+((r.skop&&r.skop[k])?'1':'')+'</td>'; });
+    // KESIHATAN GEROMPOK (mpok) - 12 cells
+    ['NYAH CACING','NYAH KUTU','FAMACHA','RAWATAN BIASA','PEMBEDAHAN','UJIAN BRUCELLA/IBR','DELVO TEST','AB TEST','MBRT','CMT/RMT','PLATFORM T','LAIN-LAIN'].forEach(function(k){ h+='<td style="border:1px solid #e2e8f0;padding:5px;text-align:center;font-size:10px">'+((r.mpok&&r.mpok[k])?r.mpok[k]:'')+'</td>'; });
+    // VAKSINASI - 6 cells
+    ['FMD','RB51','Pasteurella','HS','ND/AI','LAIN-LAIN'].forEach(function(k){ h+='<td style="border:1px solid #e2e8f0;padding:5px;text-align:center;font-size:10px">'+((r.vaksin&&r.vaksin[k])?r.vaksin[k]:'')+'</td>'; });
+    // PERSAMPELAN - 9 cells
+    ['MAKANAN/DEDAK','AIR','TANAH','TINJA','SWAB','DARAH','ORGAN','SUSU','LAIN-LAIN'].forEach(function(k){ h+='<td style="border:1px solid #e2e8f0;padding:5px;text-align:center;font-size:10px">'+((r.sampel&&r.sampel[k])?r.sampel[k]:(r.persampelan&&r.persampelan[k]?r.persampelan[k]:''))+'</td>'; });
+    // PEMBIAKBAKAAN - 9 cells
+    ['AI','FERTILITY FEMALE','PD','POST PARTUM','SYNCHRONIZE','Ultrasound','BSE','Semen Test','LAIN-LAIN'].forEach(function(k){ h+='<td style="border:1px solid #e2e8f0;padding:5px;text-align:center;font-size:10px">'+((r.biak&&r.biak[k])?r.biak[k]:(r.pembiak&&r.pembiak[k]?r.pembiak[k]:''))+'</td>'; });
+    // PEGAWAI - 7 cells (KETUA, PEG1, PEG2, PEG3, RUJUKAN, CATATAN, KEPUASAN)
+    var pegList = r.pegawaiLain ? r.pegawaiLain.split(',').map(function(x){return x.trim();}) : [r.pegawai1,r.pegawai2,r.pegawai3].filter(Boolean);
+    [r.ketuaAktiviti||'', pegList[0]||'', pegList[1]||'', pegList[2]||'', r.pegawaiRujukan||'', r.catatan||'', r.kepuasan||''].forEach(function(v){
       h+='<td style="border:1px solid #e2e8f0;padding:5px 4px;font-size:10px;white-space:normal;max-width:100px">'+v+'</td>';
     });
+    // TINDAKAN
     h+='<td style="border:1px solid #e2e8f0;padding:4px;text-align:center">';
     h+='<div style="display:flex;flex-direction:column;gap:3px;align-items:center">';
-    h+='<button class="btn bbl" style="padding:3px 8px;font-size:10px;white-space:nowrap" data-s3-edit="'+r.id+'">&#9998; Edit</button>';
-    h+='<button class="btn" style="padding:3px 8px;font-size:10px;white-space:nowrap;background:#ebf8ff;color:#2b6cb0;border:1px solid #2b6cb0" data-s3-copy="'+r.id+'" title="Copy SP03 ini untuk penternak lain">&#128203; Copy</button>';
-    h+='<button class="btn" style="padding:3px 8px;font-size:10px;white-space:nowrap;background:#fff5f5;color:#c53030;border:1px solid #c53030" data-s3-del="'+r.id+'">&#128465; Padam</button>';
+    h+='<button class="btn bbl" style="padding:3px 8px;font-size:10px;white-space:nowrap" data-s3-edit="'+r.id+'">&#9999; Edit</button>';
+    h+='<button class="btn bb" style="padding:3px 8px;font-size:10px;white-space:nowrap" data-s3-copy="'+r.id+'">&#128203; Copy</button>';
+    h+='<button class="btn br" style="padding:3px 8px;font-size:10px;white-space:nowrap" data-s3-del="'+r.id+'">&#128465; Padam</button>';
     h+='</div></td>';
     h += '</tr>';
-  });
-  h += '</tbody></table></div>';
+  }); h += '</tbody></table></div>';
   document.getElementById('s3-wrap').innerHTML = h;
 
   document.getElementById('s3-wrap').querySelectorAll('[data-s3-edit]').forEach(function(el){
