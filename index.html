@@ -1385,24 +1385,55 @@ function exportSP03Excel(data){
   var recs = data.records;
   var bln = BLN_SP_FULL[data.mo];
   
-  // Headers - same as paparan SP03
-  var headers = ['Bil','VetEC','Bulan','Pusat Operasi','Negeri','Tarikh Aktiviti','Nama Penternak','ID Premis','Alamat Premis','Daerah','Komoditi','Bil Komoditi','Stok Akhir','Aktiviti Kawalan','Ketua Aktiviti','Pegawai Lain','Pegawai Rujukan','Kepuasan'];
+  // Full headers matching display
+  var koA=['LEMBU PEDAGING','LEMBU TENUSU','KERBAU PEDAGING','KERBAU TENUSU','KAMBING PEDAGING','KAMBING TENUSU','BEBIRI','RUSA','BABI','AYAM PEDAGING','AYAM PENELUR','AYAM KAMPUNG','PUYUH DAGING','PUYUH PENELUR','ITIK DAGING','ITIK PENELUR','ANEKA HAIWAN','ANJING','KUCING','LAIN-LAIN'];
+  var amA=['INTENSIF','SEMI-INTENSIF','EKSTENSIF','OPEN HOUSE','CLOSE HOUSE'];
+  var jsA=['FIDLOT','BREEDLOT','GREENLOT','INTEGRASI','LADANG SATELIT','PADANG RAGUT','TKPM','LEPAS BEBAS'];
+  var bnA=['PERSEKUTUAN','NEGERI','LAIN-LAIN AGENSI','NILAI (RM)'];
+  var skA=['LTJ','KESIHATAN/SURVEILAN','LAWAT SIASAT/PM/ADUAN','AUDIT/VERIFIKASI','KHIDMAT NASIHAT','URUSAN PERJANJIAN','PENGUATKUASAAN','PAMERAN/SIDANG TERNAK','LAIN-LAIN','KESIHATAN GEROMPOK'];
+  var mpA=['NYAH CACING','NYAH KUTU','FAMACHA','RAWATAN BIASA','PEMBEDAHAN','UJIAN BRUCELLA/IBR','DELVO TEST','AB TEST','MBRT','CMT/RMT','PLATFORM T','LAIN-LAIN'];
+  var vkA=['FMD','RB51','PASTEURELLA','HS','ND/AI','LAIN-LAIN'];
+  var psA=['MAKANAN/DEDAK','AIR','TANAH','TINJA','SWAB','DARAH','ORGAN','SUSU','LAIN-LAIN'];
+  var bkA=['AI','FERTILITY FEMALE','PD','POST PARTUM','SYNCHRONIZE','ULTRASOUND','BSE','SEMEN TEST','LAIN-LAIN'];
+  
+  var headers = ['BIL','VETEC','BULAN','PO','NEGERI','TARIKH AKTIVITI','NAMA PENTERNAK','ID PREMIS','ALAMAT PREMIS','DAERAH','MASA MULA','MASA SELESAI'];
+  koA.forEach(function(c){headers.push(c);});
+  amA.forEach(function(c){headers.push(c);});
+  jsA.forEach(function(c){headers.push(c);});
+  bnA.forEach(function(c){headers.push(c);});
+  skA.forEach(function(c){headers.push(c);});
+  mpA.forEach(function(c){headers.push(c);});
+  vkA.forEach(function(c){headers.push(c);});
+  psA.forEach(function(c){headers.push(c);});
+  bkA.forEach(function(c){headers.push(c);});
+  headers.push('KETUA AKTIVITI','PEGAWAI 1','PEGAWAI 2','RUJUKAN/PAKAR','CATATAN','KEPUASAN','STOK AKHIR');
+  
+  // Helper to get field value (object or empty)
+  function gv(obj, key){ 
+    if(!obj) return '';
+    if(typeof obj === 'object') return obj[key] ? (obj[key]===true?'✓':obj[key]) : '';
+    return '';
+  }
   
   // Build data rows
   var rows = recs.map(function(r, i){
-    var komoditi = r.komoditi || '';
-    var bilKomoditi = r.bilKomoditi || '';
-    if(typeof r.komoditi === 'object'){
-      komoditi = Object.keys(r.komoditi||{}).filter(function(k){return r.komoditi[k];}).join(', ');
-    }
-    return [
+    var pegLain = r.pegawaiLain ? r.pegawaiLain.split(',').map(function(x){return x.trim();}) : [r.pegawai1,r.pegawai2].filter(Boolean);
+    var row = [
       i+1, r.vetec||'', r.bulan||bln, r.pusat||'', r.negeri||'',
       r.tarikhAktiviti||'', r.namaPenternak||'', r.idPremis||'', r.alamat||'', r.daerah||'',
-      komoditi, bilKomoditi, r.stokAkhir||'',
-      r.aktiviti||r.aktivitiKawalan||'', r.ketuaAktiviti||'',
-      r.pegawaiLain || [r.pegawai1, r.pegawai2, r.pegawai3].filter(Boolean).join(', '),
-      r.pegawaiRujukan||'', r.kepuasan||''
+      r.masaMula||'', r.masaSelesai||''
     ];
+    koA.forEach(function(c){row.push(gv(r.komoditi, c));});
+    amA.forEach(function(c){row.push(gv(r.amalan, c));});
+    jsA.forEach(function(c){row.push(gv(r.jenisSistem, c));});
+    bnA.forEach(function(c){row.push(gv(r.bantuanIns, c));});
+    skA.forEach(function(c){row.push(gv(r.skop, c));});
+    mpA.forEach(function(c){row.push(gv(r.mpok, c));});
+    vkA.forEach(function(c){row.push(gv(r.vaksin, c));});
+    psA.forEach(function(c){row.push(gv(r.persampelan, c));});
+    bkA.forEach(function(c){row.push(gv(r.pembiak, c));});
+    row.push(r.ketuaAktiviti||'', pegLain[0]||'', pegLain[1]||'', r.pegawaiRujukan||'', r.catatan||'', r.kepuasan||'', r.stokAkhir||'');
+    return row;
   });
   
   // Create worksheet
@@ -1410,10 +1441,14 @@ function exportSP03Excel(data){
   var ws = XLSX.utils.aoa_to_sheet(wsData);
   
   // Set column widths
-  ws['!cols'] = [
-    {wch:4}, {wch:8}, {wch:12}, {wch:14}, {wch:8}, {wch:15}, {wch:30}, {wch:12}, {wch:30}, {wch:14},
-    {wch:18}, {wch:10}, {wch:10}, {wch:18}, {wch:18}, {wch:25}, {wch:18}, {wch:10}
-  ];
+  // Set column widths dynamically based on header count
+  ws['!cols'] = headers.map(function(hd, idx){
+    if(idx===0) return {wch:4};
+    if(idx===6) return {wch:30}; // Nama
+    if(idx===8) return {wch:30}; // Alamat
+    if(hd.length > 15) return {wch:15};
+    return {wch:Math.max(8, hd.length+2)};
+  });
   
   // Style headers: dark blue background, white text, bold
   for(var c=0; c<headers.length; c++){
