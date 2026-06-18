@@ -271,7 +271,7 @@ function mergeDuplicateOfficers(){
       pt.forEach(function(p){
         if(pidMap[p.pid])p.pid=pidMap[p.pid];
       });
-      _lsOrig('vu_g','vu_pid_map',JSON.stringify(newPeg));
+      _lsOrig('vu_g','vu_pid_map','vu_jenis_komoditi',JSON.stringify(newPeg));
       _lsOrig('vu_p',JSON.stringify(pt));
       console.log('Merged officers, mapped pids:',pidMap);
     }
@@ -2282,6 +2282,7 @@ window.addEventListener('load',function(){
   <div class="ni" id="n-ltk" onclick="showPg('ltk')">&#128202; Log Teknikal</div>
   <div class="ni" id="n-ml" onclick="showPg('ml')" style="display:none">&#128274; Masterlist</div>
   <div class="ni" id="n-up" onclick="showPg('up')" style="display:none">&#128100; Urus Pegawai</div>
+  <div class="ni" id="n-uk" onclick="showPg('uk')" style="display:none">&#129516; Urus Komoditi</div>
   <div class="ni" id="n-mlr" onclick="showPg('mlr')" style="display:none">&#128276; Approval <span id="mlr-badge" style="display:none;background:#c53030;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700;margin-left:4px"></span></div>
   <div class="ni" id="n-rpt" onclick="showPg('rpt')">&#128196; Pelaporan</div>
   <div class="ni" id="n-rpt" onclick="showPg('rpt')" style="display:none">&#128196; Pelaporan</div>
@@ -3274,6 +3275,16 @@ window.addEventListener('load',function(){
     <div style="padding:14px 18px;flex:1;overflow:auto" id="up-wrap"></div>
   </div>
 
+  <!-- URUS KOMODITI PAGE (ADMIN) -->
+  <div id="pg-uk" class="pg">
+    <div class="fbar" style="background:#f7fafc;padding:10px 14px;border-bottom:1px solid #e2e8f0">
+      <div style="font-size:11px;color:#444">
+        <b>&#129516; Urus Jenis Komoditi</b> &mdash; Tambah atau padam jenis ternakan dalam senarai.
+      </div>
+    </div>
+    <div style="flex:1;overflow:auto" id="cKomoditi"></div>
+  </div>
+
   <!-- APPROVAL MASTERLIST REQUEST PAGE (ADMIN) -->
   <div id="pg-mlr" class="pg">
     <div class="fbar" style="background:#f7fafc;padding:10px 14px;border-bottom:1px solid #e2e8f0">
@@ -4090,12 +4101,12 @@ var curPg='sp';
 function showPg(pg){
   ld();
   curPg=pg;
-  ['sp','rb','rk','ug','ld','ts','ltj','gm','lt','kw','tk','iv','sp03','ltk','ml','rpt','up','mlr'].forEach(function(p){
+  ['sp','rb','rk','ug','ld','ts','ltj','gm','lt','kw','tk','iv','sp03','ltk','ml','rpt','up','uk','mlr'].forEach(function(p){
     var el2=document.getElementById('pg-'+p);if(el2)el2.classList.toggle('on',p===pg);
     var ni=document.getElementById('n-'+(p==='ld'?'ld':p==='ts'?'ts':p));
     if(ni) ni.classList.toggle('on',p===pg);
   });
-  var ti={sp:'Senarai Penternak Saya',ts:'Tarikh Sasaran Lawatan Ladang',ltj:'Lawatan Terancang dan Berjadual (LTJ)',gm:'Gambar Aktiviti',lt:'Latihan',kw:'Kewangan - Rumusan Perbelanjaan Duit Mengurus',tk:'Promosi dan Pemindahan Teknologi',iv:'Inovasi dan Penyelidikan',sp03:'SP03 - Rekod Aktiviti Lawatan Ladang',ltk:'Log Teknikal',ml:'Masterlist',up:'Urus Pegawai',mlr:'Approval Permohonan Masterlist',rpt:'Pelaporan',rpt:'Pelaporan',rb:'Pengeluaran RB - Ruminan Besar',rk:'Pengeluaran RK - Ruminan Kecil',ug:'Pengeluaran UG - Unggas',ld:'Ladang Belum Dilawat'};
+  var ti={sp:'Senarai Penternak Saya',ts:'Tarikh Sasaran Lawatan Ladang',ltj:'Lawatan Terancang dan Berjadual (LTJ)',gm:'Gambar Aktiviti',lt:'Latihan',kw:'Kewangan - Rumusan Perbelanjaan Duit Mengurus',tk:'Promosi dan Pemindahan Teknologi',iv:'Inovasi dan Penyelidikan',sp03:'SP03 - Rekod Aktiviti Lawatan Ladang',ltk:'Log Teknikal',ml:'Masterlist',up:'Urus Pegawai',uk:'Urus Jenis Komoditi',mlr:'Approval Permohonan Masterlist',rpt:'Pelaporan',rpt:'Pelaporan',rb:'Pengeluaran RB - Ruminan Besar',rk:'Pengeluaran RK - Ruminan Kecil',ug:'Pengeluaran UG - Unggas',ld:'Ladang Belum Dilawat'};
   document.getElementById('p-ttl').textContent=ti[pg]||pg;
   document.getElementById('p-sub').textContent=CU.po+' | '+CU.nm;
   if(pg==='ts'){renderTS();checkNotifications();return;}
@@ -4107,6 +4118,7 @@ function showPg(pg){
   if(pg==='rpt'){if(!isMLAdmin()){showPg('sp');toast('Akses terhad','#c53030');return;}renderRPT();return;}
   if(pg==='rpt'){try{document.getElementById('rpt-mo').value=new Date().getMonth();document.getElementById('rpt-yr').value=new Date().getFullYear();}catch(e){} renderRPT();if(!isMLAdmin()){var m2=new Date().getMonth();var y2=new Date().getFullYear();renderStaffRPT(m2,y2);}return;}
   if(pg==='ml'){if(!isMLAdmin()){toast('&#128274; Akses Ditolak — Modul ini hanya untuk pentadbir','#c53030');return;}populateMLPoFilters();renderML();return;}
+  if(pg==='uk'){if(!isMLAdmin()){toast('&#128274; Akses Ditolak','#c53030');showPg('sp');return;}if(typeof renderKomoditiPage==='function')renderKomoditiPage();return;}
   if(pg==='up'){if(!isMLAdmin()){toast('&#128274; Akses Ditolak — Modul ini hanya untuk pentadbir','#c53030');showPg('sp');return;}renderUP();return;}
   if(pg==='mlr'){if(!isMLAdmin()){toast('&#128274; Akses Ditolak — Modul ini hanya untuk pentadbir','#c53030');showPg('sp');return;}renderMLReq();return;}
   if(pg==='sp03'){try{document.getElementById('s3-mo').value=new Date().getMonth();}catch(e){}renderSP03();return;}
@@ -4141,6 +4153,143 @@ function jtag(){
 }
 
 // Clean up bn="LAIN-LAIN" entries (called from renderSP)
+
+// ─── JENIS KOMODITI MANAGEMENT ────────
+var DEFAULT_KOMODITI = {
+  'Ruminan Besar': ['LEMBU PEDAGING','LEMBU TENUSU','KERBAU PEDAGING','KERBAU TENUSU'],
+  'Ruminan Kecil': ['KAMBING PEDAGING','KAMBING TENUSU','BEBIRI'],
+  'Unggas': ['AYAM PEDAGING','AYAM TELUR','AYAM KAMPUNG','ITIK','BURUNG PUYUH','ANGSA'],
+  'Lain-lain': ['LAIN-LAIN']
+};
+
+function getKomoditi(){
+  try{
+    var k = JSON.parse(localStorage.getItem('vu_komoditi')||'null');
+    if(!k) return DEFAULT_KOMODITI;
+    return k;
+  }catch(e){ return DEFAULT_KOMODITI; }
+}
+
+function saveKomoditi(k){
+  localStorage.setItem('vu_komoditi', JSON.stringify(k));
+  if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_komoditi', JSON.stringify(k));
+}
+
+// Build dropdown options HTML
+function buildKomoditiOptions(selectedVal){
+  var k = getKomoditi();
+  var html = '';
+  Object.keys(k).forEach(function(grp){
+    html += '<optgroup label="'+grp+'">';
+    (k[grp]||[]).forEach(function(item){
+      var sel = (item===selectedVal) ? ' selected' : '';
+      html += '<option value="'+item+'"'+sel+'>'+item+'</option>';
+    });
+    html += '</optgroup>';
+  });
+  return html;
+}
+
+// Populate all jenis dropdowns dynamically
+function refreshKomoditiDropdowns(){
+  ['pJn','s3add-jenis','ml-j'].forEach(function(id){
+    var sel = document.getElementById(id);
+    if(!sel) return;
+    var current = sel.value;
+    sel.innerHTML = buildKomoditiOptions(current);
+  });
+}
+
+// ── Render Urus Komoditi page ─────────
+function renderKomoditiPage(){
+  if(!isMLAdmin()){
+    alert('Hanya admin boleh akses halaman ini');
+    return;
+  }
+  var k = getKomoditi();
+  var c = document.getElementById('cKomoditi');
+  if(!c) return;
+  
+  var h = '<div style="padding:20px;max-width:900px">';
+  h += '<div style="background:#fff;border-radius:10px;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,.06)">';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">';
+  h += '<div><div style="font-size:17px;font-weight:800;color:#0f2d5e">&#129516; Urus Jenis Komoditi</div>';
+  h += '<div style="font-size:12px;color:#718096">Tambah / Padam jenis ternakan. Akan auto-sync ke semua dropdown.</div></div>';
+  h += '<button onclick="resetKomoditiDefault()" style="background:#fff5f5;border:1px solid #c53030;color:#c53030;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700">&#8635; Reset Default</button>';
+  h += '</div>';
+  
+  Object.keys(k).forEach(function(grp){
+    h += '<div style="margin-top:14px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">';
+    h += '<div style="background:#f7fafc;padding:8px 14px;font-weight:700;font-size:13px;color:#2d3748;display:flex;justify-content:space-between;align-items:center">';
+    h += '<span>'+grp+' ('+(k[grp]||[]).length+')</span>';
+    h += '<button onclick="addKomoditiToGroup(\''+grp+'\')" style="background:#276749;color:#fff;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700">+ Tambah</button>';
+    h += '</div>';
+    h += '<div style="padding:8px">';
+    (k[grp]||[]).forEach(function(item, idx){
+      h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-bottom:1px solid #f0f0f0">';
+      h += '<span style="font-size:12px;color:#2d3748;font-weight:600">'+item+'</span>';
+      h += '<button onclick="removeKomoditi(\''+grp+'\','+idx+')" style="background:#fff5f5;color:#c53030;border:1px solid #fed7d7;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:10px;font-weight:700">&#10005; Padam</button>';
+      h += '</div>';
+    });
+    if(!(k[grp]||[]).length){
+      h += '<div style="padding:8px;color:#a0aec0;font-size:11px;font-style:italic">Tiada jenis dalam kategori ini</div>';
+    }
+    h += '</div></div>';
+  });
+  
+  h += '<div style="margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0">';
+  h += '<button onclick="addKomoditiGroup()" style="background:#3182ce;color:#fff;border:none;padding:8px 16px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:700">+ Tambah Kategori Baru</button>';
+  h += '</div>';
+  h += '</div></div>';
+  c.innerHTML = h;
+}
+
+function addKomoditiToGroup(grp){
+  var nm = prompt('Tambah jenis komoditi baru ke kategori "'+grp+'":');
+  if(!nm) return;
+  nm = nm.trim().toUpperCase();
+  if(!nm) return;
+  var k = getKomoditi();
+  if(!k[grp]) k[grp] = [];
+  if(k[grp].indexOf(nm) >= 0){ alert('Jenis ini sudah ada'); return; }
+  k[grp].push(nm);
+  saveKomoditi(k);
+  renderKomoditiPage();
+  refreshKomoditiDropdowns();
+  toast('✅ '+nm+' ditambah','#276749');
+}
+
+function removeKomoditi(grp, idx){
+  var k = getKomoditi();
+  var item = k[grp][idx];
+  if(!confirm('Padam jenis "'+item+'" dari '+grp+'?\n\nPenternak sedia ada dengan jenis ini tidak akan terjejas, tetapi tidak boleh pilih jenis ini untuk penternak baru.')) return;
+  k[grp].splice(idx,1);
+  saveKomoditi(k);
+  renderKomoditiPage();
+  refreshKomoditiDropdowns();
+  toast('❌ '+item+' dipadam','#c53030');
+}
+
+function addKomoditiGroup(){
+  var nm = prompt('Nama kategori baru (cth: "Akuakultur"):');
+  if(!nm) return;
+  nm = nm.trim();
+  if(!nm) return;
+  var k = getKomoditi();
+  if(k[nm]){ alert('Kategori ini sudah ada'); return; }
+  k[nm] = [];
+  saveKomoditi(k);
+  renderKomoditiPage();
+}
+
+function resetKomoditiDefault(){
+  if(!confirm('Reset semua jenis komoditi ke senarai default?\n\nKategori dan jenis tambahan akan dipadam.')) return;
+  saveKomoditi(DEFAULT_KOMODITI);
+  renderKomoditiPage();
+  refreshKomoditiDropdowns();
+  toast('✅ Reset ke default','#276749');
+}
+
 function migrateBnLainLain(){
   try{
     var ptAll = JSON.parse(localStorage.getItem('vu_p')||'[]');
@@ -4306,6 +4455,7 @@ function renderSP(){
   };});
 }
 function openAddP(){
+  if(typeof refreshKomoditiDropdowns === 'function') refreshKomoditiDropdowns();
   ePI=null;
   document.getElementById('mP-t').textContent='+ Tambah Penternak';
   document.getElementById('mP-s').textContent= isMLAdmin() ? 'Admin - Pilih PO untuk penternak' : (CU.po+' | '+CU.nm);
@@ -4324,6 +4474,163 @@ function openAddP(){
   document.getElementById('mP').classList.add('on');
 }
 
+
+// === URUS JENIS KOMODITI (Admin only) ===
+function getJenisKomoditi(){
+  try{
+    var stored = localStorage.getItem('vu_jenis_komoditi');
+    if(stored){
+      var parsed = JSON.parse(stored);
+      if(parsed && typeof parsed === 'object') return parsed;
+    }
+  }catch(e){}
+  // Default
+  return {
+    'Ruminan Besar - Pengeluaran RB': ['LEMBU PEDAGING','LEMBU TENUSU','KERBAU PEDAGING','KERBAU TENUSU'],
+    'Ruminan Kecil - Pengeluaran RK': ['KAMBING PEDAGING','KAMBING TENUSU','BEBIRI'],
+    'Unggas - Pengeluaran UG': ['AYAM PEDAGING','AYAM TELUR','AYAM KAMPUNG','ITIK','BURUNG PUYUH','ANGSA'],
+    'Lain-lain': ['LAIN-LAIN']
+  };
+}
+
+function saveJenisKomoditi(data){
+  localStorage.setItem('vu_jenis_komoditi', JSON.stringify(data));
+  if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_jenis_komoditi', JSON.stringify(data));
+}
+
+// Populate all jenis komoditi dropdowns from storage
+function populateJenisDropdowns(){
+  var data = getJenisKomoditi();
+  var html = '';
+  Object.keys(data).forEach(function(group){
+    if(group === 'Lain-lain'){
+      data[group].forEach(function(j){
+        html += '<option>'+j+'</option>';
+      });
+    } else {
+      html += '<optgroup label="'+group+'">';
+      data[group].forEach(function(j){
+        html += '<option>'+j+'</option>';
+      });
+      html += '</optgroup>';
+    }
+  });
+  
+  // Apply to all jenis selects
+  ['pJn', 's3add-jenis'].forEach(function(id){
+    var sel = document.getElementById(id);
+    if(sel){
+      var currentVal = sel.value;
+      sel.innerHTML = html;
+      // Restore selection if still exists
+      if(currentVal){
+        for(var i=0;i<sel.options.length;i++){
+          if(sel.options[i].value === currentVal){
+            sel.value = currentVal;
+            break;
+          }
+        }
+      }
+    }
+  });
+}
+
+function openUrusJenis(){
+  if(!isMLAdmin()){ alert('Hanya admin boleh urus jenis komoditi'); return; }
+  var existing = document.getElementById('mUrusJK');
+  if(existing) existing.remove();
+  
+  var modal = document.createElement('div');
+  modal.id = 'mUrusJK';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px);overflow-y:auto';
+  
+  var data = getJenisKomoditi();
+  var html = '<div style="background:#fff;border-radius:14px;max-width:640px;width:100%;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,.4)">';
+  html += '<div style="background:linear-gradient(135deg,#2d1b69,#5b21b6);padding:18px 22px;color:#fff;display:flex;justify-content:space-between;align-items:center">';
+  html += '<div><div style="font-size:17px;font-weight:800">&#127817; Urus Jenis Komoditi</div>';
+  html += '<div style="font-size:11px;opacity:.9;margin-top:3px">Admin sahaja - perubahan akan refresh semua dropdown</div></div>';
+  html += '<button onclick="document.getElementById(\'mUrusJK\').remove()" style="background:rgba(255,255,255,.2);color:#fff;border:none;border-radius:50%;width:32px;height:32px;font-size:18px;cursor:pointer">&times;</button>';
+  html += '</div>';
+  html += '<div id="ujk-body" style="padding:18px;overflow-y:auto;flex:1">';
+  
+  Object.keys(data).forEach(function(group, gi){
+    html += '<div style="margin-bottom:18px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">';
+    html += '<div style="background:#f7fafc;padding:10px 14px;font-weight:700;font-size:13px;color:#2d3748;display:flex;justify-content:space-between;align-items:center">';
+    html += '<span>&#128202; '+group+'</span>';
+    html += '<span style="font-size:11px;color:#718096">('+data[group].length+' jenis)</span>';
+    html += '</div>';
+    html += '<div style="padding:10px 14px">';
+    data[group].forEach(function(j, ji){
+      html += '<div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">';
+      html += '<input type="text" value="'+j.replace(/"/g,'&quot;')+'" data-group="'+group+'" data-idx="'+ji+'" style="flex:1;padding:5px 8px;border:1px solid #cbd5e0;border-radius:4px;font-size:12px" onchange="updateJK(this)">';
+      html += '<button onclick="removeJK(\''+group.replace(/\'/g,"")+'\','+ji+')" style="background:#fff5f5;color:#c53030;border:1px solid #c53030;border-radius:4px;padding:4px 10px;font-size:11px;cursor:pointer;font-weight:700">&times;</button>';
+      html += '</div>';
+    });
+    html += '<div style="display:flex;gap:6px;margin-top:8px">';
+    html += '<input type="text" id="ujk-new-'+gi+'" placeholder="Jenis baru..." style="flex:1;padding:5px 8px;border:1.5px solid #2b6cb0;border-radius:4px;font-size:12px">';
+    html += '<button onclick="addJK(\''+group.replace(/\'/g,"")+'\','+gi+')" style="background:#276749;color:#fff;border:none;border-radius:4px;padding:4px 12px;font-size:11px;cursor:pointer;font-weight:700">+ Tambah</button>';
+    html += '</div>';
+    html += '</div></div>';
+  });
+  
+  html += '<div style="background:#fffbeb;border:1px solid #e8a900;border-radius:6px;padding:10px 14px;font-size:11px;color:#744210;margin-top:10px">';
+  html += '&#9888; <b>Nota:</b> Hapuskan jenis yang tiada di senarai. Jenis sedia ada dalam masterlist tidak akan terjejas, tapi pegawai tidak boleh pilih jenis yang dihapuskan untuk entry baru.';
+  html += '</div>';
+  html += '</div>';
+  html += '<div style="padding:14px 18px;background:#f7fafc;border-top:1px solid #e2e8f0;text-align:right">';
+  html += '<button onclick="document.getElementById(\'mUrusJK\').remove()" style="background:#cbd5e0;border:none;border-radius:6px;padding:8px 18px;font-weight:700;cursor:pointer;margin-right:8px">Tutup</button>';
+  html += '<button onclick="saveAndCloseJK()" style="background:#276749;color:#fff;border:none;border-radius:6px;padding:8px 18px;font-weight:700;cursor:pointer">&#10004; Simpan</button>';
+  html += '</div>';
+  html += '</div>';
+  
+  modal.innerHTML = html;
+  document.body.appendChild(modal);
+}
+
+// Track changes in memory
+window._jkData = null;
+function ensureJKData(){
+  if(!window._jkData) window._jkData = JSON.parse(JSON.stringify(getJenisKomoditi()));
+}
+
+function updateJK(input){
+  ensureJKData();
+  var group = input.dataset.group;
+  var idx = parseInt(input.dataset.idx);
+  window._jkData[group][idx] = input.value.trim().toUpperCase();
+}
+
+function removeJK(group, idx){
+  ensureJKData();
+  if(!confirm('Hapuskan jenis ini?')) return;
+  window._jkData[group].splice(idx, 1);
+  saveJenisKomoditi(window._jkData);
+  window._jkData = null;
+  openUrusJenis(); // refresh
+}
+
+function addJK(group, gi){
+  ensureJKData();
+  var inp = document.getElementById('ujk-new-'+gi);
+  var val = inp.value.trim().toUpperCase();
+  if(!val){ inp.focus(); return; }
+  if(window._jkData[group].indexOf(val) >= 0){ alert('Sudah ada'); return; }
+  window._jkData[group].push(val);
+  saveJenisKomoditi(window._jkData);
+  window._jkData = null;
+  openUrusJenis(); // refresh
+}
+
+function saveAndCloseJK(){
+  if(window._jkData){
+    saveJenisKomoditi(window._jkData);
+    window._jkData = null;
+  }
+  populateJenisDropdowns();
+  document.getElementById('mUrusJK').remove();
+  toast('✅ Jenis komoditi dikemaskini', '#276749');
+}
+
 function togglePBnCustom(){
   var sel = document.getElementById('pBn');
   var inp = document.getElementById('pBn-custom');
@@ -4337,6 +4644,7 @@ function togglePBnCustom(){
 }
 
 function openEditP(i){
+  if(typeof refreshKomoditiDropdowns === 'function') refreshKomoditiDropdowns();
   ePI=i;
   // For admin viewing masterlist merge, pt[i] may not exist
   var p;
