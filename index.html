@@ -13438,6 +13438,13 @@ if(su){
     document.getElementById('app').style.display='flex';
     document.getElementById('sb-nm').textContent=CU.nm;
     document.getElementById('sb-po').textContent='PO '+CU.po;
+    // Show admin menus on session restore
+    if(typeof updateMLNav === 'function') updateMLNav();
+    if(isMLAdmin()){
+      ['n-ml','n-up','n-uk','n-mlr','n-rpt'].forEach(function(id){
+        var e=document.getElementById(id); if(e) e.style.display='flex';
+      });
+    }
     showPg('sp');
   }catch(ex){
     document.getElementById('lg').style.display='flex';
