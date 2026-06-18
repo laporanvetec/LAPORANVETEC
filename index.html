@@ -3530,12 +3530,16 @@ window.addEventListener('load',function(){
       <div class="fg"><label>PPV</label><select id="pPV"><option value="TIDAK">TIDAK</option><option value="YA">YA</option></select></div>
     </div>
     <div id="p-admin-po-row" class="fg" style="display:none;background:#faf5ff;padding:8px;border-radius:6px;border:1.5px solid #553c9a">
-      <label style="color:#553c9a;font-weight:700">Pilih PO (Admin sahaja) *</label>
-      <select id="p-admin-po" style="width:100%;padding:8px 10px;border:1.5px solid #553c9a;border-radius:5px;font-size:12px;font-family:inherit;background:#fff">
+      <label style="color:#553c9a;font-weight:700">Pilih PO & Pegawai (Admin sahaja) *</label>
+      <select id="p-admin-po" onchange="refreshPAdminPegawai()" style="width:100%;padding:8px 10px;border:1.5px solid #553c9a;border-radius:5px;font-size:12px;font-family:inherit;background:#fff;margin-bottom:6px">
         <option value="GURUN">GURUN</option><option value="KULIM">KULIM</option>
         <option value="SUNGAI PETANI">SUNGAI PETANI</option><option value="KUALA KETIL">KUALA KETIL</option>
         <option value="ALOR STAR">ALOR STAR</option><option value="JITRA">JITRA</option>
         <option value="KANGAR/PERLIS">KANGAR/PERLIS</option><option value="SG BAKAP">SG BAKAP</option>
+      </select>
+      <label style="color:#553c9a;font-weight:700;font-size:11px;margin-top:4px;display:block">Assign ke Pegawai (LBL akan masuk pegawai ini)</label>
+      <select id="p-admin-pegawai" style="width:100%;padding:8px 10px;border:1.5px solid #553c9a;border-radius:5px;font-size:12px;font-family:inherit;background:#fff">
+        <option value="">-- Pilih Pegawai --</option>
       </select>
     </div>
     <div class="g2">
@@ -4458,6 +4462,44 @@ function renderSP(){
     }
   };});
 }
+
+// Refresh pegawai dropdown based on selected PO
+function refreshPAdminPegawai(){
+  var po = document.getElementById('p-admin-po').value;
+  var sel = document.getElementById('p-admin-pegawai');
+  if(!sel) return;
+  var officers = [];
+  // From vu_officers
+  try{
+    var off = JSON.parse(localStorage.getItem('vu_officers')||'{}');
+    if(off[po]) off[po].forEach(function(o){
+      var nm = (typeof o === 'string') ? o : o.nm;
+      if(nm && officers.indexOf(nm) < 0) officers.push(nm);
+    });
+  }catch(e){}
+  // From DEFAULT_OFFICERS
+  if(typeof DEFAULT_OFFICERS !== 'undefined' && DEFAULT_OFFICERS[po]){
+    DEFAULT_OFFICERS[po].forEach(function(nm){
+      if(officers.indexOf(nm) < 0) officers.push(nm);
+    });
+  }
+  // From vu_pid_map
+  try{
+    var pm = JSON.parse(localStorage.getItem('vu_pid_map')||'{}');
+    Object.keys(pm).forEach(function(pid){
+      if(pm[pid] && pm[pid].po===po && pm[pid].nm && officers.indexOf(pm[pid].nm) < 0){
+        officers.push(pm[pid].nm);
+      }
+    });
+  }catch(e){}
+  
+  sel.innerHTML = '<option value="">-- Tiada (admin sendiri) --</option>';
+  officers.forEach(function(nm){
+    if(nm.toUpperCase() === 'ADMIN') return;
+    sel.innerHTML += '<option value="'+nm+'">'+nm+'</option>';
+  });
+}
+
 function openAddP(){
   if(typeof refreshKomoditiDropdowns === 'function') refreshKomoditiDropdowns();
   ePI=null;
@@ -4466,7 +4508,10 @@ function openAddP(){
   // Show admin PO selector
   var apoRow = document.getElementById('p-admin-po-row');
   if(apoRow) apoRow.style.display = isMLAdmin() ? 'block' : 'none';
-  if(isMLAdmin()) document.getElementById('p-admin-po').value = 'GURUN';
+  if(isMLAdmin()){
+    document.getElementById('p-admin-po').value = 'GURUN';
+    refreshPAdminPegawai();
+  }
   ['pNm','pId','pTl','pAl'].forEach(function(id){document.getElementById(id).value='';});
   document.getElementById('pJn').value='LEMBU PEDAGING';
   document.getElementById('pBn').value='';
@@ -4707,9 +4752,23 @@ function saveP(){
   var j=document.getElementById('pJn').value;
   var targetPO = CU.po;
   var targetPid = CU.pid;
+  var targetPegawai = CU.nm;
   if(isMLAdmin()){
     var apoEl = document.getElementById('p-admin-po');
     if(apoEl) targetPO = apoEl.value;
+    var apegEl = document.getElementById('p-admin-pegawai');
+    if(apegEl && apegEl.value){
+      targetPegawai = apegEl.value;
+      // Find pid for this pegawai
+      try{
+        var pm = JSON.parse(localStorage.getItem('vu_pid_map')||'{}');
+        Object.keys(pm).forEach(function(pid){
+          if(pm[pid] && pm[pid].nm === targetPegawai && pm[pid].po === targetPO){
+            targetPid = pid;
+          }
+        });
+      }catch(e){}
+    }
   }
   
   // Handle admin edit case where ePI is the penternak object (not pt index)
