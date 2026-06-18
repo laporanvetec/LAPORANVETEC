@@ -4802,8 +4802,28 @@ function saveP(){
     }
   }
   
+  // For admin assignment, force override even if existing  
+  var finalPid = targetPid;
+  var finalPegawai = targetPegawai;
+  if(isMLAdmin()){
+    var apegElCheck = document.getElementById('p-admin-pegawai');
+    if(apegElCheck && apegElCheck.value){
+      // Admin explicitly assigned - use that (override existing)
+      finalPid = targetPid;
+      finalPegawai = targetPegawai;
+    } else if(existingP && existingP.pid){
+      // Keep existing if not reassigned
+      finalPid = existingP.pid;
+      finalPegawai = existingP.pegawai || targetPegawai;
+    }
+  } else if(existingP){
+    finalPid = existingP.pid || targetPid;
+    finalPegawai = existingP.pegawai || targetPegawai;
+  }
+  
   var p={
-    pid: existingP ? (existingP.pid||targetPid) : targetPid,
+    pid: finalPid,
+    pegawai: finalPegawai,
     po: targetPO,
     rid: existingP ? (existingP.rid || existingP.id || 'p'+Date.now()) : 'p'+Date.now(),
     nm:nm, id:document.getElementById('pId').value,
