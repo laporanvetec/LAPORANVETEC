@@ -1325,17 +1325,21 @@ function getSP03DataForDownload(){
     // PO filter (only applied for admin or if not officer)
     if(isMLAdmin() && poFilter !== 'ALL' && r.po !== poFilter) return false;
     if(!isMLAdmin()){
-      // Officer: records where they are Ketua OR Pegawai Lain (regardless of PO)
+      // Officer: records where pegawaiId matches OR they are Ketua OR Pegawai Lain
       var cuNm = (CU.nm||'').toUpperCase().trim();
-      var isKetua = r.ketuaAktiviti && r.ketuaAktiviti.toUpperCase().trim() === cuNm;
-      var pegList = [];
-      if(r.pegawaiLain) pegList = r.pegawaiLain.split(',').map(function(x){return x.trim().toUpperCase();});
-      else pegList = [r.pegawai1,r.pegawai2,r.pegawai3].filter(Boolean).map(function(x){return x.toUpperCase().trim();});
-      var isPeg = pegList.indexOf(cuNm) >= 0;
-      // Legacy: show if no ketua AND same PO
-      if(!r.ketuaAktiviti){
-        if(r.po !== CU.po) return false;
-      } else if(!isKetua && !isPeg) return false;
+      if(r.pegawaiId === CU.pid){
+        // Match by pegawaiId - include
+      } else {
+        var isKetua = r.ketuaAktiviti && r.ketuaAktiviti.toUpperCase().trim() === cuNm;
+        var pegList = [];
+        if(r.pegawaiLain) pegList = r.pegawaiLain.split(',').map(function(x){return x.trim().toUpperCase();});
+        else pegList = [r.pegawai1,r.pegawai2,r.pegawai3].filter(Boolean).map(function(x){return x.toUpperCase().trim();});
+        var isPeg = pegList.indexOf(cuNm) >= 0;
+        // Legacy: show if no ketua AND same PO
+        if(!r.ketuaAktiviti){
+          if(r.po !== CU.po) return false;
+        } else if(!isKetua && !isPeg) return false;
+      }
     } else if(pegFilter !== 'ALL'){
       // Admin filtering by specific pegawai
       var pgName = (pegFilter.indexOf('_')>0 ? pegFilter.split('_')[0] : pegFilter).toUpperCase().trim();
