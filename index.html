@@ -3922,10 +3922,14 @@ function myLBL(t){
   if(isMLAdmin()){
     return myPt(t); // Admin sees all
   }
-  // Officer: only their own vu_p entries
+  // Officer: their own vu_p entries (pid match OR pegawai name match)
+  var cuNm = (CU.nm||'').toUpperCase().trim();
   return pt.filter(function(p){
     if(!p) return false;
-    if(p.pid !== CU.pid) return false;
+    // Match by pid OR by pegawai name (for admin-assigned entries)
+    var pidMatch = (p.pid === CU.pid);
+    var pegMatch = (p.pegawai && p.pegawai.toUpperCase().trim() === cuNm);
+    if(!pidMatch && !pegMatch) return false;
     if(t && !isT(p.j||'', t)) return false;
     return true;
   });
@@ -4707,7 +4711,12 @@ function openEditP(i){
   // Show admin PO selector
   var apoRow = document.getElementById('p-admin-po-row');
   if(apoRow) apoRow.style.display = isMLAdmin() ? 'block' : 'none';
-  if(isMLAdmin()) document.getElementById('p-admin-po').value = p.po||'GURUN';
+  if(isMLAdmin()){
+    document.getElementById('p-admin-po').value = p.po||'GURUN';
+    refreshPAdminPegawai();
+    var pegSel = document.getElementById('p-admin-pegawai');
+    if(pegSel && p.pegawai) pegSel.value = p.pegawai;
+  }
   document.getElementById('mP-t').textContent='Kemaskini Penternak';
   document.getElementById('pNm').value=p.nm||'';
   document.getElementById('pId').value=p.id||'';
