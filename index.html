@@ -1385,229 +1385,221 @@ function exportSP03Excel(data){
   var recs = data.records;
   var bln = BLN_SP_FULL[data.mo];
   
-  // Column arrays
-  var koA=['LEMBU PEDAGING','LEMBU TENUSU','KERBAU PEDAGING','KERBAU TENUSU','KAMBING PEDAGING','KAMBING TENUSU','BEBIRI','RUSA','BABI','AYAM PEDAGING','AYAM PENELUR','AYAM KAMPUNG','PUYUH DAGING','PUYUH PENELUR','ITIK DAGING','ITIK PENELUR','ANEKA HAIWAN','ANJING','KUCING','LAIN-LAIN'];
+  // Define column specs - exact match to template
+  var koA=['LEMBU PEDAGING','LEMBU TENUSU','KERBAU PEDAGING','KERBAU TENUSU','KAMBING PEDAGING','KAMBING TENUSU','BEBIRI','RUSA','BABI','AYAM BAKA','AYAM PEDAGING','AYAM PENELUR','AYAM KAMPUNG','COLOUR BROILER','PUYUH DAGING','PUYUH PENELUR','ITIK DAGING','ITIK PENELUR','ANEKA HAIWAN'];
+  var hkA=['ANJING (ekor)','KUCING (ekor)','LAIN-LAIN (ekor)'];
   var amA=['INTENSIF','SEMI-INTENSIF','EKSTENSIF','OPEN HOUSE','CLOSE HOUSE'];
   var jsA=['FIDLOT','BREEDLOT','GREENLOT','INTEGRASI','LADANG SATELIT','PADANG RAGUT','TKPM','LEPAS BEBAS'];
-  var bnA=['PERSEKUTUAN','NEGERI','LAIN-LAIN AGENSI','NILAI (RM)'];
-  // SKOP PERKHIDMATAN - top-level (without KESIHATAN GEROMPOK)
-  var skA=['LTJ','LAWAT SIASAT/PM/ADUAN','AUDIT/VERIFIKASI','KHIDMAT NASIHAT','URUSAN PERJANJIAN','PENGUATKUASAAN','PAMERAN/SIDANG TERNAK','LAIN-LAIN'];
-  // KESIHATAN GEROMPOK sub-sections
-  var mpA=['NYAH CACING','NYAH KUTU','FAMACHA','RAWATAN BIASA','PEMBEDAHAN','UJIAN BRUCELLA/IBR','DELVO TEST','AB TEST','MBRT','CMT/RMT','PLATFORM T','LAIN-LAIN'];
-  var vkA=['FMD','RB51','PASTEURELLA','HS','ND/AI','LAIN-LAIN'];
-  var psA=['MAKANAN/DEDAK','AIR','TANAH','TINJA','SWAB','DARAH','ORGAN','SUSU','LAIN-LAIN'];
-  var bkA=['AI','FERTILITY FEMALE','PD','POST PARTUM','SYNCHRONIZE','ULTRASOUND','BSE','SEMEN TEST','LAIN-LAIN'];
-  var asasA = ['VETEC','BULAN','PUSAT OPERASI','NEGERI','TARIKH AKTIVITI','NAMA PENTERNAK','ID PREMIS','ALAMAT PREMIS','DAERAH'];
-  var masaA = ['MASA MULA','MASA SELESAI'];
-  var pgA = ['KETUA AKTIVITI','PEGAWAI 1','PEGAWAI 2','RUJUKAN/PAKAR','CATATAN','KEPUASAN'];
+  var bpA=['TRUST','PROPER','PIKK 60%','EPP13','REZEKI TERNAK','AGROPREUNEUR MUDA','PIKK 100%','HIP','E-KASIH','AAPT'];
+  var bnA=['PINTAF','PPR (U)','PPR (R)','TEKUN'];
+  var blA=['DOA','MADA','KADA','KEDA','MPOB','PPK','ANGKASA','SKM','FAMA','LEMBAGA NENAS','PPN','RISDA','MARDI'];
+  var biA=['IN-KIND CONTRIBUTION','MATCHING GRANT','REIMBURSTMENT','LAIN-LAIN'];
+  var skA=['LTJ','KESIHATAN / SURVELAN / KAWALAN PENYAKIT','LAWAT SIASAT / PM/ ADUAN','AUDIT / VERIFIKASI /PERLESENAN / MI/BANCIAN','KHIDMAT NASIHAT','URUSAN PENYELESAIAN PERJANJIAN PROGRAM BANTUAN','PENGUATKUASAAN','PAMERAN/ SIDANG TERNAK /HBP','LAIN-LAIN'];
+  var mpA=['NYAH CACING','NYAH KUTU','FAMACHA','RAWATAN BIASA','PEMBEDAHAN','UJIAN BRUCELLA/ IBR / TB/ HS/ CLA / DLL','DELVO TEST','AB TEST / DRUGS RESIDUE','MBRT','CMT / RMT','PLATFORM T','LAIN-LAIN'];
+  var vkA=['FMD','RB51','Pasteurella','HS','ND /AI','LAIN-LAIN'];
+  var psA=['MAKANAN / DEDAK KOMERSIAL / RUMPUT','AIR','TANAH','TINJA','SWAB','DARAH','ORGAN','SUSU','LAIN-LAIN'];
+  var bkA=['AI','FERTILITY FEMALE','PD','POST PARTUM','SYNCHRONIZE','Ultrasound','BSE','Semen Test','LAIN-LAIN'];
+  var asasR3=['BIL','VetEC','BULAN','PUSAT OPERASI','NEGERI','TARIKH AKTIVITI','NAMA PENTERNAK','ID PREMIS','ALAMAT PREMIS','DAERAH','MASA MULA','MASA SELESAI'];
+  var endA=['NAMA KETUA AKTIVITI','NAMA PEGAWAI 1','NAMA PEGAWAI 2','NAMA PEGAWAI 3','PEGAWAI RUJUKAN / SUMBER / PAKAR RUJUK','Catatan (TINDAKAN DI AMBIL)','TAHAP KEPUASAN PELANGGAN','CATATAN (perkhidmatan melalui telefon semasa PKP : 1- telefon . 0-selain telefon)'];
   
-  // Build hierarchical 3-row header
-  // Row 1: Main sections
-  // Row 2: Sub sections (for SKOP)
-  // Row 3: Actual column names
-  var row1=[], row2=[], row3=[];
-  var merges=[];
-  var col=0;
+  // Build 3-row headers + merges
+  var TOTAL_COLS = 131;
+  var row1 = new Array(TOTAL_COLS).fill('');
+  var row2 = new Array(TOTAL_COLS).fill('');
+  var row3 = new Array(TOTAL_COLS).fill('');
+  var merges = [];
   
-  // BIL - merged 3 rows
-  row1.push('BIL'); row2.push(''); row3.push('');
-  merges.push({s:{r:0,c:col},e:{r:2,c:col}}); col++;
+  // C1-C12 MAKLUMAT ASAS (R1-R2 merged, R3 has columns)
+  row1[0] = 'MAKLUMAT ASAS';
+  merges.push({s:{r:0,c:0},e:{r:1,c:11}});
+  for(var i=0;i<12;i++){ row3[i] = asasR3[i]; }
   
-  // MAKLUMAT ASAS - merged across asasA columns
-  row1.push('MAKLUMAT ASAS');
-  merges.push({s:{r:0,c:col},e:{r:0,c:col+asasA.length-1}});
-  asasA.forEach(function(c,i){ 
-    if(i>0) row1.push('');
-    row2.push(c); row3.push(''); 
-    merges.push({s:{r:1,c:col+i},e:{r:2,c:col+i}});
-  });
-  col += asasA.length;
+  // C13-C31 JENIS KOMODITI (R1: BILANGAN POPULASI, R2: JENIS KOMODITI)
+  row1[12] = 'BILANGAN POPULASI TERNAKAN (EKOR)';
+  merges.push({s:{r:0,c:12},e:{r:0,c:30}});
+  row2[12] = 'JENIS KOMODITI TERNAKAN';
+  merges.push({s:{r:1,c:12},e:{r:1,c:30}});
+  for(var i=0;i<19;i++){ row3[12+i] = koA[i]; }
   
-  // MASA
-  row1.push('MASA');
-  merges.push({s:{r:0,c:col},e:{r:0,c:col+1}});
-  masaA.forEach(function(c,i){ 
-    if(i>0) row1.push('');
-    row2.push(c); row3.push(''); 
-    merges.push({s:{r:1,c:col+i},e:{r:2,c:col+i}});
-  });
-  col += masaA.length;
+  // C32-C34 HAIWAN KESAYANGAN (R1-R2 merged)
+  row1[31] = 'HAIWAN KESAYANGAN';
+  merges.push({s:{r:0,c:31},e:{r:1,c:33}});
+  for(var i=0;i<3;i++){ row3[31+i] = hkA[i]; }
   
-  // JENIS KOMODITI TERNAKAN
-  row1.push('JENIS KOMODITI TERNAKAN');
-  merges.push({s:{r:0,c:col},e:{r:0,c:col+koA.length-1}});
-  koA.forEach(function(c,i){ 
-    if(i>0) row1.push('');
-    row2.push(c); row3.push(''); 
-    merges.push({s:{r:1,c:col+i},e:{r:2,c:col+i}});
-  });
-  col += koA.length;
+  // C35-C39 AMALAN SISTEM
+  row1[34] = 'AMALAN SISTEM PENTERNAKAN';
+  merges.push({s:{r:0,c:34},e:{r:1,c:38}});
+  for(var i=0;i<5;i++){ row3[34+i] = amA[i]; }
   
-  // AMALAN SISTEM PENTERNAKAN
-  row1.push('AMALAN SISTEM PENTERNAKAN');
-  merges.push({s:{r:0,c:col},e:{r:0,c:col+amA.length-1}});
-  amA.forEach(function(c,i){ 
-    if(i>0) row1.push('');
-    row2.push(c); row3.push(''); 
-    merges.push({s:{r:1,c:col+i},e:{r:2,c:col+i}});
-  });
-  col += amA.length;
+  // C40-C47 JENIS SISTEM
+  row1[39] = 'JENIS SISTEM PENTERNAKAN';
+  merges.push({s:{r:0,c:39},e:{r:1,c:46}});
+  for(var i=0;i<8;i++){ row3[39+i] = jsA[i]; }
   
-  // JENIS SISTEM PENTERNAKAN
-  row1.push('JENIS SISTEM PENTERNAKAN');
-  merges.push({s:{r:0,c:col},e:{r:0,c:col+jsA.length-1}});
-  jsA.forEach(function(c,i){ 
-    if(i>0) row1.push('');
-    row2.push(c); row3.push(''); 
-    merges.push({s:{r:1,c:col+i},e:{r:2,c:col+i}});
-  });
-  col += jsA.length;
+  // C48-C78 BANTUAN/INSENTIF (R1 merged), R2 has sub-categories
+  row1[47] = 'BANTUAN / INSENTIF';
+  merges.push({s:{r:0,c:47},e:{r:0,c:77}});
+  // C48-C57 PERSEKUTUAN (R2)
+  row2[47] = 'PERSEKUTUAN';
+  merges.push({s:{r:1,c:47},e:{r:1,c:56}});
+  for(var i=0;i<10;i++){ row3[47+i] = bpA[i]; }
+  // C58-C61 NEGERI (R2)
+  row2[57] = 'NEGERI';
+  merges.push({s:{r:1,c:57},e:{r:1,c:60}});
+  for(var i=0;i<4;i++){ row3[57+i] = bnA[i]; }
+  // C62-C74 LAIN-LAIN AGENSI (R2)
+  row2[61] = 'LAIN-LAIN AGENSI';
+  merges.push({s:{r:1,c:61},e:{r:1,c:73}});
+  for(var i=0;i<13;i++){ row3[61+i] = blA[i]; }
+  // C75-C78 NILAI INSENTIF (R2)
+  row2[74] = 'NILAI INSENTIF';
+  merges.push({s:{r:1,c:74},e:{r:1,c:77}});
+  for(var i=0;i<4;i++){ row3[74+i] = biA[i]; }
   
-  // BANTUAN/INSENTIF
-  row1.push('BANTUAN / INSENTIF');
-  merges.push({s:{r:0,c:col},e:{r:0,c:col+bnA.length-1}});
-  bnA.forEach(function(c,i){ 
-    if(i>0) row1.push('');
-    row2.push(c); row3.push(''); 
-    merges.push({s:{r:1,c:col+i},e:{r:2,c:col+i}});
-  });
-  col += bnA.length;
+  // C79-C87 SKOP PERKHIDMATAN (R1-R2 merged)
+  row1[78] = 'SKOP PERKHIDMATAN (TANDAKAN 1 BAGI YANG BERKENAAN)';
+  merges.push({s:{r:0,c:78},e:{r:1,c:86}});
+  for(var i=0;i<9;i++){ row3[78+i] = skA[i]; }
   
-  // SKOP PERKHIDMATAN - top-level + KESIHATAN GEROMPOK sub-sections
-  var totalSkopCols = skA.length + mpA.length + vkA.length + psA.length + bkA.length;
-  row1.push('SKOP PERKHIDMATAN');
-  merges.push({s:{r:0,c:col},e:{r:0,c:col+totalSkopCols-1}});
-  // Top-level skop items - merge across rows 2&3
-  skA.forEach(function(c,i){ 
-    if(i>0) row1.push('');
-    row2.push(c); row3.push(''); 
-    merges.push({s:{r:1,c:col+i},e:{r:2,c:col+i}});
-  });
-  col += skA.length;
+  // C88-C99 KESIHATAN GEROMPOK
+  row1[87] = 'KESIHATAN GEROMPOK / UJIAN SUSU DI PPIT / UJIAN DI LAPANGAN';
+  merges.push({s:{r:0,c:87},e:{r:0,c:98}});
+  row2[87] = 'BILANGAN TERNAKAN (EKOR)';
+  merges.push({s:{r:1,c:87},e:{r:1,c:98}});
+  for(var i=0;i<12;i++){ row3[87+i] = mpA[i]; }
   
-  // KESIHATAN GEROMPOK - sub-section header spans MPOK+VAKSIN+PERSAMPELAN+PEMBIAKBAKAAN row2
-  var keGroupCols = mpA.length + vkA.length + psA.length + bkA.length;
-  // Fill row1 placeholders for these cols
-  for(var fi=0; fi<keGroupCols; fi++){ row1.push(''); }
-  // Row 2: subsection headers
-  row2.push('MPOK / UJIAN SUSU');
-  merges.push({s:{r:1,c:col},e:{r:1,c:col+mpA.length-1}});
-  for(var i=0;i<mpA.length;i++){ if(i>0) row2.push(''); row3.push(mpA[i]); }
-  col += mpA.length;
+  // C100-C105 VAKSINASI
+  row1[99] = 'VAKSINASI';
+  merges.push({s:{r:0,c:99},e:{r:0,c:104}});
+  row2[99] = 'BILANGAN TERNAKAN (EKOR)';
+  merges.push({s:{r:1,c:99},e:{r:1,c:104}});
+  for(var i=0;i<6;i++){ row3[99+i] = vkA[i]; }
   
-  row2.push('VAKSINASI');
-  merges.push({s:{r:1,c:col},e:{r:1,c:col+vkA.length-1}});
-  for(var i=0;i<vkA.length;i++){ if(i>0) row2.push(''); row3.push(vkA[i]); }
-  col += vkA.length;
+  // C106-C114 PERSAMPELAN
+  row1[105] = 'PERSAMPELAN';
+  merges.push({s:{r:0,c:105},e:{r:0,c:113}});
+  row2[105] = 'BILANGAN SAMPEL (unit)';
+  merges.push({s:{r:1,c:105},e:{r:1,c:113}});
+  for(var i=0;i<9;i++){ row3[105+i] = psA[i]; }
   
-  row2.push('PERSAMPELAN');
-  merges.push({s:{r:1,c:col},e:{r:1,c:col+psA.length-1}});
-  for(var i=0;i<psA.length;i++){ if(i>0) row2.push(''); row3.push(psA[i]); }
-  col += psA.length;
+  // C115-C123 Pembiakbakaan
+  row1[114] = 'Pembiakbakaan';
+  merges.push({s:{r:0,c:114},e:{r:0,c:122}});
+  row2[114] = 'Bilangan ternakan (ekor)';
+  merges.push({s:{r:1,c:114},e:{r:1,c:122}});
+  for(var i=0;i<9;i++){ row3[114+i] = bkA[i]; }
   
-  row2.push('PEMBIAKBAKAAN');
-  merges.push({s:{r:1,c:col},e:{r:1,c:col+bkA.length-1}});
-  for(var i=0;i<bkA.length;i++){ if(i>0) row2.push(''); row3.push(bkA[i]); }
-  col += bkA.length;
+  // C124-C131 EMPTY (Pegawai/Catatan section)
+  for(var i=0;i<8;i++){ row3[123+i] = endA[i]; }
   
-  // MAKLUMAT PEGAWAI
-  row1.push('MAKLUMAT PEGAWAI');
-  merges.push({s:{r:0,c:col},e:{r:0,c:col+pgA.length-1}});
-  pgA.forEach(function(c,i){ 
-    if(i>0) row1.push('');
-    row2.push(c); row3.push(''); 
-    merges.push({s:{r:1,c:col+i},e:{r:2,c:col+i}});
-  });
-  col += pgA.length;
-  
-  // STOK AKHIR - merged 3 rows
-  row1.push('STOK AKHIR'); row2.push(''); row3.push('');
-  merges.push({s:{r:0,c:col},e:{r:2,c:col}}); col++;
-  
-  var headers = row3.map(function(_,i){ return row2[i]||row3[i]; }); // for backward compat
-  
-  // Helper to get field value (object or empty)
+  // Helper to get value
   function gv(obj, key){ 
     if(!obj) return '';
-    if(typeof obj === 'object') return obj[key] ? (obj[key]===true?'✓':obj[key]) : '';
+    if(typeof obj === 'object') return obj[key] ? (obj[key]===true?1:obj[key]) : '';
     return '';
   }
   
   // Build data rows
   var rows = recs.map(function(r, i){
-    var pegLain = r.pegawaiLain ? r.pegawaiLain.split(',').map(function(x){return x.trim();}) : [r.pegawai1,r.pegawai2].filter(Boolean);
-    var row = [i+1];
-    // Maklumat asas
-    row.push(r.vetec||'', r.bulan||bln, r.pusat||'', r.negeri||'',
-             r.tarikhAktiviti||'', r.namaPenternak||'', r.idPremis||'', r.alamat||'', r.daerah||'');
-    // Masa
-    row.push(r.masaMula||'', r.masaSelesai||'');
-    // Komoditi, amalan, jenis sistem, bantuan
-    koA.forEach(function(c){row.push(gv(r.komoditi, c));});
-    amA.forEach(function(c){row.push(gv(r.amalan, c));});
-    jsA.forEach(function(c){row.push(gv(r.jenisSistem, c));});
-    bnA.forEach(function(c){row.push(gv(r.bantuanIns, c));});
-    // Skop top-level
-    skA.forEach(function(c){row.push(gv(r.skop, c));});
-    // Kesihatan gerompok subsections
-    mpA.forEach(function(c){row.push(gv(r.mpok, c));});
-    vkA.forEach(function(c){row.push(gv(r.vaksin, c));});
-    psA.forEach(function(c){row.push(gv(r.persampelan, c));});
-    bkA.forEach(function(c){row.push(gv(r.pembiak, c));});
-    // Pegawai
-    row.push(r.ketuaAktiviti||'', pegLain[0]||'', pegLain[1]||'', r.pegawaiRujukan||'', r.catatan||'', r.kepuasan||'');
-    // Stok akhir
-    row.push(r.stokAkhir||'');
+    var pegList = r.pegawaiLain ? r.pegawaiLain.split(',').map(function(x){return x.trim();}) : [r.pegawai1,r.pegawai2,r.pegawai3].filter(Boolean);
+    var row = new Array(TOTAL_COLS).fill('');
+    // C1-C12 Maklumat asas
+    row[0] = i+1;
+    row[1] = r.vetec||'';
+    row[2] = r.bulan||bln;
+    row[3] = r.pusat||'';
+    row[4] = r.negeri||'';
+    row[5] = r.tarikhAktiviti||'';
+    row[6] = r.namaPenternak||'';
+    row[7] = r.idPremis||'';
+    row[8] = r.alamat||'';
+    row[9] = r.daerah||'';
+    row[10] = r.masaMula||'';
+    row[11] = r.masaSelesai||'';
+    // C13-C31 Komoditi
+    for(var k=0;k<19;k++){ row[12+k] = gv(r.komoditi, koA[k]); }
+    // C32-C34 Haiwan kesayangan
+    for(var k=0;k<3;k++){ row[31+k] = gv(r.haiwan, hkA[k].replace(' (ekor)','')); }
+    // C35-C39 Amalan
+    for(var k=0;k<5;k++){ row[34+k] = gv(r.amalan, amA[k]); }
+    // C40-C47 Jenis sistem
+    for(var k=0;k<8;k++){ row[39+k] = gv(r.jenisSistem, jsA[k]); }
+    // C48-C78 Bantuan/Insentif
+    for(var k=0;k<10;k++){ row[47+k] = gv(r.bantuanIns, bpA[k]); }
+    for(var k=0;k<4;k++){ row[57+k] = gv(r.bantuanIns, bnA[k]); }
+    for(var k=0;k<13;k++){ row[61+k] = gv(r.bantuanIns, blA[k]); }
+    for(var k=0;k<4;k++){ row[74+k] = gv(r.bantuanIns, biA[k]); }
+    // C79-C87 Skop
+    for(var k=0;k<9;k++){ row[78+k] = gv(r.skop, skA[k]); }
+    // C88-C99 Kesihatan gerompok (mpok)
+    for(var k=0;k<12;k++){ row[87+k] = gv(r.mpok, mpA[k]); }
+    // C100-C105 Vaksinasi
+    for(var k=0;k<6;k++){ row[99+k] = gv(r.vaksin, vkA[k]); }
+    // C106-C114 Persampelan
+    for(var k=0;k<9;k++){ row[105+k] = gv(r.persampelan, psA[k]); }
+    // C115-C123 Pembiakbakaan
+    for(var k=0;k<9;k++){ row[114+k] = gv(r.pembiak, bkA[k]); }
+    // C124-C131 Pegawai/Catatan
+    row[123] = r.ketuaAktiviti||'';
+    row[124] = pegList[0]||'';
+    row[125] = pegList[1]||'';
+    row[126] = pegList[2]||'';
+    row[127] = r.pegawaiRujukan||'';
+    row[128] = r.catatan||r.tindakan||'';
+    row[129] = r.kepuasan||'';
+    row[130] = r.catatanPKP||'';
     return row;
   });
   
-  // Create worksheet with 3-row header + merges
+  // Create worksheet
   var wsData = [row1, row2, row3].concat(rows);
   var ws = XLSX.utils.aoa_to_sheet(wsData);
   ws['!merges'] = merges;
   
-  // Set column widths
-  // Set column widths dynamically based on header count
-  ws['!cols'] = headers.map(function(hd, idx){
+  // Column widths
+  ws['!cols'] = row3.map(function(hd, idx){
     if(idx===0) return {wch:4};
-    if(idx===6) return {wch:30}; // Nama
-    if(idx===8) return {wch:30}; // Alamat
-    if(hd.length > 15) return {wch:15};
-    return {wch:Math.max(8, hd.length+2)};
+    if(idx===6 || idx===8) return {wch:30};
+    if(hd && hd.length > 18) return {wch:14};
+    if(hd && hd.length > 10) return {wch:12};
+    return {wch:Math.max(8, (hd||'').length+2)};
   });
   
-  // Style all 3 header rows
+  // Style header rows
   for(var hr=0; hr<3; hr++){
-    for(var c=0; c<row3.length; c++){
+    for(var c=0; c<TOTAL_COLS; c++){
       var cellRef = XLSX.utils.encode_cell({r:hr, c:c});
       if(!ws[cellRef]) ws[cellRef] = {v:'', t:'s'};
       var bgColor = hr===0?'0F2D5E':(hr===1?'2C5282':'3182CE');
       ws[cellRef].s = {
         fill:{fgColor:{rgb:bgColor}},
-        font:{color:{rgb:'FFFFFF'}, bold:true, sz:hr===0?11:(hr===1?10:9)},
+        font:{color:{rgb:'FFFFFF'}, bold:true, sz:hr===0?10:(hr===1?9:8)},
         alignment:{horizontal:'center', vertical:'center', wrapText:true},
         border:{top:{style:'thin',color:{rgb:'000000'}},bottom:{style:'thin',color:{rgb:'000000'}},left:{style:'thin',color:{rgb:'000000'}},right:{style:'thin',color:{rgb:'000000'}}}
       };
     }
   }
   
-  // Style data rows: alternating colors, borders (start from row 3 - after 3 header rows)
+  // Style data rows
   for(var r=3; r<wsData.length; r++){
     var rowColor = r%2===0 ? 'F7FAFC' : 'FFFFFF';
-    for(var c=0; c<row3.length; c++){
+    for(var c=0; c<TOTAL_COLS; c++){
       var cellRef = XLSX.utils.encode_cell({r:r, c:c});
       if(!ws[cellRef]) ws[cellRef] = {v:'', t:'s'};
       ws[cellRef].s = {
         fill:{fgColor:{rgb:rowColor}},
-        font:{sz:10},
+        font:{sz:9},
         alignment:{vertical:'center', wrapText:true, horizontal:c===0?'center':'left'},
         border:{top:{style:'thin',color:{rgb:'CBD5E0'}},bottom:{style:'thin',color:{rgb:'CBD5E0'}},left:{style:'thin',color:{rgb:'CBD5E0'}},right:{style:'thin',color:{rgb:'CBD5E0'}}}
       };
     }
   }
   
-  // Freeze first 3 header rows
+  // Freeze first 3 header rows + col 1 (BIL)
   ws['!freeze'] = {xSplit:1, ySplit:3};
+  
+  // Set row heights
+  ws['!rows'] = [{hpt:24},{hpt:30},{hpt:60}];
   
   // Create workbook
   var wb = XLSX.utils.book_new();
@@ -1626,15 +1618,12 @@ function exportSP03Excel(data){
   ];
   var wsSum = XLSX.utils.aoa_to_sheet(summaryData);
   wsSum['!cols'] = [{wch:20},{wch:35}];
-  // Style summary
-  if(wsSum['A1']) wsSum['A1'].s = {font:{bold:true,sz:14,color:{rgb:'0F2D5E'}},alignment:{horizontal:'center'}};
-  wsSum['!merges'] = [{s:{r:0,c:0},e:{r:0,c:1}}];
   XLSX.utils.book_append_sheet(wb, wsSum, 'Ringkasan');
   
-  // Save file
-  var fname = 'SP03_'+bln+'_'+data.yr+'_'+(data.poFilter==='ALL'?'SEMUA':data.poFilter.replace(/[^A-Z0-9]/gi,'_'))+'.xlsx';
+  // Write file
+  var fname = 'SP03_'+(data.poFilter==='ALL'?'AllPO':data.poFilter)+'_'+bln+'_'+data.yr+'.xlsx';
   XLSX.writeFile(wb, fname);
-  toast('&#9989; Excel dimuat turun: '+fname, '#276749');
+  toast('✅ Excel berjaya dimuat turun','#276749');
 }
 
 function exportSP03PDFTable(data){
