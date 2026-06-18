@@ -9617,11 +9617,7 @@ function renderSP03(){
   bkA.forEach(function(c){ h+=th(c.length>10?c.substring(0,8)+'..':c,2,1,'#FFA07A',55); });
   pgA.forEach(function(c){ h+=th(c.length>12?c.substring(0,10)+'..':c,2,1,'#D3D3D3',80); });
   h += '</tr>';
-  // Row 3 - MASA sub
-  h += '<tr>';
-  h+=th('MULA',1,1,'#fffde7',55);
-  h+=th('SELESAI',1,1,'#fffde7',55);
-  h += '</tr>';
+  // No extra MULA/SELESAI row - already in Row 3 as part of moA
   h += '</thead><tbody>';
 
   var KO_KEYS = ['LEMBU PEDAGING','LEMBU TENUSU','KERBAU PEDAGING','KERBAU TENUSU','KAMBING PEDAGING','KAMBING TENUSU','BEBIRI','RUSA','BABI','AYAM PEDAGING','AYAM PENELUR','AYAM KAMPUNG','PUYUH DAGING','PUYUH PENELUR','ITIK DAGING','ITIK PENELUR','ANEKA HAIWAN','ANJING','KUCING','LAIN-LAIN'];
