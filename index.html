@@ -1565,15 +1565,32 @@ function exportSP03Excel(data){
     return {wch:Math.max(8, (hd||'').length+2)};
   });
   
-  // Style header rows
+  // Color per section (matches official SP03 template)
+  function getColForCol(c){
+    if(c <= 11) return 'F9C0B5';        // MAKLUMAT ASAS - light salmon
+    if(c <= 30) return 'A8D8E8';        // KOMODITI - light blue
+    if(c <= 33) return '90EE90';        // HAIWAN KESAYANGAN - light green
+    if(c <= 38) return 'FFD580';        // AMALAN - light orange
+    if(c <= 46) return '8FD9A8';        // JENIS SISTEM - mint green
+    if(c <= 77) return 'F4A07A';        // BANTUAN/INSENTIF - dark salmon
+    if(c <= 86) return 'CD853F';        // SKOP - brown
+    if(c <= 98) return 'D2691E';        // KESIHATAN GEROMPOK - dark orange
+    if(c <= 104) return 'F8BBD0';       // VAKSINASI - pink
+    if(c <= 113) return 'B0C4DE';       // PERSAMPELAN - steel blue
+    if(c <= 122) return 'C8A2C8';       // PEMBIAKBAKAAN - lilac
+    return 'FFE4B5';                    // PEGAWAI/CATATAN - moccasin
+  }
+  
+  // Style header rows with section colors
   for(var hr=0; hr<3; hr++){
     for(var c=0; c<TOTAL_COLS; c++){
       var cellRef = XLSX.utils.encode_cell({r:hr, c:c});
       if(!ws[cellRef]) ws[cellRef] = {v:'', t:'s'};
-      var bgColor = hr===0?'0F2D5E':(hr===1?'2C5282':'3182CE');
+      var bgColor = getColForCol(c);
+      // Darker shade for row 1
       ws[cellRef].s = {
         fill:{fgColor:{rgb:bgColor}},
-        font:{color:{rgb:'FFFFFF'}, bold:true, sz:hr===0?10:(hr===1?9:8)},
+        font:{color:{rgb:'000000'}, bold:true, sz:hr===0?10:(hr===1?9:8)},
         alignment:{horizontal:'center', vertical:'center', wrapText:true},
         border:{top:{style:'thin',color:{rgb:'000000'}},bottom:{style:'thin',color:{rgb:'000000'}},left:{style:'thin',color:{rgb:'000000'}},right:{style:'thin',color:{rgb:'000000'}}}
       };
@@ -9537,42 +9554,59 @@ function renderSP03(){
   };
 
   h += '<thead>';
-  // Row 1 - Main sections
+  // Row 1 - Main sections (3-row header)
   h += '<tr>';
   h += th('BIL',3,1,'#F9C000',40);
-  h += th('MAKLUMAT ASAS',1,10,'#F9C000');
-  h += th('JENIS KOMODITI TERNAKAN',1,22,'#7EC8E3');
-  h += th('AMALAN SISTEM PENTERNAKAN',1,5,'#FFB347');
-  h += th('JENIS SISTEM PENTERNAKAN',1,8,'#77DD77');
-  h += th('BANTUAN / INSENTIF',1,4,'#DDA0DD');
-  h += th('SKOP PERKHIDMATAN',1,10,'#F08080');
-  h += th('MPOK / UJIAN SUSU',1,12,'#98FB98');
-  h += th('VAKSINASI',1,6,'#FFD700');
-  h += th('PERSAMPELAN',1,9,'#87CEEB');
-  h += th('PEMBIAKBAKAAN',1,9,'#FFA07A');
-  h += th('MAKLUMAT PEGAWAI',1,6,'#D3D3D3');
+  h += th('MAKLUMAT ASAS',2,11,'#F9C000');  // C1-C11 (R1+R2 merged)
+  h += th('BILANGAN POPULASI TERNAKAN (EKOR)',1,19,'#7EC8E3');
+  h += th('HAIWAN KESAYANGAN',2,3,'#77DD77');  // R1+R2 merged
+  h += th('AMALAN SISTEM PENTERNAKAN',2,5,'#FFB347');
+  h += th('JENIS SISTEM PENTERNAKAN',2,8,'#FFB347');
+  h += th('BANTUAN / INSENTIF',1,31,'#F4A07A');  // R1 only, R2 has sub-sections
+  h += th('SKOP PERKHIDMATAN',2,9,'#CD853F');  // R1+R2 merged
+  h += th('KESIHATAN GEROMPOK / UJIAN SUSU / LAPANGAN',1,12,'#D2691E');
+  h += th('VAKSINASI',1,6,'#F8BBD0');
+  h += th('PERSAMPELAN',1,9,'#B0C4DE');
+  h += th('PEMBIAKBAKAAN',1,9,'#C8A2C8');
+  h += th('MAKLUMAT PEGAWAI',2,7,'#FFE4B5');
   h += th('TINDAKAN',3,1,'#ddd',70);
   h += '</tr>';
+  
+  // Row 1.5 - sub-section for BANTUAN/INSENTIF and BILANGAN TERNAKAN
+  h += '<tr>';
+  h += th('JENIS KOMODITI TERNAKAN',1,19,'#7EC8E3');  // sub-header for komoditi
+  h += th('PERSEKUTUAN',1,10,'#F4A07A');
+  h += th('NEGERI',1,4,'#F4A07A');
+  h += th('LAIN-LAIN AGENSI',1,13,'#F4A07A');
+  h += th('NILAI INSENTIF',1,4,'#F4A07A');
+  h += th('BILANGAN TERNAKAN (EKOR)',1,12,'#D2691E');
+  h += th('BILANGAN TERNAKAN (EKOR)',1,6,'#F8BBD0');
+  h += th('BILANGAN SAMPEL (unit)',1,9,'#B0C4DE');
+  h += th('Bilangan ternakan (ekor)',1,9,'#C8A2C8');
+  h += '</tr>';
 
-  // Row 2
-  var moA=['VETEC','BULAN','PO','NEGERI','TARIKH AKTIVITI','NAMA PENTERNAK','ID PREMIS','ALAMAT PREMIS','DAERAH','MASA'];
-  var koA=['LEMBU PEDAGING','LEMBU TENUSU','KERBAU PEDAGING','KERBAU TENUSU','KAMBING PEDAGING','KAMBING TENUSU','BEBIRI','RUSA','BABI','AYAM PEDAGING','AYAM PENELUR','AYAM KAMPUNG','PUYUH DAGING','PUYUH PENELUR','ITIK DAGING','ITIK PENELUR','ANEKA HAIWAN','ANJING','KUCING','LAIN-LAIN'];
+  // Row 2 - synced with template spec
+  var moA=['VetEC','BULAN','PUSAT OPERASI','NEGERI','TARIKH AKTIVITI','NAMA PENTERNAK','ID PREMIS','ALAMAT PREMIS','DAERAH','MASA MULA','MASA SELESAI'];
+  var koA=['LEMBU PEDAGING','LEMBU TENUSU','KERBAU PEDAGING','KERBAU TENUSU','KAMBING PEDAGING','KAMBING TENUSU','BEBIRI','RUSA','BABI','AYAM BAKA','AYAM PEDAGING','AYAM PENELUR','AYAM KAMPUNG','COLOUR BROILER','PUYUH DAGING','PUYUH PENELUR','ITIK DAGING','ITIK PENELUR','ANEKA HAIWAN'];
+  var hkA=['ANJING','KUCING','LAIN-LAIN'];
   var amA=['INTENSIF','SEMI-INTENSIF','EKSTENSIF','OPEN HOUSE','CLOSE HOUSE'];
   var jsA=['FIDLOT','BREEDLOT','GREENLOT','INTEGRASI','LADANG SATELIT','PADANG RAGUT','TKPM','LEPAS BEBAS'];
-  var bnA=['PERSEKUTUAN','NEGERI','LAIN-LAIN AGENSI','NILAI (RM)'];
-  var skA=['LTJ','KESIHATAN/SURVEILAN','LAWAT SIASAT/PM/ADUAN','AUDIT/VERIFIKASI','KHIDMAT NASIHAT','URUSAN PERJANJIAN','PENGUATKUASAAN','PAMERAN/SIDANG TERNAK','LAIN-LAIN','KESIHATAN GEROMPOK'];
+  // BANTUAN sub-sections
+  var bpA=['TRUST','PROPER','PIKK 60%','EPP13','REZEKI TERNAK','AGROPREUNEUR MUDA','PIKK 100%','HIP','E-KASIH','AAPT'];
+  var bnA=['PINTAF','PPR (U)','PPR (R)','TEKUN'];
+  var blA=['DOA','MADA','KADA','KEDA','MPOB','PPK','ANGKASA','SKM','FAMA','LEMBAGA NENAS','PPN','RISDA','MARDI'];
+  var biA=['IN-KIND','MATCHING GRANT','REIMBURSE','LAIN-LAIN'];
+  var skA=['LTJ','KESIHATAN/SURVELAN','LAWAT SIASAT/PM/ADUAN','AUDIT/VERIFIKASI','KHIDMAT NASIHAT','URUSAN PERJANJIAN','PENGUATKUASAAN','PAMERAN/SIDANG TERNAK','LAIN-LAIN'];
   var mpA=['NYAH CACING','NYAH KUTU','FAMACHA','RAWATAN BIASA','PEMBEDAHAN','UJIAN BRUCELLA/IBR','DELVO TEST','AB TEST','MBRT','CMT/RMT','PLATFORM T','LAIN-LAIN'];
-  var vkA=['FMD','RB51','PASTEURELLA','HS','ND/AI','LAIN-LAIN'];
+  var vkA=['FMD','RB51','Pasteurella','HS','ND/AI','LAIN-LAIN'];
   var psA=['MAKANAN/DEDAK','AIR','TANAH','TINJA','SWAB','DARAH','ORGAN','SUSU','LAIN-LAIN'];
-  var bkA=['AI','FERTILITY FEMALE','PD','POST PARTUM','SYNCHRONIZE','ULTRASOUND','BSE','SEMEN TEST','LAIN-LAIN'];
-  var pgA=['KETUA AKTIVITI','PEGAWAI 1','PEGAWAI 2','RUJUKAN/PAKAR','CATATAN','KEPUASAN'];
+  var bkA=['AI','FERTILITY FEMALE','PD','POST PARTUM','SYNCHRONIZE','Ultrasound','BSE','Semen Test','LAIN-LAIN'];
+  var pgA=['KETUA AKTIVITI','PEGAWAI 1','PEGAWAI 2','PEGAWAI 3','PEG RUJUKAN','CATATAN','KEPUASAN'];
 
   h += '<tr>';
-  moA.slice(0,9).forEach(function(c){ h+=th(c,2,1,'#FFFF99',80); });
-  h+=th('MASA MULA',1,1,'#FFFF99',60);
-  h+=th('MASA SELESAI',1,1,'#FFFF99',60);
-  // Komoditi - just show as one row with numbers 1-22
-  koA.forEach(function(c){ h+=th(c.length>10?c.substring(0,10)+'..':c,2,1,'#7EC8E3',55); });
+  moA.forEach(function(c){ h+=th(c,1,1,'#FFFF99',80); });
+  koA.forEach(function(c){ h+=th(c.length>12?c.substring(0,12)+'..':c,1,1,'#A8D8E8',55); });
+  hkA.forEach(function(c){ h+=th(c+' (ekor)',1,1,'#90EE90',55); });
   amA.forEach(function(c){ h+=th(c,2,1,'#FFB347',55); });
   jsA.forEach(function(c){ h+=th(c,2,1,'#77DD77',55); });
   bnA.forEach(function(c){ h+=th(c,2,1,'#DDA0DD',60); });
