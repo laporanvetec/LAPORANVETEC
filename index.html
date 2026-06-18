@@ -3629,6 +3629,8 @@ function loginNow(){
   if(_mlEl) _mlEl.style.display=isMLAdmin()?'flex':'none';
   var _upEl=document.getElementById('n-up');
   if(_upEl) _upEl.style.display=isMLAdmin()?'flex':'none';
+  var _ukEl=document.getElementById('n-uk');
+  if(_ukEl) _ukEl.style.display=isMLAdmin()?'flex':'none';
   var _mlrEl=document.getElementById('n-mlr');
   if(_mlrEl) _mlrEl.style.display=isMLAdmin()?'flex':'none';
   if(isMLAdmin()){ setTimeout(updateMLReqBadge, 500); setTimeout(notifyAdminPendingReqs, 1000); }
@@ -3683,6 +3685,8 @@ function loginNow(){
     if(mlEl) mlEl.style.cssText = isAdm ? 'display:flex!important' : 'display:none!important';
     var upEl=document.getElementById('n-up');
     if(upEl) upEl.style.cssText = isAdm ? 'display:flex!important' : 'display:none!important';
+    var ukEl=document.getElementById('n-uk');
+    if(ukEl) ukEl.style.cssText = isAdm ? 'display:flex!important' : 'display:none!important';
     var mlrEl=document.getElementById('n-mlr');
     if(mlrEl) mlrEl.style.cssText = isAdm ? 'display:flex!important' : 'display:none!important';
     if(isAdm){ setTimeout(function(){if(typeof updateMLReqBadge==='function')updateMLReqBadge();}, 500); setTimeout(function(){if(typeof notifyAdminPendingReqs==='function')notifyAdminPendingReqs();}, 1000); }
@@ -10743,6 +10747,8 @@ function updateMLNav(){
     if(mlEl2) mlEl2.style.display = isAdm3 ? 'flex' : 'none';
     var upEl3=document.getElementById('n-up');
     if(upEl3) upEl3.style.display = isAdm3 ? 'flex' : 'none';
+    var ukEl3=document.getElementById('n-uk');
+    if(ukEl3) ukEl3.style.display = isAdm3 ? 'flex' : 'none';
     var mlrEl3=document.getElementById('n-mlr');
     if(mlrEl3) mlrEl3.style.display = isAdm3 ? 'flex' : 'none';
     // Komprehensif download buttons
