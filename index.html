@@ -3220,7 +3220,7 @@ window.addEventListener('load',function(){
       </div>
     </div>
     <div id="s3-info" style="background:#ebf8ff;border-left:4px solid #2b6cb0;padding:8px 18px;font-size:11px;color:#2b6cb0;display:none"></div>
-    <div style="overflow:auto;padding:0 18px 18px;flex:1" id="s3-wrap"></div>
+    <div style="overflow:auto;padding:0 18px 18px;flex:1;min-width:0" id="s3-wrap"></div>
   </div>
 
   <!-- MODAL: SP03 EDIT -->
@@ -10864,6 +10864,8 @@ function applySP03Freeze(){
   var tbody = table.querySelector('tbody');
   if(!thead || !tbody) return;
   var FREEZE_COLS = 7; // BIL, VetEC, BULAN, PUSAT OPERASI, NEGERI, TARIKH AKTIVITI, NAMA PENTERNAK
+  var scroller = document.getElementById('s3-wrap');
+  if(!scroller) return;
 
   var firstBodyRow = tbody.querySelector('tr');
   if(!firstBodyRow || firstBodyRow.children.length < FREEZE_COLS) return;
@@ -10873,14 +10875,19 @@ function applySP03Freeze(){
     lefts.push(lefts[i] + bodyCells[i].getBoundingClientRect().width);
   }
 
+  var frozenEls = [];
+
   // Body rows: straightforward, no rowspan/colspan
   Array.from(tbody.children).forEach(function(tr){
+    var rowBg = tr.style.background || '#fff';
     for(var i=0;i<FREEZE_COLS && i<tr.children.length;i++){
       var cell = tr.children[i];
-      cell.style.position='sticky';
-      cell.style.left=lefts[i]+'px';
+      cell.style.position='relative';
       cell.style.zIndex='3';
+      cell.style.background=rowBg;
       cell.classList.add('s3-frozen');
+      cell.dataset.freezeBase = lefts[i];
+      frozenEls.push(cell);
     }
   });
 
@@ -10899,14 +10906,27 @@ function applySP03Freeze(){
         for(var cc=col; cc<col+cs; cc++) grid[rr][cc]=cell;
       }
       if(col+cs <= FREEZE_COLS && col < lefts.length){
-        cell.style.position='sticky';
-        cell.style.left = lefts[col]+'px';
+        cell.style.position='relative';
         cell.style.zIndex='5';
         cell.classList.add('s3-frozen');
+        cell.dataset.freezeBase = lefts[col];
+        frozenEls.push(cell);
       }
       col += cs;
     });
   });
+
+  // Move frozen cells along with horizontal scroll via transform (bypasses all sticky/containing-block quirks)
+  function syncFreeze(){
+    var sl = scroller.scrollLeft;
+    frozenEls.forEach(function(el){
+      el.style.transform = 'translateX('+sl+'px)';
+    });
+  }
+  syncFreeze();
+  scroller.removeEventListener('scroll', scroller._sp03FreezeHandler||function(){});
+  scroller._sp03FreezeHandler = syncFreeze;
+  scroller.addEventListener('scroll', syncFreeze);
 }
 
 function calcLTKMonth(po, yr, mo, officer){
