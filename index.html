@@ -20,7 +20,7 @@ body{font-family:'Segoe UI',sans-serif;background:#f0f4f8;font-size:13px}
 .lbtn:hover{background:#1a4a8a}
 #app{display:none;min-height:100vh;flex-direction:row}
 #sb{width:230px;height:100vh;background:#0f2d5e;position:fixed;top:0;left:0;bottom:0;overflow:hidden;display:flex;flex-direction:column;z-index:100;transition:transform 0.3s ease}
-#main{margin-left:230px;flex:1;display:flex;flex-direction:column;min-height:100vh;transition:margin-left 0.3s ease}
+#main{margin-left:230px;flex:1;min-width:0;display:flex;flex-direction:column;min-height:100vh;transition:margin-left 0.3s ease}
 #sb-toggle{display:none;background:#0f2d5e;color:#fff;border:none;padding:8px 12px;font-size:20px;cursor:pointer;border-radius:6px;margin-right:8px;font-weight:700}
 #sb-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:99}
 @media (max-width: 768px){
@@ -3213,6 +3213,9 @@ window.addEventListener('load',function(){
         <option value="6">Julai</option><option value="7">Ogos</option><option value="8">September</option>
         <option value="9">Oktober</option><option value="10">November</option><option value="11">Disember</option>
       </select>
+      <select id="s3-officer" onchange="renderSP03()" style="display:none;padding:6px 9px;border:1px solid #d0d0d0;border-radius:5px;font-size:12px;font-family:inherit">
+        <option value="">Semua Pegawai</option>
+      </select>
       <span id="s3-cnt" style="font-size:12px;color:#718096"></span>
       <div style="margin-left:auto;display:flex;gap:8px">
         <button class="btn bbl" onclick="openAddSP03Manual()">+ Tambah SP03 Manual</button><button class="btn" style="background:#276749;color:#fff" onclick="openShareSP03()">&#128257; Kongsi SP03</button>
@@ -4322,8 +4325,11 @@ function showPg(pg){
   if(pg==='tk'){renderTK();return;}
   if(pg==='iv'){renderIV();return;}
   if(pg==='ltk'){renderLTK();return;}
-  if(pg==='rpt'){if(!isMLAdmin()){showPg('sp');toast('Akses terhad','#c53030');return;}renderRPT();return;}
-  if(pg==='rpt'){try{document.getElementById('rpt-mo').value=new Date().getMonth();document.getElementById('rpt-yr').value=new Date().getFullYear();}catch(e){} renderRPT();if(!isMLAdmin()){var m2=new Date().getMonth();var y2=new Date().getFullYear();renderStaffRPT(m2,y2);}return;}
+  if(pg==='rpt'){
+    try{document.getElementById('rpt-mo').value=new Date().getMonth();document.getElementById('rpt-yr').value=new Date().getFullYear();}catch(e){}
+    renderRPT();
+    return;
+  }
   if(pg==='ml'){if(!isMLAdmin()){toast('&#128274; Akses Ditolak — Modul ini hanya untuk pentadbir','#c53030');return;}populateMLPoFilters();renderML();return;}
   if(pg==='uk'){if(!isMLAdmin()){toast('&#128274; Akses Ditolak','#c53030');showPg('sp');return;}if(typeof renderKomoditiPage==='function')renderKomoditiPage();return;}
   if(pg==='up'){if(!isMLAdmin()){toast('&#128274; Akses Ditolak — Modul ini hanya untuk pentadbir','#c53030');showPg('sp');return;}renderUP();return;}
@@ -9746,6 +9752,31 @@ function renderSP03(){
     if(pegList.indexOf(cuNm) >= 0) return true;
     return false;
   });
+
+  // Admin: populate + apply officer filter dropdown
+  var officerSel = document.getElementById('s3-officer');
+  if(officerSel){
+    if(isMLAdmin()){
+      officerSel.style.display = '';
+      var curOfficerVal = officerSel.value;
+      var officerSet = {};
+      recs.forEach(function(r){
+        var ket = (r.ketuaAktiviti||'').toUpperCase().trim();
+        if(ket) officerSet[ket] = true;
+      });
+      var officerNames = Object.keys(officerSet).sort();
+      var optHtml = '<option value="">Semua Pegawai</option>';
+      officerNames.forEach(function(nm){ optHtml += '<option value="'+nm+'">'+nm+'</option>'; });
+      if(officerSel.innerHTML !== optHtml) officerSel.innerHTML = optHtml;
+      officerSel.value = curOfficerVal;
+      var selectedOfficer = officerSel.value;
+      if(selectedOfficer){
+        recs = recs.filter(function(r){ return (r.ketuaAktiviti||'').toUpperCase().trim() === selectedOfficer; });
+      }
+    } else {
+      officerSel.style.display = 'none';
+    }
+  }
   
   // Sort by tarikh aktiviti ascending
   recs.sort(function(a,b){
@@ -9802,7 +9833,8 @@ function renderSP03(){
   // Row 1 - Main sections (3-row header)
   h += '<tr>';
   h += th('BIL',3,1,'#F9C0B5',40);
-  h += th('MAKLUMAT ASAS',2,11,'#F9C0B5');  // C1-C11 (R1+R2 merged)
+  h += th('MAKLUMAT ASAS',2,6,'#F9C0B5');  // C2-C7: VetEC..NAMA PENTERNAK (freeze zone)
+  h += th('MAKLUMAT ASAS',2,5,'#F9C0B5');  // C8-C12: ID PREMIS..MASA SELESAI
   h += th('BILANGAN POPULASI TERNAKAN (EKOR)',1,19,'#A8D8E8');
   h += th('HAIWAN KESAYANGAN',2,3,'#90EE90');  // R1+R2 merged
   h += th('AMALAN SISTEM PENTERNAKAN',2,5,'#FFD580');
@@ -11319,6 +11351,54 @@ function exLTK(){
   var ws=XLSX.utils.aoa_to_sheet(rows);
   ws['!cols']=[{wch:4},{wch:6},{wch:7},{wch:20},{wch:10},{wch:8},{wch:8},{wch:8},{wch:8},{wch:8},{wch:10},{wch:8},{wch:8},{wch:8},{wch:8},{wch:8},{wch:8},{wch:8},{wch:8},{wch:10},{wch:12},{wch:30}];
   ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:21}},{s:{r:1,c:0},e:{r:1,c:21}}];
+  var TOTAL_COLS = 22;
+  // Title rows (0,1): dark navy banner
+  [0,1].forEach(function(r){
+    var ref = XLSX.utils.encode_cell({r:r,c:0});
+    if(!ws[ref]) ws[ref]={v:'',t:'s'};
+    ws[ref].s = {fill:{fgColor:{rgb:'0F2D5E'}},font:{color:{rgb:'FFFFFF'},bold:true,sz:r===0?13:10},alignment:{horizontal:'center',vertical:'center'}};
+  });
+  // Header row (index 3): color-coded by category
+  function ltkColorForCol(c){
+    if(c<=5) return 'F9C0B5';   // BIL..BILANGAN PENTERNAK
+    if(c===6) return 'F4A07A';  // A - Khidmat Nasihat
+    if(c<=8) return '8FD9A8';   // B - Kesihatan Gerompok
+    if(c<=10) return 'FFD580';  // C - Rawatan Biasa
+    if(c<=12) return 'A8D8E8';  // D - Pembiakbakaan
+    if(c===13) return 'C8A2C8'; // E - Lawat Siasat
+    if(c===14) return 'B0C4DE'; // F - Audit
+    if(c===15) return 'F8BBD0'; // G - Persampelan
+    if(c===16) return 'CD853F'; // H - Vaksinasi
+    if(c===17) return 'D2691E'; // I - Ujian Lapangan
+    if(c===18) return '90EE90'; // J - Mesyuarat
+    return 'FFE4B5';            // Jumlah Aktiviti/Sokongan/Nota
+  }
+  for(var c=0;c<TOTAL_COLS;c++){
+    var href = XLSX.utils.encode_cell({r:3,c:c});
+    if(!ws[href]) ws[href]={v:'',t:'s'};
+    ws[href].s = {
+      fill:{fgColor:{rgb:ltkColorForCol(c)}},
+      font:{bold:true,sz:9,color:{rgb:'000000'}},
+      alignment:{horizontal:'center',vertical:'center',wrapText:true},
+      border:{top:{style:'thin',color:{rgb:'000000'}},bottom:{style:'thin',color:{rgb:'000000'}},left:{style:'thin',color:{rgb:'000000'}},right:{style:'thin',color:{rgb:'000000'}}}
+    };
+  }
+  // Data rows (from index 4): striped + borders
+  for(var r=4;r<rows.length;r++){
+    var rowColor = r%2===0?'F7FAFC':'FFFFFF';
+    for(var c2=0;c2<TOTAL_COLS;c2++){
+      var dref = XLSX.utils.encode_cell({r:r,c:c2});
+      if(!ws[dref]) ws[dref]={v:'',t:'s'};
+      ws[dref].s = {
+        fill:{fgColor:{rgb:rowColor}},
+        font:{sz:9,bold:(c2>=6&&c2<=19)},
+        alignment:{vertical:'center',horizontal:(c2===3||c2===21)?'left':'center'},
+        border:{top:{style:'thin',color:{rgb:'CBD5E0'}},bottom:{style:'thin',color:{rgb:'CBD5E0'}},left:{style:'thin',color:{rgb:'CBD5E0'}},right:{style:'thin',color:{rgb:'CBD5E0'}}}
+      };
+    }
+  }
+  ws['!rows'] = [{hpt:24},{hpt:18},{hpt:6},{hpt:32}];
+  ws['!freeze'] = {xSplit:0,ySplit:4};
   XLSX.utils.book_append_sheet(wb,ws,'LOG TEKNIKAL '+yr);
   var d2=new Date();XLSX.writeFile(wb,'LOG_TEKNIKAL_'+yr+'_'+CU.po.replace('/','_')+'_'+d2.getDate()+'-'+(d2.getMonth()+1)+'.xlsx');
 }
@@ -12921,6 +13001,13 @@ function renderAdminRPT(mo,yr){
   h+=renderAllPOSummary(mo,yr);
   h+='</div>';
 
+  // Panel 4: Pencapaian Per Pegawai (full width)
+  h+='<div style="grid-column:1/-1;background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:16px">';
+  h+='<h3 style="margin:0 0 4px;color:#553c9a;font-size:14px">&#128100; Pencapaian Per Pegawai — '+BLN_RPT[mo]+' '+yr+'</h3>';
+  h+='<p style="font-size:11px;color:#718096;margin:0 0 12px">Pecahan Log Teknikal mengikut pegawai individu (sumber: ketua aktiviti di SP03), berasingan daripada jumlah keseluruhan PO di atas.</p>';
+  h+=renderAllOfficerSummary(mo,yr);
+  h+='</div>';
+
   h+='</div></div>';
   document.getElementById('rpt-wrap').innerHTML=h;
 }
@@ -12969,6 +13056,52 @@ function renderAllPOSummary(mo,yr){
   });
   h+='</tbody></table></div>';
   if(isMLAdmin() && typeof renderSubmitStatus === 'function') h += renderSubmitStatus();
+  return h;
+}
+
+function renderAllOfficerSummary(mo,yr){
+  ld();
+  var pos=PO_LIST;
+  var h='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+  h+='<thead><tr style="background:#553c9a;color:#fff">';
+  ['PO','Pegawai','Bil. Penternak (SP03)','A-Khidmat Nasihat','B-Kesihatan Gerompok','C-Rawatan Biasa','D-Pembiakbakaan','E-Lawat Siasat','F-Audit/Verifikasi','G-Persampelan','H-Vaksinasi','I-Ujian Lapangan','Jumlah Aktiviti'].forEach(function(c){
+    h+='<th style="border:1px solid #44337a;padding:7px 10px;text-align:center;white-space:nowrap">'+c+'</th>';
+  });
+  h+='</tr></thead><tbody>';
+  var rowIdx=0;
+  pos.forEach(function(po){
+    var officers = getLTKOfficers(po, yr, mo);
+    if(!officers.length){
+      h+='<tr style="background:'+(rowIdx%2?'#f9fafb':'#fff')+'">';
+      h+='<td style="border:1px solid #e2e8f0;padding:7px 10px;font-weight:700;color:#0f2d5e">'+po+'</td>';
+      h+='<td colspan="11" style="border:1px solid #e2e8f0;padding:7px 10px;text-align:center;color:#a0aec0">Tiada rekod SP03 bulan ini</td>';
+      h+='</tr>';
+      rowIdx++;
+      return;
+    }
+    officers.forEach(function(off){
+      var a = calcLTKMonth(po, yr, mo, off);
+      if(!a) return;
+      var bg = rowIdx%2?'#f9fafb':'#fff';
+      h+='<tr style="background:'+bg+'">';
+      h+='<td style="border:1px solid #e2e8f0;padding:7px 10px;font-weight:700;color:#0f2d5e">'+po+'</td>';
+      h+='<td style="border:1px solid #e2e8f0;padding:7px 10px;font-weight:600">'+off+'</td>';
+      h+='<td style="border:1px solid #e2e8f0;padding:7px 10px;text-align:center">'+a.bilPenternak+'</td>';
+      h+='<td style="border:1px solid #e2e8f0;padding:7px 10px;text-align:center">'+a.khidmatNasihat+'</td>';
+      h+='<td style="border:1px solid #e2e8f0;padding:7px 10px;text-align:center">'+a.kgFarms+' ladang / '+a.kgTernakan+' ekor</td>';
+      h+='<td style="border:1px solid #e2e8f0;padding:7px 10px;text-align:center">'+a.rbFarms+' kes / '+a.rbTernakan+' ekor</td>';
+      h+='<td style="border:1px solid #e2e8f0;padding:7px 10px;text-align:center">'+a.bkFarms+' ladang / '+a.bkTernakan+' ekor</td>';
+      h+='<td style="border:1px solid #e2e8f0;padding:7px 10px;text-align:center">'+a.lawatSiasat+'</td>';
+      h+='<td style="border:1px solid #e2e8f0;padding:7px 10px;text-align:center">'+a.audit+'</td>';
+      h+='<td style="border:1px solid #e2e8f0;padding:7px 10px;text-align:center">'+a.persampelan+'</td>';
+      h+='<td style="border:1px solid #e2e8f0;padding:7px 10px;text-align:center">'+a.vaksinasi+'</td>';
+      h+='<td style="border:1px solid #e2e8f0;padding:7px 10px;text-align:center">'+a.ujianLapangan+'</td>';
+      h+='<td style="border:1px solid #e2e8f0;padding:7px 10px;text-align:center;font-weight:700;color:'+(a.jumlah<30?'#c53030':'#276749')+'">'+a.jumlah+'</td>';
+      h+='</tr>';
+      rowIdx++;
+    });
+  });
+  h+='</tbody></table></div>';
   return h;
 }
 
