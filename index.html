@@ -42,7 +42,7 @@ body{font-family:'Segoe UI',sans-serif;background:#f0f4f8;font-size:13px}
 .ni{display:flex;align-items:center;gap:9px;padding:9px 14px;color:rgba(255,255,255,.7);font-size:12.5px;cursor:pointer;border-left:3px solid transparent;transition:.15s;user-select:none}
 .ni:hover{background:rgba(255,255,255,.08);color:#fff}
 .ni.on{background:rgba(232,169,0,.18);color:#e8a900;border-left-color:#e8a900;font-weight:700}
-.sbou{padding:10px 14px;border-top:1px solid rgba(255,255,255,.08);cursor:pointer;color:rgba(255,255,255,.6);font-size:12px;display:flex;align-items:center;gap:8px;flex-shrink:0;background:#0f2d5e}
+.sbou{padding:10px 14px;border-top:1px solid rgba(255,255,255,.08);cursor:pointer;color:rgba(255,255,255,.6);font-size:12px;display:flex;align-items:center;gap:8px;position:fixed;left:0;bottom:0;width:230px;background:#0f2d5e;z-index:200;box-sizing:border-box}
 .sbou:hover{color:#fc8181}
 .tbar{background:#0f2d5e;padding:10px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;flex-shrink:0}
 .tttl{color:#fff;font-weight:800;font-size:15px}
@@ -76,6 +76,10 @@ table.spt tr:hover td{background:#f0f7ff}
 .bj{background:#ebf8ff;color:#2b6cb0;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:600}
 .bb{background:#e8f5e9;color:#276749;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:600}
 table.rtbl{border-collapse:separate;border-spacing:0;font-size:10.5px;table-layout:fixed;width:2713px;min-width:2713px}
+table.sp03tbl,table.sp03tbl th,table.sp03tbl td{box-sizing:border-box}
+table.sp03tbl td.s3-frozen{background:#fff}
+table.sp03tbl tr:nth-child(even) td.s3-frozen{background:#FAFFF7}
+table.sp03tbl th.s3-frozen{background-color:inherit}
 table.rtbl,table.rtbl th,table.rtbl td{box-sizing:border-box}
 table.rtbl th,table.rtbl td{border-right:1px solid #ccc;border-bottom:1px solid #ccc}
 table.rtbl thead tr:first-child th{border-top:1px solid #000}
@@ -2450,7 +2454,7 @@ window.addEventListener('load',function(){
   <div class="sbg">JABATAN PERKHIDMATAN VETERINAR MALAYSIA</div>
   <div class="sblo"><div class="sbic">V</div><div><div class="sbtt">VetEC Utara</div><div class="sbst">Sistem Pengurusan</div></div></div>
   <div class="sbu"><div class="sbun" id="sb-nm">-</div><div class="sbup" id="sb-po">-</div></div>
-  <div id="sb-scroll" style="flex:1;overflow-y:auto;min-height:0">
+  <div id="sb-scroll" style="flex:1;overflow-y:auto;min-height:0;padding-bottom:44px">
   <div class="sbse">Pengurusan</div>
   <div class="ni on" id="n-sp" onclick="showPg('sp')">&#128100; Senarai Penternak</div>
   <div class="ni" id="n-ld" onclick="showPg('ld')">&#127968; Ladang Belum Dilawat</div>
@@ -9786,7 +9790,7 @@ function renderSP03(){
   h += '<div style="text-align:center;font-size:11px;color:#718096;margin-bottom:12px">PO: '+CU.po+' &nbsp;|&nbsp; '+BLN_SP[mo]+' '+yr+'</div>';
 
   // Summary table
-  h += '<table style="width:100%;border-collapse:collapse;font-size:11px;white-space:nowrap">';
+  h += '<table class="sp03tbl" style="width:100%;border-collapse:separate;border-spacing:0;font-size:11px;white-space:nowrap">';
   // Multi-row header
   var th = function(txt,rs,cs,bg,w){
     var style='border:1px solid #000;padding:5px 6px;font-weight:800;font-size:10px;text-align:center;vertical-align:middle;background:'+(bg||'#F9C000')+';color:#000;';
@@ -9911,6 +9915,7 @@ function renderSP03(){
     h += '</tr>';
   }); h += '</tbody></table></div>';
   document.getElementById('s3-wrap').innerHTML = h;
+  setTimeout(applySP03Freeze, 0);
 
   document.getElementById('s3-wrap').querySelectorAll('[data-s3-edit]').forEach(function(el){
     el.onclick = function(){ openSP03Edit(this.dataset.s3Edit); };
@@ -10846,32 +10851,87 @@ var BLN_FULL = ['Januari','Februari','Mac','April','Mei','Jun','Julai','Ogos','S
 
 function getLTKOverride(){ return JSON.parse(localStorage.getItem('vu_ltk_ov')||'{}'); }
 function saveLTKOverride(d){ localStorage.setItem('vu_ltk_ov', JSON.stringify(d)); }
-function ltkKey(po,yr,mo){ return po+'_'+yr+'_'+mo; }
+function ltkKey(po,yr,mo,officer){ return po+'_'+yr+'_'+mo+(officer?('_'+officer):''); }
 
 // ── CALCULATE LOG TEKNIKAL FOR ONE MONTH ──────────
-function calcLTKMonth(po, yr, mo){
+// Freeze BIL..NAMA PENTERNAK (first 7 columns) in SP03 table for easier editing while scrolling
+function applySP03Freeze(){
+  var wrap = document.getElementById('sp03-print-area');
+  if(!wrap) return;
+  var table = wrap.querySelector('table.sp03tbl');
+  if(!table) return;
+  var thead = table.querySelector('thead');
+  var tbody = table.querySelector('tbody');
+  if(!thead || !tbody) return;
+  var FREEZE_COLS = 7; // BIL, VetEC, BULAN, PUSAT OPERASI, NEGERI, TARIKH AKTIVITI, NAMA PENTERNAK
+
+  var firstBodyRow = tbody.querySelector('tr');
+  if(!firstBodyRow || firstBodyRow.children.length < FREEZE_COLS) return;
+  var bodyCells = firstBodyRow.children;
+  var lefts = [0];
+  for(var i=0;i<FREEZE_COLS;i++){
+    lefts.push(lefts[i] + bodyCells[i].getBoundingClientRect().width);
+  }
+
+  // Body rows: straightforward, no rowspan/colspan
+  Array.from(tbody.children).forEach(function(tr){
+    for(var i=0;i<FREEZE_COLS && i<tr.children.length;i++){
+      var cell = tr.children[i];
+      cell.style.position='sticky';
+      cell.style.left=lefts[i]+'px';
+      cell.style.zIndex='3';
+      cell.classList.add('s3-frozen');
+    }
+  });
+
+  // Header rows: simulate grid to respect rowspan/colspan, only freeze cells fully inside freeze zone
+  var rows = Array.from(thead.querySelectorAll('tr'));
+  var grid = [];
+  rows.forEach(function(){ grid.push([]); });
+  rows.forEach(function(tr, r){
+    var col = 0;
+    Array.from(tr.children).forEach(function(cell){
+      while(grid[r][col]) col++;
+      var rs = parseInt(cell.getAttribute('rowspan')||'1');
+      var cs = parseInt(cell.getAttribute('colspan')||'1');
+      for(var rr=r; rr<r+rs; rr++){
+        if(!grid[rr]) grid[rr]=[];
+        for(var cc=col; cc<col+cs; cc++) grid[rr][cc]=cell;
+      }
+      if(col+cs <= FREEZE_COLS && col < lefts.length){
+        cell.style.position='sticky';
+        cell.style.left = lefts[col]+'px';
+        cell.style.zIndex='5';
+        cell.classList.add('s3-frozen');
+      }
+      col += cs;
+    });
+  });
+}
+
+function calcLTKMonth(po, yr, mo, officer){
   ld();
-  var recs = getSP03().filter(function(r){ return r.po===po && r.yr===yr && r.mo===mo; });
+  var recs = getSP03().filter(function(r){
+    if(r.po!==po || r.yr!==yr || r.mo!==mo) return false;
+    if(officer===undefined) return true; // backward-compat: no officer filter
+    var ket = (r.ketuaAktiviti||'').toUpperCase().trim() || 'TIDAK DINYATAKAN';
+    return ket === officer;
+  });
   if(!recs.length) return null;
 
-  // A: BILANGAN PENTERNAK - count unique penternak names (ignore duplicates)
-  var uniqNames = {};
-  recs.forEach(function(r){
-    var nm = (r.namaPenternak||'').toUpperCase().trim();
-    if(nm) uniqNames[nm] = true;
-  });
-  var bilPenternak = Object.keys(uniqNames).length;
+  // BILANGAN PENTERNAK = bilangan ROW yang ada (bukan nama unik)
+  var bilPenternak = recs.length;
 
-  // KHIDMAT NASIHAT (A in formula)
+  // KHIDMAT NASIHAT (A) - field SKOP adalah checkbox (0/1), jadi count row = sum figure
   var khidmatNasihat = recs.filter(function(r){ return r.skop && r.skop['KHIDMAT NASIHAT']; }).length;
 
-  // B: KESIHATAN GEROMPOK
-  var KG_KEYS = ['NYAH CACING','NYAH KUTU','FAMACHA'];
+  // B: KESIHATAN GEROMPOK (NYAH CACING, NYAH KUTU, FAMACHA, PEMBEDAHAN)
+  var KG_KEYS = ['NYAH CACING','NYAH KUTU','FAMACHA','PEMBEDAHAN'];
   var kgFarms  = recs.filter(function(r){ return KG_KEYS.some(function(k){ return r.mpok&&r.mpok[k]&&r.mpok[k]>0; }); }).length;
   var kgTernakan = recs.reduce(function(sum,r){ return sum+KG_KEYS.reduce(function(s,k){ return s+((r.mpok&&r.mpok[k])?parseInt(r.mpok[k])||0:0); },0); },0);
 
-  // C: RAWATAN BIASA
-  var RB_KEYS = ['PEMBEDAHAN','RAWATAN BIASA'];
+  // C: RAWATAN BIASA (hanya column RAWATAN BIASA)
+  var RB_KEYS = ['RAWATAN BIASA'];
   var rbFarms   = recs.filter(function(r){ return RB_KEYS.some(function(k){ return r.mpok&&r.mpok[k]&&r.mpok[k]>0; }); }).length;
   var rbTernakan = recs.reduce(function(sum,r){ return sum+RB_KEYS.reduce(function(s,k){ return s+((r.mpok&&r.mpok[k])?parseInt(r.mpok[k])||0:0); },0); },0);
 
@@ -10898,8 +10958,8 @@ function calcLTKMonth(po, yr, mo){
   var UJ_KEYS = ['DELVO TEST','AB TEST/DRUGS RESIDUE','MBRT','CMT/RMT','PLATFORM T','LAIN-LAIN'];
   var ujianLapangan = recs.reduce(function(sum,r){ return sum+UJ_KEYS.reduce(function(s,k){ return s+((r.mpok&&r.mpok[k])?parseInt(r.mpok[k])||0:0); },0); },0);
 
-  // J: MESYUARAT (LAIN-LAIN dari SKOP)
-  var mesyuarat = recs.filter(function(r){ return r.skop && r.skop['LAIN-LAIN']; }).length;
+  // J: MESYUARAT - TIADA data SP03, wajib key-in manual oleh pegawai
+  var mesyuarat = 0;
 
   // JUMLAH AKTIVITI = A+B+C+D+E+F+G+H+I+J
   var jumlah = khidmatNasihat + kgFarms + rbFarms + bkFarms + lawatSiasat + audit + persampelan + vaksinasi + ujianLapangan + mesyuarat;
@@ -10916,6 +10976,17 @@ function calcLTKMonth(po, yr, mo){
     ujianLapangan:ujianLapangan, mesyuarat:mesyuarat,
     jumlah:jumlah, sokongan:0, nota:''
   };
+}
+
+// Get distinct officers (ketuaAktiviti) who have SP03 records for a given po/year/month
+function getLTKOfficers(po, yr, mo){
+  var recs = getSP03().filter(function(r){ return r.po===po && r.yr===yr && r.mo===mo; });
+  var set = {};
+  recs.forEach(function(r){
+    var ket = (r.ketuaAktiviti||'').toUpperCase().trim() || 'TIDAK DINYATAKAN';
+    set[ket] = true;
+  });
+  return Object.keys(set).sort();
 }
 
 // ── RENDER ───────────────────────────────────────
@@ -10990,9 +11061,11 @@ function renderLTK(){
   var totals = {bilPenternak:0,khidmatNasihat:0,kgFarms:0,kgTernakan:0,rbFarms:0,rbTernakan:0,bkFarms:0,bkTernakan:0,lawatSiasat:0,audit:0,persampelan:0,vaksinasi:0,ujianLapangan:0,mesyuarat:0,jumlah:0,sokongan:0};
 
   months.forEach(function(mo, i){
-    var auto = calcLTKMonth(CU.po, yr, mo);
+    var officers = getLTKOfficers(CU.po, yr, mo);
+    officers.forEach(function(officerName){
+    var auto = calcLTKMonth(CU.po, yr, mo, officerName);
     if(!auto) return;
-    var key = ltkKey(CU.po, yr, mo);
+    var key = ltkKey(CU.po, yr, mo, officerName);
     var ovr = ov[key] || {};
     // Apply overrides
     var d = {};
@@ -11010,7 +11083,7 @@ function renderLTK(){
     h += '<td style="border:1px solid #e2e8f0;padding:6px 8px;text-align:center;color:#a0aec0">'+(i+1)+'</td>';
     h += '<td style="border:1px solid #e2e8f0;padding:6px 8px;font-weight:700;color:#0f2d5e">'+BLN_LTK[mo]+'</td>';
     h += '<td style="border:1px solid #e2e8f0;padding:6px 8px;text-align:center">UTARA</td>';
-    h += '<td style="border:1px solid #e2e8f0;padding:6px 8px;font-weight:600">'+CU.nm+'</td>';
+    h += '<td style="border:1px solid #e2e8f0;padding:6px 8px;font-weight:600">'+officerName+'</td>';
     h += '<td style="border:1px solid #e2e8f0;padding:6px 8px;text-align:center">'+CU.po+'</td>';
     h += td(d.bilPenternak,'#0f2d5e');
     h += td(d.khidmatNasihat,'#0f2d5e');
@@ -11033,7 +11106,7 @@ function renderLTK(){
     var needAlasan = d.bilPenternak < 10 && d.jumlah < 30;
     var alasanDone = !!(d.alasan && d.alasan.trim());
     h += '<div style="display:flex;flex-direction:column;gap:3px;align-items:center">';
-    h += '<button class="btn bbl" style="padding:3px 8px;font-size:10px;white-space:nowrap" data-ltk-edit="'+mo+'" data-ltk-yr="'+yr+'">&#9998; Edit</button>';
+    h += '<button class="btn bbl" style="padding:3px 8px;font-size:10px;white-space:nowrap" data-ltk-edit="'+mo+'" data-ltk-yr="'+yr+'" data-ltk-officer="'+officerName+'">&#9998; Edit</button>';
     if(needAlasan && !alasanDone){
       h += '<span style="font-size:9px;background:#c53030;color:#fff;padding:2px 5px;border-radius:3px;white-space:nowrap">&#9888; Alasan Diperlukan</span>';
     } else if(needAlasan && alasanDone){
@@ -11043,11 +11116,12 @@ function renderLTK(){
     h += '</td>';
     // Warning row
     if(needAlasan && !alasanDone){
-      h += '<tr><td colspan="22" style="border:1px solid #f0a0a0;padding:6px 14px;background:#fff5f5"><span style="font-size:11px;color:#c53030;font-weight:600">&#9888; '+BLN_LTK[mo]+': Bilangan Penternak ('+d.bilPenternak+') &lt; 10 dan Jumlah Aktiviti ('+d.jumlah+') &lt; 30 — Sila klik Edit dan kemukakan alasan.</span></td></tr>';
+      h += '<tr><td colspan="22" style="border:1px solid #f0a0a0;padding:6px 14px;background:#fff5f5"><span style="font-size:11px;color:#c53030;font-weight:600">&#9888; '+BLN_LTK[mo]+' ('+officerName+'): Bilangan Penternak ('+d.bilPenternak+') &lt; 10 dan Jumlah Aktiviti ('+d.jumlah+') &lt; 30 — Sila klik Edit dan kemukakan alasan.</span></td></tr>';
     } else if(needAlasan && alasanDone){
       h += '<tr><td colspan="22" style="border:1px solid #b2dfdb;padding:5px 14px;background:#e8f5e9"><span style="font-size:10px;color:#276749">&#9989; Alasan diberikan: <i>'+d.alasan+'</i></span></td></tr>';
     }
-    if(d.nota) h += '<tr><td colspan="22" style="border:1px solid #e2e8f0;padding:4px 14px;font-size:10px;color:#718096;font-style:italic">Nota '+BLN_LTK[mo]+': '+d.nota+'</td></tr>';
+    if(d.nota) h += '<tr><td colspan="22" style="border:1px solid #e2e8f0;padding:4px 14px;font-size:10px;color:#718096;font-style:italic">Nota '+BLN_LTK[mo]+' ('+officerName+'): '+d.nota+'</td></tr>';
+    });
   });
 
   // Totals row
@@ -11079,15 +11153,18 @@ function renderLTK(){
   var banner = document.getElementById('ltk-notif-banner');
   if(banner){
     var ov2 = getLTKOverride();
-    var missingAlasan = months.filter(function(mo){
-      var auto3 = calcLTKMonth(CU.po, yr, mo);
-      if(!auto3) return false;
-      var key3 = ltkKey(CU.po, yr, mo);
-      var ovr3 = ov2[key3]||{};
-      var bilP3 = (ovr3.bilPenternak !== undefined ? ovr3.bilPenternak : auto3.bilPenternak);
-      var jul3  = (ovr3.jumlah !== undefined ? ovr3.jumlah : auto3.jumlah);
-      var hasAl = !!(ovr3.alasan && ovr3.alasan.trim());
-      return bilP3 < 10 && jul3 < 30 && !hasAl;
+    var missingAlasan = [];
+    months.forEach(function(mo){
+      getLTKOfficers(CU.po, yr, mo).forEach(function(off){
+        var auto3 = calcLTKMonth(CU.po, yr, mo, off);
+        if(!auto3) return;
+        var key3 = ltkKey(CU.po, yr, mo, off);
+        var ovr3 = ov2[key3]||{};
+        var bilP3 = (ovr3.bilPenternak !== undefined ? ovr3.bilPenternak : auto3.bilPenternak);
+        var jul3  = (ovr3.jumlah !== undefined ? ovr3.jumlah : auto3.jumlah);
+        var hasAl = !!(ovr3.alasan && ovr3.alasan.trim());
+        if(bilP3 < 10 && jul3 < 30 && !hasAl) missingAlasan.push(mo);
+      });
     });
     if(missingAlasan.length){
       banner.style.display = 'block';
@@ -11099,20 +11176,21 @@ function renderLTK(){
 
   // Attach edit events
   document.getElementById('ltk-wrap').querySelectorAll('[data-ltk-edit]').forEach(function(el){
-    el.onclick = function(){ openLTKEdit(parseInt(this.dataset.ltkEdit), parseInt(this.dataset.ltkYr)); };
+    el.onclick = function(){ openLTKEdit(parseInt(this.dataset.ltkEdit), parseInt(this.dataset.ltkYr), this.dataset.ltkOfficer); };
   });
 }
 
 // ── EDIT MODAL ────────────────────────────────────
-function openLTKEdit(mo, yr){
-  ltkEditMo = mo; ltkEditYr = yr;
-  var auto = calcLTKMonth(CU.po, yr, mo);
+var ltkEditOfficer = null;
+function openLTKEdit(mo, yr, officer){
+  ltkEditMo = mo; ltkEditYr = yr; ltkEditOfficer = officer;
+  var auto = calcLTKMonth(CU.po, yr, mo, officer);
   var ov = getLTKOverride();
-  var key = ltkKey(CU.po, yr, mo);
+  var key = ltkKey(CU.po, yr, mo, officer);
   var ovr = ov[key] || {};
 
   document.getElementById('mLTK-ttl').textContent = '&#9998; Edit Log Teknikal — '+BLN_FULL[mo]+' '+yr;
-  document.getElementById('mLTK-sub').textContent = 'PO: '+CU.po+' | '+CU.nm;
+  document.getElementById('mLTK-sub').textContent = 'PO: '+CU.po+' | '+(officer||CU.nm);
   document.getElementById('ltk-e-sokongan').value = ovr.sokongan || '';
   document.getElementById('ltk-e-nota').value = ovr.nota || '';
 
@@ -11141,8 +11219,8 @@ function openLTKEdit(mo, yr){
       +'<input type="number" min="0" data-ltk-field="'+f[0]+'" value="'+manVal+'" placeholder="'+autoVal+'" style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:12px"></div>';
   }).join('');
   // Show/hide alasan requirement
-  var auto = calcLTKMonth(CU.po, yr, mo);
-  var key2 = ltkKey(CU.po, yr, mo);
+  var auto = calcLTKMonth(CU.po, yr, mo, officer);
+  var key2 = ltkKey(CU.po, yr, mo, officer);
   var ovr2 = (getLTKOverride()[key2])||{};
   var bilP = (ovr2.bilPenternak !== undefined ? ovr2.bilPenternak : (auto?auto.bilPenternak:0));
   var jul  = (ovr2.jumlah !== undefined ? ovr2.jumlah : (auto?auto.jumlah:0));
@@ -11156,10 +11234,10 @@ function openLTKEdit(mo, yr){
 
 function saveLTK(){
   var ov = getLTKOverride();
-  var key = ltkKey(CU.po, ltkEditYr, ltkEditMo);
+  var key = ltkKey(CU.po, ltkEditYr, ltkEditMo, ltkEditOfficer);
   var ovr = {};
   // Check if alasan required
-  var auto2 = calcLTKMonth(CU.po, ltkEditYr, ltkEditMo);
+  var auto2 = calcLTKMonth(CU.po, ltkEditYr, ltkEditMo, ltkEditOfficer);
   var existOvr = ov[key]||{};
   var bilP2 = (existOvr.bilPenternak !== undefined ? existOvr.bilPenternak : (auto2?auto2.bilPenternak:0));
   var jul2  = (existOvr.jumlah !== undefined ? existOvr.jumlah : (auto2?auto2.jumlah:0));
@@ -11207,12 +11285,16 @@ function exLTK(){
      'H - VAKSINASI','I - UJIAN LAPANGAN','J - MESYUARAT',
      'JUMLAH AKTIVITI','JUMLAH AKTIVITI SOKONGAN','NOTA']
   ];
-  months.forEach(function(mo,i){
-    var auto=calcLTKMonth(CU.po,yr,mo);if(!auto)return;
-    var key=ltkKey(CU.po,yr,mo);var ovr=ov[key]||{};
+  var bilCount=0;
+  months.forEach(function(mo){
+    getLTKOfficers(CU.po, yr, mo).forEach(function(off){
+    var auto=calcLTKMonth(CU.po,yr,mo,off);if(!auto)return;
+    var key=ltkKey(CU.po,yr,mo,off);var ovr=ov[key]||{};
     var d={};Object.keys(auto).forEach(function(k){d[k]=(ovr[k]!==undefined&&ovr[k]!=='')?ovr[k]:auto[k];});
     if(ovr.sokongan!==undefined)d.sokongan=ovr.sokongan||0;
-    rows.push([i+1,BLN_LTK[mo],'UTARA',CU.nm,CU.po,d.bilPenternak,d.khidmatNasihat,d.kgFarms,d.kgTernakan,d.rbFarms,d.rbTernakan,d.bkFarms,d.bkTernakan,d.lawatSiasat,d.audit,d.persampelan,d.vaksinasi,d.ujianLapangan,d.mesyuarat,d.jumlah,d.sokongan||'',ovr.nota||'']);
+    bilCount++;
+    rows.push([bilCount,BLN_LTK[mo],'UTARA',off,CU.po,d.bilPenternak,d.khidmatNasihat,d.kgFarms,d.kgTernakan,d.rbFarms,d.rbTernakan,d.bkFarms,d.bkTernakan,d.lawatSiasat,d.audit,d.persampelan,d.vaksinasi,d.ujianLapangan,d.mesyuarat,d.jumlah,d.sokongan||'',ovr.nota||'']);
+    });
   });
   var ws=XLSX.utils.aoa_to_sheet(rows);
   ws['!cols']=[{wch:4},{wch:6},{wch:7},{wch:20},{wch:10},{wch:8},{wch:8},{wch:8},{wch:8},{wch:8},{wch:10},{wch:8},{wch:8},{wch:8},{wch:8},{wch:8},{wch:8},{wch:8},{wch:8},{wch:10},{wch:12},{wch:30}];
