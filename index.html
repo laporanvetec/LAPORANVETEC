@@ -13746,9 +13746,9 @@ function janaLaporanAkhir(){
   var ltAll   = getLT().filter(function(r){ return r.tahun===yr; });
   var ov      = getLTKOverride();
 
-  // List of POs
-  var pos = [];
-  allPt.forEach(function(p){ if(pos.indexOf(p.po)<0) pos.push(p.po); });
+  // List of POs — always show all canonical PO, not just ones with existing penternak
+  var pos = PO_LIST.slice();
+  allPt.forEach(function(p){ var npo=normPO(p.po); if(pos.indexOf(npo)<0) pos.push(npo); });
   pos.sort();
 
   // Map pegawai: pid→{nm, po}
@@ -13758,11 +13758,12 @@ function janaLaporanAkhir(){
   // Group penternak by PO and by pegawai
   var ptByPO = {}, ptByPeg = {};
   allPt.forEach(function(p){
-    if(!ptByPO[p.po]) ptByPO[p.po]=[];
-    ptByPO[p.po].push(p);
+    var poN = normPO(p.po);
+    if(!ptByPO[poN]) ptByPO[poN]=[];
+    ptByPO[poN].push(p);
     var pegNm = (pegMap[p.pid]||{}).nm || p.pegawai || 'Tidak Diketahui';
-    var pegKey = pegNm+'__'+p.po;
-    if(!ptByPeg[pegKey]) ptByPeg[pegKey]={nm:pegNm, po:p.po, list:[]};
+    var pegKey = pegNm+'__'+poN;
+    if(!ptByPeg[pegKey]) ptByPeg[pegKey]={nm:pegNm, po:poN, list:[]};
     ptByPeg[pegKey].list.push(p);
   });
 
@@ -13882,7 +13883,7 @@ function janaLaporanAkhir(){
   S+='<thead><tr style="background:#0f2d5e;color:#fff"><th class="la-th">PO</th><th class="la-th">Bil Pegawai</th><th class="la-th">Bil Penternak</th><th class="la-th">% dari VetEC</th><th class="la-th">Berbanding '+baseline+' (baseline)</th><th class="la-th">Dilawat '+yr+'</th><th class="la-th">% Dilawat</th><th class="la-th">Belum Lawat</th></tr></thead><tbody>';
   pos.forEach(function(po2,i){
     var ptPO=(ptByPO[po2]||[]);
-    var pegPO=allPeg.filter(function(g){return g.po===po2;});
+    var pegPO=allPeg.filter(function(g){return normPO(g.po)===po2;});
     var visitedPO=ptPO.filter(isVisited).length;
     var notVPO=ptPO.length-visitedPO;
     S+='<tr style="background:'+(i%2?'#f9fafb':'#fff')+'">';
