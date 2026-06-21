@@ -159,7 +159,7 @@ input[type=search],#lg-nm,#s3add-cari,#ml-q,#gm-q,#lt-q,#tk-q,#iv-q,#mlpk-q{text
 var DEFAULT_OFFICERS={
   'GURUN':['ADMIN','NURSHUHADA','NABILAH','SHUKOR','ATIQAH'],
   'KULIM':['AZIELA','UMI'],
-  'SUNGAI PETANI':['NORHAYATI','SUHAIMI','NORAFIZA'],
+  'SUNGAI PETANI':['NORYATI','SUHAIMI','NORAFIZA'],
   'KUALA KETIL':['MANSOR'],
   'ALOR STAR':['SUHAI'], 'ALOR SETAR':['SUHAI'],
   'JITRA':['ARIFF','AFIQ'],
@@ -11302,6 +11302,35 @@ function calcLTKMonth(po, yr, mo, officer){
 }
 
 // Get distinct officers (ketuaAktiviti) who have SP03 records for a given po/year/month
+// Stricter variant of getLTKOfficers: excludes secondary/support officer fields
+// (pegawai1/2/3, pegawaiRujukan, pegawaiLain) — only counts roster, ketuaAktiviti,
+// and override-derived officers. Used for Pelaporan BA/BP tables to avoid
+// cluttering an officer's report with PO they merely assisted on (join-visit).
+function getLTKOfficersPrimary(po, yr, mo){
+  var recs = getSP03().filter(function(r){ return normPO(r.po)===normPO(po) && r.yr===yr && r.mo===mo; });
+  var set = {};
+  (typeof getOfficers==='function' ? getOfficers(po) : []).forEach(function(nm){
+    var u = (nm||'').toUpperCase().trim();
+    if(u) set[u] = true;
+  });
+  // Only ketuaAktiviti counts here — not pegawai1/2/3/pegawaiRujukan/pegawaiLain
+  recs.forEach(function(r){
+    var u = (r.ketuaAktiviti||'').toUpperCase().trim();
+    if(u) set[u] = true;
+  });
+  try{
+    var ov = getLTKOverride();
+    var prefix = normPO(po)+'_'+yr+'_'+mo+'_';
+    Object.keys(ov).forEach(function(k){
+      if(k.indexOf(prefix)===0){
+        var officerPart = k.slice(prefix.length);
+        if(officerPart) set[officerPart] = true;
+      }
+    });
+  }catch(e){}
+  return Object.keys(set).sort();
+}
+
 function getLTKOfficers(po, yr, mo){
   var recs = getSP03().filter(function(r){ return normPO(r.po)===normPO(po) && r.yr===yr && r.mo===mo; });
   var set = {};
@@ -13808,7 +13837,7 @@ function janaLaporanAkhir(){
     var poRow = {ba:0,bp:0,months:{}};
     for(var mo=0;mo<12;mo++){ poRow.months[mo]={ba:0,bp:0}; }
     var officersByMo = {};
-    for(var mo2=0;mo2<12;mo2++){ officersByMo[mo2] = getLTKOfficers(po2,yr,mo2); }
+    for(var mo2=0;mo2<12;mo2++){ officersByMo[mo2] = getLTKOfficersPrimary(po2,yr,mo2); }
     // Union of all officers appearing in any month for this PO
     var allOfficersForPO = {};
     Object.keys(officersByMo).forEach(function(mo3){ officersByMo[mo3].forEach(function(o){ if(o!=='ADMIN') allOfficersForPO[o]=true; }); });
