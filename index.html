@@ -9,7 +9,8 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Segoe UI',sans-serif;background:#f0f4f8;font-size:13px}
 #lg{min-height:100vh;background:url('login-bg.jpg') center center / cover no-repeat;display:flex;align-items:center;justify-content:center;padding:20px;position:relative}#lg::before{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,rgba(255,255,255,0.1),rgba(255,255,255,0.25));pointer-events:none}
-.lbox{background:#fff;border-radius:18px;padding:32px;width:100%;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,.35);position:relative;z-index:2}.llogo{text-align:center;margin-bottom:6px}.llogo img{max-width:240px;height:auto;display:inline-block}.ltagline{text-align:center;font-size:11px;color:#5a4a8e;margin-bottom:20px;font-weight:600;letter-spacing:.5px}
+@media (max-width:768px){#lg{background-image:url('login-bg-mobile.jpg')}}
+.lbox{background:#fff;border-radius:18px;padding:32px;width:100%;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,.35);position:relative;z-index:2}.llogo{text-align:center;margin-bottom:-18px;line-height:0}.llogo img{max-width:200px;height:auto;display:inline-block}.ltagline{text-align:center;font-size:11px;color:#5a4a8e;margin-bottom:20px;font-weight:600;letter-spacing:.5px;position:relative;z-index:1}
 .lttl{font-size:20px;font-weight:800;color:#2d1b69;margin-bottom:4px}
 .lsub{font-size:11px;color:#718096;margin-bottom:24px}
 .lfg{margin-bottom:14px}
@@ -2441,6 +2442,15 @@ window.addEventListener('load',function(){
 <body>
 
 <div id="lg">
+<script>
+(function(){
+  if(window.innerWidth <= 768){
+    var img = new Image();
+    img.onerror = function(){ document.getElementById('lg').style.backgroundImage = "url('login-bg.jpg')"; };
+    img.src = 'login-bg-mobile.jpg';
+  }
+})();
+</script>
 <div class="lbox">
   <div class="llogo">
     <img src="logo.png" alt="VetEC Sync" onerror="this.style.display='none';document.getElementById('fallback-logo').style.display='block'">
