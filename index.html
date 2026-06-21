@@ -3414,6 +3414,14 @@ window.addEventListener('load',function(){
       <select id="ltk-yr" onchange="renderLTK()" style="padding:6px 9px;border:1px solid #d0d0d0;border-radius:5px;font-size:12px;font-family:inherit">
         <option>2025</option><option selected>2026</option><option>2027</option>
       </select>
+      <select id="ltk-po" onchange="renderLTK()" style="display:none;padding:6px 9px;border:1px solid #d0d0d0;border-radius:5px;font-size:12px;font-family:inherit"></select>
+      <select id="ltk-mo" onchange="renderLTK()" style="padding:6px 9px;border:1px solid #d0d0d0;border-radius:5px;font-size:12px;font-family:inherit">
+        <option value="">Semua Bulan</option>
+        <option value="0">Januari</option><option value="1">Februari</option><option value="2">Mac</option>
+        <option value="3">April</option><option value="4">Mei</option><option value="5">Jun</option>
+        <option value="6">Julai</option><option value="7">Ogos</option><option value="8">September</option>
+        <option value="9">Oktober</option><option value="10">November</option><option value="11">Disember</option>
+      </select>
       <span id="ltk-cnt" style="font-size:12px;color:#718096"></span>
       <div style="margin-left:auto;display:flex;gap:8px">
         <button class="btn bgr" onclick="exLTK()">&#8659; Export Excel</button>
@@ -3549,92 +3557,6 @@ window.addEventListener('load',function(){
   </div>
 
   <!-- PELAPORAN PAGE (NURSHUHADA SAHAJA) -->
-  <div id="pg-rpt" class="pg">
-    <div class="fbar">
-      <select id="rpt-yr" style="padding:6px 9px;border:1px solid #d0d0d0;border-radius:5px;font-size:12px;font-family:inherit">
-        <option>2025</option><option selected>2026</option><option>2027</option>
-      </select>
-      <select id="rpt-mo" style="padding:6px 9px;border:1px solid #d0d0d0;border-radius:5px;font-size:12px;font-family:inherit">
-        <option value="">Semua Bulan</option>
-        <option value="0">Jan</option><option value="1">Feb</option><option value="2">Mac</option>
-        <option value="3">Apr</option><option value="4">Mei</option><option value="5">Jun</option>
-        <option value="6">Jul</option><option value="7">Ogo</option><option value="8">Sep</option>
-        <option value="9">Okt</option><option value="10">Nov</option><option value="11">Dis</option>
-      </select>
-      <div style="margin-left:auto;display:flex;gap:8px">
-        <button class="btn bg" onclick="document.getElementById('rpt-import-all').click()">&#8657; Import Data PO</button>
-        <input type="file" id="rpt-import-all" accept=".json" multiple style="display:none" onchange="importPOData(this)">
-        <button class="btn bgr" onclick="generateReport()">&#128196; Jana Laporan Gabungan</button>
-        <button class="btn" id="btn-laporan-akhir" onclick="openLaporanAkhir()" style="background:#c53030;color:#fff;display:none">&#128196; Jana Laporan Akhir</button>
-        <button class="btn" id="btn-komp-excel" onclick="downloadAdminKomprehensif('excel')" style="background:#276749;color:#fff;display:none">&#128202; Excel</button>
-        <button class="btn" id="btn-komp-pdf" onclick="downloadAdminKomprehensif('pdf')" style="background:#dd6b20;color:#fff;display:none">&#128196; PDF</button>
-        <button class="btn" id="btn-komp-ppt" onclick="downloadAdminKomprehensif('pptx')" style="background:#553c9a;color:#fff;display:none">&#128194; PPT</button>
-      </div>
-    </div>
-
-    <!-- Laporan Akhir Panel (admin only) -->
-    <div id="rpt-la-panel" style="display:none;background:linear-gradient(135deg,#c53030,#e53e3e);padding:14px 18px;color:#fff">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <span style="font-weight:700;font-size:13px">&#128196; Laporan Akhir Komprehensif:</span>
-        <label style="font-size:11px;opacity:.9">Tahun:</label>
-        <select id="rpt-final-yr" style="padding:5px 8px;border-radius:5px;border:none;font-size:12px"><option>2025</option><option selected>2026</option><option>2027</option></select>
-        <label style="font-size:11px;opacity:.9">Baseline penternak:</label>
-        <input type="number" id="rpt-baseline" value="671" style="width:80px;padding:5px 8px;border-radius:5px;border:none;font-size:12px">
-        <button onclick="janaLaporanAkhir()" style="background:#fff;color:#c53030;border:none;border-radius:6px;padding:8px 20px;font-weight:800;font-size:13px;cursor:pointer">&#9889; JANA SEKARANG</button>
-      </div>
-    </div>
-    <div id="rpt-final-output" style="padding:0 18px"></div>
-    <!-- Import status -->
-    <div id="rpt-import-status" style="display:none;background:#e8f5e9;border-left:4px solid #276749;padding:10px 18px;font-size:11px;color:#276749"></div>
-
-    <div style="overflow:auto;padding:14px 18px;flex:1">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-
-        <!-- LEFT: Module selector -->
-        <div>
-          <div style="font-weight:700;font-size:13px;color:#0f2d5e;margin-bottom:10px">&#9745; Pilih Modul untuk Laporan</div>
-          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
-            <div style="padding:8px 12px;background:#f7fafc;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
-              <span style="font-size:11px;color:#718096">Modul yang dipilih akan dieksport ke Excel</span>
-              <div><button onclick="rptSelectAll(true)" style="font-size:10px;background:#276749;color:#fff;border:none;border-radius:3px;padding:2px 8px;cursor:pointer">Semua</button>
-              <button onclick="rptSelectAll(false)" style="font-size:10px;background:#fff;color:#718096;border:1px solid #d0d0d0;border-radius:3px;padding:2px 8px;cursor:pointer;margin-left:4px">Nyah</button></div>
-            </div>
-            <div id="rpt-module-list" style="padding:8px"></div>
-          </div>
-        </div>
-
-        <!-- RIGHT: PO selector + Import status -->
-        <div>
-          <div style="font-weight:700;font-size:13px;color:#0f2d5e;margin-bottom:10px">&#127970; Pilih PO untuk Gabungkan</div>
-          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
-            <div style="padding:8px 12px;background:#f7fafc;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
-              <span style="font-size:11px;color:#718096">Data dari PO yang diimport</span>
-              <div><button onclick="rptPoSelectAll(true)" style="font-size:10px;background:#0f2d5e;color:#fff;border:none;border-radius:3px;padding:2px 8px;cursor:pointer">Semua</button></div>
-            </div>
-            <div id="rpt-po-list" style="padding:8px"></div>
-          </div>
-
-          <div style="margin-top:14px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:12px">
-            <div style="font-weight:700;font-size:12px;color:#0f2d5e;margin-bottom:8px">&#128197; Cara Import Data PO:</div>
-            <div style="font-size:11px;color:#718096;line-height:1.8">
-              1. Minta setiap pegawai klik <b>⬇ Export Data Saya</b> di sidebar<br>
-              2. Hantar fail JSON kepada NURSHUHADA<br>
-              3. Klik <b>⬆ Import Data PO</b> di atas (boleh pilih banyak fail serentak)<br>
-              4. Data akan auto-update di semua tajuk sidebar
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Import history -->
-      <div style="margin-top:16px">
-        <div style="font-weight:700;font-size:13px;color:#0f2d5e;margin-bottom:8px">&#128203; Sejarah Import Data PO</div>
-        <div id="rpt-import-history" style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:12px"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- PELAPORAN PAGE -->
   <div id="pg-rpt" class="pg">
     <div class="fbar">
       <select id="rpt-mo" style="padding:6px 9px;border:1px solid #d0d0d0;border-radius:5px;font-size:12px;font-family:inherit">
@@ -11184,19 +11106,43 @@ function renderLTK(){
   var yr = parseInt(document.getElementById('ltk-yr').value)||2026;
   var ov = getLTKOverride();
 
+  // Admin: PO selector
+  var ltkPoSel = document.getElementById('ltk-po');
+  var selectedLtkPO = CU.po;
+  if(ltkPoSel){
+    if(isMLAdmin()){
+      ltkPoSel.style.display = '';
+      if(!ltkPoSel.options.length){
+        PO_LIST.forEach(function(p){ ltkPoSel.innerHTML += '<option value="'+p+'">'+p+'</option>'; });
+        ltkPoSel.value = CU.po;
+      }
+      selectedLtkPO = ltkPoSel.value || CU.po;
+    } else {
+      ltkPoSel.style.display = 'none';
+    }
+  }
+
   // Find months with SP03 data
-  var sp03 = getSP03().filter(function(r){ return r.yr===yr && (isMLAdmin() || r.po===CU.po); });
+  window._ltkCurrentPO = selectedLtkPO;
+  var sp03 = getSP03().filter(function(r){ return r.yr===yr && (isMLAdmin() ? normPO(r.po)===normPO(selectedLtkPO) : r.po===CU.po); });
   var months = [];
   for(var mo=0; mo<12; mo++){
     var moRecs = sp03.filter(function(r){ return r.mo===mo; });
     if(moRecs.length > 0) months.push(mo);
   }
-  document.getElementById('ltk-cnt').textContent = months.length+' bulan ada data';
+  // Apply month filter dropdown
+  var moFilterSel = document.getElementById('ltk-mo');
+  var moFilterVal = moFilterSel ? moFilterSel.value : '';
+  if(moFilterVal !== ''){
+    var moFilterNum = parseInt(moFilterVal);
+    months = months.filter(function(m){ return m === moFilterNum; });
+  }
+  document.getElementById('ltk-cnt').textContent = months.length+(moFilterVal!==''?' bulan dipilih':' bulan ada data');
 
   if(!months.length){
     document.getElementById('ltk-wrap').innerHTML =
       '<div class="wb" style="margin:0"><div style="font-size:30px;margin-bottom:10px">&#128202;</div>'+
-      '<div style="font-weight:700;color:#0f2d5e;font-size:14px">Tiada data Log Teknikal untuk tahun '+yr+'</div>'+
+      '<div style="font-weight:700;color:#0f2d5e;font-size:14px">'+(moFilterVal!==''?'Tiada data untuk bulan dipilih':'Tiada data Log Teknikal untuk tahun '+yr)+'</div>'+
       '<div style="color:#718096;font-size:12px;margin:8px 0">Jana SP03 dahulu, kemudian data Log Teknikal akan muncul di sini secara automatik.</div></div>';
     return;
   }
@@ -11210,7 +11156,7 @@ function renderLTK(){
 
   var h = '<div id="ltk-print-area">';
   h += '<div style="text-align:center;font-size:15px;font-weight:800;color:#0f2d5e;padding:10px 0 8px">LOG TEKNIKAL</div>';
-  h += '<div style="text-align:center;font-size:11px;color:#718096;margin-bottom:12px">PO: '+CU.po+' &nbsp;|&nbsp; '+CU.nm+' &nbsp;|&nbsp; Tahun: '+yr+'</div>';
+  h += '<div style="text-align:center;font-size:11px;color:#718096;margin-bottom:12px">PO: '+selectedLtkPO+' &nbsp;|&nbsp; '+CU.nm+' &nbsp;|&nbsp; Tahun: '+yr+'</div>';
   h += '<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:11px;white-space:nowrap">';
 
   // Header Row 1
@@ -11249,11 +11195,15 @@ function renderLTK(){
   var totals = {bilPenternak:0,khidmatNasihat:0,kgFarms:0,kgTernakan:0,rbFarms:0,rbTernakan:0,bkFarms:0,bkTernakan:0,lawatSiasat:0,audit:0,persampelan:0,vaksinasi:0,ujianLapangan:0,mesyuarat:0,jumlah:0,sokongan:0};
 
   months.forEach(function(mo, i){
-    var officers = getLTKOfficers(CU.po, yr, mo);
+    var officers = getLTKOfficers(selectedLtkPO, yr, mo);
     officers.forEach(function(officerName){
-    var auto = calcLTKMonth(CU.po, yr, mo, officerName);
-    if(!auto) return;
-    var key = ltkKey(CU.po, yr, mo, officerName);
+    var auto = calcLTKMonth(selectedLtkPO, yr, mo, officerName) || {
+      mo:mo, yr:yr, po:selectedLtkPO, bilPenternak:0, khidmatNasihat:0,
+      kgFarms:0, kgTernakan:0, rbFarms:0, rbTernakan:0, bkFarms:0, bkTernakan:0,
+      lawatSiasat:0, audit:0, persampelan:0, vaksinasi:0, ujianLapangan:0, mesyuarat:0,
+      jumlah:0, sokongan:0, nota:''
+    };
+    var key = ltkKey(selectedLtkPO, yr, mo, officerName);
     var ovr = ov[key] || {};
     // Apply overrides
     var d = {};
@@ -11272,7 +11222,7 @@ function renderLTK(){
     h += '<td style="border:1px solid #e2e8f0;padding:6px 8px;font-weight:700;color:#0f2d5e">'+BLN_LTK[mo]+'</td>';
     h += '<td style="border:1px solid #e2e8f0;padding:6px 8px;text-align:center">UTARA</td>';
     h += '<td style="border:1px solid #e2e8f0;padding:6px 8px;font-weight:600">'+officerName+'</td>';
-    h += '<td style="border:1px solid #e2e8f0;padding:6px 8px;text-align:center">'+CU.po+'</td>';
+    h += '<td style="border:1px solid #e2e8f0;padding:6px 8px;text-align:center">'+selectedLtkPO+'</td>';
     h += td(d.bilPenternak,'#0f2d5e');
     h += td(d.khidmatNasihat,'#0f2d5e');
     h += td(d.kgFarms,'#2b6cb0');
@@ -11343,10 +11293,10 @@ function renderLTK(){
     var ov2 = getLTKOverride();
     var missingAlasan = [];
     months.forEach(function(mo){
-      getLTKOfficers(CU.po, yr, mo).forEach(function(off){
-        var auto3 = calcLTKMonth(CU.po, yr, mo, off);
+      getLTKOfficers(selectedLtkPO, yr, mo).forEach(function(off){
+        var auto3 = calcLTKMonth(selectedLtkPO, yr, mo, off);
         if(!auto3) return;
-        var key3 = ltkKey(CU.po, yr, mo, off);
+        var key3 = ltkKey(selectedLtkPO, yr, mo, off);
         var ovr3 = ov2[key3]||{};
         var bilP3 = (ovr3.bilPenternak !== undefined ? ovr3.bilPenternak : auto3.bilPenternak);
         var jul3  = (ovr3.jumlah !== undefined ? ovr3.jumlah : auto3.jumlah);
@@ -11370,15 +11320,17 @@ function renderLTK(){
 
 // ── EDIT MODAL ────────────────────────────────────
 var ltkEditOfficer = null;
+var ltkEditPO = null;
 function openLTKEdit(mo, yr, officer){
   ltkEditMo = mo; ltkEditYr = yr; ltkEditOfficer = officer;
-  var auto = calcLTKMonth(CU.po, yr, mo, officer);
+  ltkEditPO = window._ltkCurrentPO || CU.po;
+  var auto = calcLTKMonth(ltkEditPO, yr, mo, officer);
   var ov = getLTKOverride();
-  var key = ltkKey(CU.po, yr, mo, officer);
+  var key = ltkKey(ltkEditPO, yr, mo, officer);
   var ovr = ov[key] || {};
 
   document.getElementById('mLTK-ttl').textContent = '&#9998; Edit Log Teknikal — '+BLN_FULL[mo]+' '+yr;
-  document.getElementById('mLTK-sub').textContent = 'PO: '+CU.po+' | '+(officer||CU.nm);
+  document.getElementById('mLTK-sub').textContent = 'PO: '+ltkEditPO+' | '+(officer||CU.nm);
   document.getElementById('ltk-e-sokongan').value = ovr.sokongan || '';
   document.getElementById('ltk-e-nota').value = ovr.nota || '';
 
@@ -11407,8 +11359,8 @@ function openLTKEdit(mo, yr, officer){
       +'<input type="number" min="0" data-ltk-field="'+f[0]+'" value="'+manVal+'" placeholder="'+autoVal+'" style="width:100%;padding:6px 8px;border:1px solid #d0d0d0;border-radius:4px;font-size:12px"></div>';
   }).join('');
   // Show/hide alasan requirement
-  var auto = calcLTKMonth(CU.po, yr, mo, officer);
-  var key2 = ltkKey(CU.po, yr, mo, officer);
+  var auto = calcLTKMonth(ltkEditPO, yr, mo, officer);
+  var key2 = ltkKey(ltkEditPO, yr, mo, officer);
   var ovr2 = (getLTKOverride()[key2])||{};
   var bilP = (ovr2.bilPenternak !== undefined ? ovr2.bilPenternak : (auto?auto.bilPenternak:0));
   var jul  = (ovr2.jumlah !== undefined ? ovr2.jumlah : (auto?auto.jumlah:0));
@@ -11422,10 +11374,10 @@ function openLTKEdit(mo, yr, officer){
 
 function saveLTK(){
   var ov = getLTKOverride();
-  var key = ltkKey(CU.po, ltkEditYr, ltkEditMo, ltkEditOfficer);
+  var key = ltkKey(ltkEditPO, ltkEditYr, ltkEditMo, ltkEditOfficer);
   var ovr = {};
   // Check if alasan required
-  var auto2 = calcLTKMonth(CU.po, ltkEditYr, ltkEditMo, ltkEditOfficer);
+  var auto2 = calcLTKMonth(ltkEditPO, ltkEditYr, ltkEditMo, ltkEditOfficer);
   var existOvr = ov[key]||{};
   var bilP2 = (existOvr.bilPenternak !== undefined ? existOvr.bilPenternak : (auto2?auto2.bilPenternak:0));
   var jul2  = (existOvr.jumlah !== undefined ? existOvr.jumlah : (auto2?auto2.jumlah:0));
@@ -11456,13 +11408,19 @@ function exLTK(){
   if(typeof XLSX==='undefined'){alert('Excel belum dimuatkan.');return;}
   var yr=parseInt(document.getElementById('ltk-yr').value)||2026;
   var ov=getLTKOverride();
-  var sp03=getSP03().filter(function(r){return r.po===CU.po&&r.yr===yr;});
+  var sp03=getSP03().filter(function(r){return r.po===(window._ltkCurrentPO || CU.po)&&r.yr===yr;});
   var months=[];
   for(var mo=0;mo<12;mo++){if(sp03.filter(function(r){return r.mo===mo;}).length)months.push(mo);}
+  var moFilterSelX = document.getElementById('ltk-mo');
+  var moFilterValX = moFilterSelX ? moFilterSelX.value : '';
+  if(moFilterValX !== ''){
+    var moFilterNumX = parseInt(moFilterValX);
+    months = months.filter(function(m){ return m === moFilterNumX; });
+  }
   var wb=XLSX.utils.book_new();
   var rows=[
     ['LOG TEKNIKAL - TAHUN '+yr],
-    ['PO: '+CU.po+' | VetEC UTARA | Pegawai: '+CU.nm],
+    ['PO: '+(window._ltkCurrentPO || CU.po)+' | VetEC UTARA | Pegawai: '+CU.nm],
     [],
     ['BIL','BULAN','VETEC','PEGAWAI TEKNIKAL','PUSAT OPERASI','BILANGAN PENTERNAK',
      'A - KHIDMAT NASIHAT',
@@ -11475,13 +11433,13 @@ function exLTK(){
   ];
   var bilCount=0;
   months.forEach(function(mo){
-    getLTKOfficers(CU.po, yr, mo).forEach(function(off){
-    var auto=calcLTKMonth(CU.po,yr,mo,off);if(!auto)return;
-    var key=ltkKey(CU.po,yr,mo,off);var ovr=ov[key]||{};
+    getLTKOfficers((window._ltkCurrentPO || CU.po), yr, mo).forEach(function(off){
+    var auto=calcLTKMonth((window._ltkCurrentPO || CU.po),yr,mo,off);if(!auto)return;
+    var key=ltkKey((window._ltkCurrentPO || CU.po),yr,mo,off);var ovr=ov[key]||{};
     var d={};Object.keys(auto).forEach(function(k){d[k]=(ovr[k]!==undefined&&ovr[k]!=='')?ovr[k]:auto[k];});
     if(ovr.sokongan!==undefined)d.sokongan=ovr.sokongan||0;
     bilCount++;
-    rows.push([bilCount,BLN_LTK[mo],'UTARA',off,CU.po,d.bilPenternak,d.khidmatNasihat,d.kgFarms,d.kgTernakan,d.rbFarms,d.rbTernakan,d.bkFarms,d.bkTernakan,d.lawatSiasat,d.audit,d.persampelan,d.vaksinasi,d.ujianLapangan,d.mesyuarat,d.jumlah,d.sokongan||'',ovr.nota||'']);
+    rows.push([bilCount,BLN_LTK[mo],'UTARA',off,(window._ltkCurrentPO || CU.po),d.bilPenternak,d.khidmatNasihat,d.kgFarms,d.kgTernakan,d.rbFarms,d.rbTernakan,d.bkFarms,d.bkTernakan,d.lawatSiasat,d.audit,d.persampelan,d.vaksinasi,d.ujianLapangan,d.mesyuarat,d.jumlah,d.sokongan||'',ovr.nota||'']);
     });
   });
   var ws=XLSX.utils.aoa_to_sheet(rows);
@@ -12454,7 +12412,7 @@ function renderRPT(){
   var laBtn = document.getElementById('btn-laporan-akhir');
   if(laBtn) laBtn.style.display = isAdm ? 'flex' : 'none';
   
-  var mo=parseInt(document.getElementById('rpt-mo').value)||new Date().getMonth();
+  var moRaw=document.getElementById('rpt-mo').value; var mo=(moRaw==='') ? new Date().getMonth() : parseInt(moRaw);
   var yr=parseInt(document.getElementById('rpt-yr').value)||2026;
   var badge=document.getElementById('rpt-role-badge');
   if(isMLAdmin()){
@@ -13252,7 +13210,7 @@ function renderAllOfficerSummary(mo,yr){
 function exportMyData(){
   if(!CU) return;
   ld();
-  var mo=parseInt(document.getElementById('rpt-mo').value)||new Date().getMonth();
+  var moRaw=document.getElementById('rpt-mo').value; var mo=(moRaw==='') ? new Date().getMonth() : parseInt(moRaw);
   var yr=parseInt(document.getElementById('rpt-yr').value)||2026;
   var payload={
     version:'1.0', exported:new Date().toISOString(),
