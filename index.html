@@ -162,9 +162,9 @@ var DEFAULT_OFFICERS={
   'SUNGAI PETANI':['NORHAYATI','SUHAIMI','NORAFIZA'],
   'KUALA KETIL':['MANSOR'],
   'ALOR STAR':['SUHAI'], 'ALOR SETAR':['SUHAI'],
-  'JITRA':['AFIQ'],
+  'JITRA':['ARIFF','AFIQ'],
   'KANGAR/PERLIS':['HARNANI','ZAKIAH'], 'KANGAR':['HARNANI','ZAKIAH'],
-  'SG BAKAP':['AZIELA']
+  'SG BAKAP':['AZILA']
 };
 
 
@@ -2218,8 +2218,120 @@ function renderUP(){
   html += '<div style="margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0;text-align:center">';
   html += '<button onclick="resetOfficersToDefault()" style="background:#fff5f5;color:#c53030;border:1px solid #c53030;border-radius:4px;padding:6px 14px;font-size:11px;cursor:pointer">&#8635; Reset ke Default</button>';
   html += '</div>';
-  
+
+  // ── Transfer Penternak Panel ──
+  html += '<div style="margin-top:24px;padding-top:18px;border-top:2px solid #0f2d5e">';
+  html += '<h3 style="margin:0 0 4px;color:#0f2d5e;font-size:14px">&#128260; Pindah Penternak ke Pegawai Baru</h3>';
+  html += '<p style="font-size:11px;color:#718096;margin:0 0 12px">Guna ni bila pegawai bertukar/keluar — pindahkan senarai penternak dia kepada pegawai baru. Sejarah rekod lama (SP03, Pengeluaran) <b>tidak terjejas</b>, kekal di bawah nama pegawai asal.</p>';
+  html += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:14px;max-width:560px">';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">';
+  html += '<div><label style="font-size:10px;font-weight:700;color:#444;text-transform:uppercase;display:block;margin-bottom:4px">Pusat Operasi</label><select id="tr-po" onchange="renderTransferFrom()" style="width:100%;padding:7px;border:1px solid #d0d0d0;border-radius:5px;font-size:12px"><option value="">-- Pilih PO --</option>'+PO_LIST.map(function(p){return '<option value="'+p+'">'+p+'</option>';}).join('')+'</select></div>';
+  html += '<div><label style="font-size:10px;font-weight:700;color:#444;text-transform:uppercase;display:block;margin-bottom:4px">Pegawai Lama</label><select id="tr-from" onchange="renderTransferList()" style="width:100%;padding:7px;border:1px solid #d0d0d0;border-radius:5px;font-size:12px"><option value="">-- Pilih PO dulu --</option></select></div>';
+  html += '</div>';
+  html += '<div style="margin-bottom:10px"><label style="font-size:10px;font-weight:700;color:#444;text-transform:uppercase;display:block;margin-bottom:4px">Pegawai Baru</label><select id="tr-to" onchange="document.getElementById(\'tr-to-new\').style.display=this.value===\'__NEW__\'?\'block\':\'none\'" style="width:100%;padding:7px;border:1px solid #d0d0d0;border-radius:5px;font-size:12px"><option value="">-- Pilih PO dulu --</option></select>';
+  html += '<input id="tr-to-new" placeholder="Taip nama pegawai baru" style="display:none;width:100%;padding:7px;border:1px solid #d0d0d0;border-radius:5px;font-size:12px;margin-top:6px;text-transform:uppercase"></div>';
+  html += '<div id="tr-list" style="max-height:220px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:6px;padding:8px;margin-bottom:10px;font-size:11px;color:#a0aec0">Pilih PO dan pegawai lama dahulu</div>';
+  html += '<button onclick="doTransferPenternak()" style="width:100%;background:#0f2d5e;color:#fff;border:none;border-radius:6px;padding:10px;font-size:12px;font-weight:700;cursor:pointer">&#128260; Pindah Penternak Terpilih</button>';
+  html += '</div></div>';
+
   wrap.innerHTML = html;
+}
+
+function renderTransferFrom(){
+  ld();
+  var po = document.getElementById('tr-po').value;
+  var fromSel = document.getElementById('tr-from');
+  var toSel = document.getElementById('tr-to');
+  document.getElementById('tr-list').innerHTML = '<span style="color:#a0aec0">Pilih pegawai lama dahulu</span>';
+  if(!po){
+    fromSel.innerHTML = '<option value="">-- Pilih PO dulu --</option>';
+    toSel.innerHTML = '<option value="">-- Pilih PO dulu --</option>';
+    return;
+  }
+  // Find distinct pids with penternak in this PO
+  var poRecs = pt.filter(function(p){ return normPO(p.po)===normPO(po); });
+  var pidCounts = {};
+  poRecs.forEach(function(p){
+    var key = p.pid || ('NOPID_'+p.po);
+    pidCounts[key] = (pidCounts[key]||0)+1;
+  });
+  var nameFor = function(pid){
+    if(pid.indexOf('NOPID_')===0) return '(Tiada PID — rekod lama)';
+    var g = peg.find(function(x){return x.id===pid;});
+    return g ? g.nm : pid;
+  };
+  var opts = '<option value="">-- Pilih Pegawai Lama --</option>';
+  Object.keys(pidCounts).sort(function(a,b){return nameFor(a).localeCompare(nameFor(b));}).forEach(function(pid){
+    opts += '<option value="'+pid+'">'+nameFor(pid)+' ('+pidCounts[pid]+' penternak)</option>';
+  });
+  fromSel.innerHTML = opts;
+
+  // Populate destination dropdown with roster + manual option
+  var roster = (typeof getOfficers==='function' ? getOfficers(po) : []);
+  var toOpts = '<option value="">-- Pilih Pegawai Baru --</option>';
+  roster.forEach(function(nm){ toOpts += '<option value="'+nm+'">'+nm+'</option>'; });
+  toOpts += '<option value="__NEW__">+ Pegawai baru (taip nama)</option>';
+  toSel.innerHTML = toOpts;
+}
+
+function renderTransferList(){
+  ld();
+  var po = document.getElementById('tr-po').value;
+  var fromPid = document.getElementById('tr-from').value;
+  var listEl = document.getElementById('tr-list');
+  if(!po || !fromPid){ listEl.innerHTML = '<span style="color:#a0aec0">Pilih pegawai lama dahulu</span>'; return; }
+  var farmers = pt.filter(function(p){
+    return normPO(p.po)===normPO(po) && (p.pid || 'NOPID_'+p.po) === fromPid;
+  });
+  if(!farmers.length){ listEl.innerHTML = '<span style="color:#a0aec0">Tiada penternak</span>'; return; }
+  var h = '<label style="display:flex;align-items:center;gap:6px;padding:4px 0;font-weight:700;border-bottom:1px solid #e2e8f0;margin-bottom:4px"><input type="checkbox" id="tr-all" checked onchange="document.querySelectorAll(\'.tr-chk\').forEach(function(c){c.checked=document.getElementById(\'tr-all\').checked;})"> Pilih Semua ('+farmers.length+')</label>';
+  farmers.forEach(function(p,i){
+    h += '<label style="display:flex;align-items:center;gap:6px;padding:3px 0"><input type="checkbox" class="tr-chk" checked data-rid="'+(p.rid||'')+'" data-idx="'+i+'"> '+(p.nm||'-')+'</label>';
+  });
+  listEl.innerHTML = h;
+  listEl.dataset.fromPid = fromPid;
+  listEl.dataset.po = po;
+}
+
+function doTransferPenternak(){
+  ld();
+  var po = document.getElementById('tr-po').value;
+  var fromPid = document.getElementById('tr-from').value;
+  var toSelVal = document.getElementById('tr-to').value;
+  var toNewName = (document.getElementById('tr-to-new').value||'').trim().toUpperCase();
+  if(!po || !fromPid){ toast('Pilih PO dan pegawai lama dahulu','#c53030'); return; }
+  if(!toSelVal){ toast('Pilih pegawai baru dahulu','#c53030'); return; }
+  var toName = toSelVal === '__NEW__' ? toNewName : toSelVal;
+  if(!toName){ toast('Sila taip nama pegawai baru','#c53030'); return; }
+
+  // Resolve/create destination pid (same logic as loginNow())
+  var toG = peg.find(function(x){ return x.po===po && x.nm.toUpperCase().trim()===toName; });
+  if(!toG){
+    toG = {id:'g'+Date.now()+Math.floor(Math.random()*1000), po:po, nm:toName};
+    peg.push(toG);
+  }
+
+  var checks = document.querySelectorAll('.tr-chk:checked');
+  if(!checks.length){ toast('Tiada penternak dipilih','#c53030'); return; }
+  var selectedRids = Array.from(checks).map(function(c){return c.dataset.rid;}).filter(Boolean);
+
+  if(!confirm('Pindah '+selectedRids.length+' penternak ke '+toName+'? Sejarah SP03/Pengeluaran lama TIDAK akan terjejas.')) return;
+
+  var moved = 0;
+  pt.forEach(function(p){
+    if((p.pid||'NOPID_'+p.po)===fromPid && normPO(p.po)===normPO(po) && selectedRids.indexOf(p.rid)>=0){
+      p.pid = toG.id;
+      if(p.pegawai!==undefined) p.pegawai = toName;
+      moved++;
+    }
+  });
+  sv();
+  if(window.GS_READY && typeof rtWrite === 'function'){
+    rtWrite('vu_g', JSON.stringify(peg));
+    rtWrite('vu_p', JSON.stringify(pt));
+  }
+  toast('&#9989; '+moved+' penternak dipindah ke '+toName,'#276749');
+  renderTransferFrom();
 }
 
 function addOfficerToPO(po){
@@ -10874,6 +10986,107 @@ var BLN_FULL = ['Januari','Februari','Mac','April','Mei','Jun','Julai','Ogos','S
 
 function getLTKOverride(){ return JSON.parse(localStorage.getItem('vu_ltk_ov')||'{}'); }
 function saveLTKOverride(d){ localStorage.setItem('vu_ltk_ov', JSON.stringify(d)); }
+
+// One-time seed: historical Log Teknikal data (Jan-Mei 2026), entered manually since
+// these months predate the app's SP03-based auto-calculation system.
+function seedHistoricalLTK(){
+  if(localStorage.getItem('vu_ltk_seeded_v1')) return;
+  try{
+    var ov = getLTKOverride();
+    var seed = {};
+    seed["KANGAR_2026_0_ZAKIAH"] = {"bilPenternak": 90, "khidmatNasihat": 90, "kgFarms": 5, "kgTernakan": 97, "rbFarms": 4, "rbTernakan": 66, "bkFarms": 1, "bkTernakan": 10, "lawatSiasat": 4, "audit": 90, "persampelan": 43, "vaksinasi": 269, "ujianLapangan": 43, "mesyuarat": 4, "jumlah": 553, "sokongan": 0};
+    seed["KANGAR_2026_0_HARNANI"] = {"bilPenternak": 76, "khidmatNasihat": 76, "kgFarms": 3, "kgTernakan": 36, "rbFarms": 3, "rbTernakan": 26, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 2, "audit": 76, "persampelan": 70, "vaksinasi": 144, "ujianLapangan": 70, "mesyuarat": 3, "jumlah": 447, "sokongan": 0};
+    seed["JITRA_2026_0_ZAMRI"] = {"bilPenternak": 46, "khidmatNasihat": 46, "kgFarms": 7, "kgTernakan": 7, "rbFarms": 0, "rbTernakan": 0, "bkFarms": 20, "bkTernakan": 47, "lawatSiasat": 46, "audit": 0, "persampelan": 51, "vaksinasi": 138, "ujianLapangan": 170, "mesyuarat": 4, "jumlah": 482, "sokongan": 0};
+    seed["JITRA_2026_0_NOR SUHADAH"] = {"bilPenternak": 42, "khidmatNasihat": 42, "kgFarms": 3, "kgTernakan": 4, "rbFarms": 4, "rbTernakan": 4, "bkFarms": 2, "bkTernakan": 2, "lawatSiasat": 42, "audit": 0, "persampelan": 29, "vaksinasi": 135, "ujianLapangan": 345, "mesyuarat": 3, "jumlah": 605, "sokongan": 0};
+    seed["KULIM_2026_0_UMI"] = {"bilPenternak": 21, "khidmatNasihat": 21, "kgFarms": 0, "kgTernakan": 0, "rbFarms": 7, "rbTernakan": 20, "bkFarms": 3, "bkTernakan": 5, "lawatSiasat": 9, "audit": 8, "persampelan": 2, "vaksinasi": 0, "ujianLapangan": 2, "mesyuarat": 2, "jumlah": 54, "sokongan": 0};
+    seed["KULIM_2026_0_AZIELA"] = {"bilPenternak": 24, "khidmatNasihat": 24, "kgFarms": 3, "kgTernakan": 81, "rbFarms": 8, "rbTernakan": 12, "bkFarms": 2, "bkTernakan": 3, "lawatSiasat": 11, "audit": 13, "persampelan": 0, "vaksinasi": 0, "ujianLapangan": 0, "mesyuarat": 1, "jumlah": 62, "sokongan": 0};
+    seed["KUALA KETIL_2026_0_AFIQ"] = {"bilPenternak": 29, "khidmatNasihat": 29, "kgFarms": 29, "kgTernakan": 138, "rbFarms": 24, "rbTernakan": 77, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 0, "audit": 0, "persampelan": 0, "vaksinasi": 90, "ujianLapangan": 0, "mesyuarat": 1, "jumlah": 173, "sokongan": 173};
+    seed["KUALA KETIL_2026_0_MANSOR"] = {"bilPenternak": 29, "khidmatNasihat": 29, "kgFarms": 29, "kgTernakan": 138, "rbFarms": 24, "rbTernakan": 77, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 0, "audit": 0, "persampelan": 0, "vaksinasi": 90, "ujianLapangan": 0, "mesyuarat": 1, "jumlah": 173, "sokongan": 173};
+    seed["SG BAKAP_2026_0_AZILA"] = {"bilPenternak": 16, "khidmatNasihat": 16, "kgFarms": 1, "kgTernakan": 22, "rbFarms": 1, "rbTernakan": 2, "bkFarms": 1, "bkTernakan": 10, "lawatSiasat": 0, "audit": 14, "persampelan": 22, "vaksinasi": 0, "ujianLapangan": 0, "mesyuarat": 1, "jumlah": 56, "sokongan": 0};
+    seed["ALOR SETAR_2026_0_SUHAI"] = {"bilPenternak": 11, "khidmatNasihat": 11, "kgFarms": 0, "kgTernakan": 0, "rbFarms": 3, "rbTernakan": 5, "bkFarms": 6, "bkTernakan": 14, "lawatSiasat": 0, "audit": 1, "persampelan": 0, "vaksinasi": 0, "ujianLapangan": 0, "mesyuarat": 3, "jumlah": 24, "sokongan": 3};
+    seed["SUNGAI PETANI_2026_0_SUHAIMI"] = {"bilPenternak": 33, "khidmatNasihat": 33, "kgFarms": 2, "kgTernakan": 45, "rbFarms": 9, "rbTernakan": 33, "bkFarms": 4, "bkTernakan": 20, "lawatSiasat": 10, "audit": 0, "persampelan": 28, "vaksinasi": 50, "ujianLapangan": 176, "mesyuarat": 0, "jumlah": 312, "sokongan": 0};
+    seed["SUNGAI PETANI_2026_0_NORAFIZA"] = {"bilPenternak": 61, "khidmatNasihat": 61, "kgFarms": 0, "kgTernakan": 0, "rbFarms": 10, "rbTernakan": 12, "bkFarms": 1, "bkTernakan": 5, "lawatSiasat": 10, "audit": 0, "persampelan": 90, "vaksinasi": 15, "ujianLapangan": 487, "mesyuarat": 0, "jumlah": 674, "sokongan": 0};
+    seed["SUNGAI PETANI_2026_0_NORYATI"] = {"bilPenternak": 47, "khidmatNasihat": 47, "kgFarms": 1, "kgTernakan": 15, "rbFarms": 9, "rbTernakan": 18, "bkFarms": 4, "bkTernakan": 14, "lawatSiasat": 12, "audit": 0, "persampelan": 58, "vaksinasi": 50, "ujianLapangan": 349, "mesyuarat": 0, "jumlah": 530, "sokongan": 0};
+    seed["GURUN_2026_0_NABILAH"] = {"bilPenternak": 24, "khidmatNasihat": 14, "kgFarms": 8, "kgTernakan": 255, "rbFarms": 5, "rbTernakan": 24, "bkFarms": 7, "bkTernakan": 64, "lawatSiasat": 4, "audit": 1, "persampelan": 0, "vaksinasi": 0, "ujianLapangan": 0, "mesyuarat": 5, "jumlah": 44, "sokongan": 0};
+    seed["GURUN_2026_0_NURSHUHADA"] = {"bilPenternak": 14, "khidmatNasihat": 11, "kgFarms": 11, "kgTernakan": 30, "rbFarms": 4, "rbTernakan": 12, "bkFarms": 4, "bkTernakan": 50, "lawatSiasat": 3, "audit": 0, "persampelan": 0, "vaksinasi": 0, "ujianLapangan": 0, "mesyuarat": 2, "jumlah": 35, "sokongan": 0};
+    seed["GURUN_2026_0_ATIQAH"] = {"bilPenternak": 0, "khidmatNasihat": 0, "kgFarms": 0, "kgTernakan": 0, "rbFarms": 0, "rbTernakan": 0, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 0, "audit": 0, "persampelan": 0, "vaksinasi": 0, "ujianLapangan": 0, "mesyuarat": 0, "jumlah": 0, "sokongan": 0};
+    seed["GURUN_2026_0_SHUKOR"] = {"bilPenternak": 8, "khidmatNasihat": 8, "kgFarms": 5, "kgTernakan": 89, "rbFarms": 2, "rbTernakan": 4, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 0, "audit": 0, "persampelan": 0, "vaksinasi": 0, "ujianLapangan": 0, "mesyuarat": 0, "jumlah": 15, "sokongan": 0};
+    seed["GURUN_2026_1_NABILAH"] = {"bilPenternak": 12, "khidmatNasihat": 12, "kgFarms": 12, "kgTernakan": 85, "rbFarms": 8, "rbTernakan": 71, "bkFarms": 1, "bkTernakan": 8, "lawatSiasat": 9, "audit": 0, "persampelan": 6, "vaksinasi": 125, "ujianLapangan": 18, "mesyuarat": 4, "jumlah": 195, "sokongan": 8};
+    seed["GURUN_2026_1_NURSHUHADA"] = {"bilPenternak": 13, "khidmatNasihat": 8, "kgFarms": 5, "kgTernakan": 111, "rbFarms": 4, "rbTernakan": 43, "bkFarms": 2, "bkTernakan": 12, "lawatSiasat": 4, "audit": 0, "persampelan": 6, "vaksinasi": 0, "ujianLapangan": 3, "mesyuarat": 6, "jumlah": 38, "sokongan": 0};
+    seed["GURUN_2026_1_ATIQAH"] = {"bilPenternak": 10, "khidmatNasihat": 10, "kgFarms": 5, "kgTernakan": 32, "rbFarms": 4, "rbTernakan": 12, "bkFarms": 2, "bkTernakan": 5, "lawatSiasat": 1, "audit": 0, "persampelan": 0, "vaksinasi": 200, "ujianLapangan": 0, "mesyuarat": 0, "jumlah": 222, "sokongan": 0};
+    seed["GURUN_2026_1_SHUKOR"] = {"bilPenternak": 10, "khidmatNasihat": 10, "kgFarms": 6, "kgTernakan": 91, "rbFarms": 3, "rbTernakan": 8, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 0, "audit": 1, "persampelan": 20, "vaksinasi": 37, "ujianLapangan": 20, "mesyuarat": 2, "jumlah": 99, "sokongan": 0};
+    seed["ALOR SETAR_2026_1_SUHAI"] = {"bilPenternak": 10, "khidmatNasihat": 13, "kgFarms": 4, "kgTernakan": 26, "rbFarms": 2, "rbTernakan": 3, "bkFarms": 10, "bkTernakan": 12, "lawatSiasat": 0, "audit": 1, "persampelan": 0, "vaksinasi": 26, "ujianLapangan": 0, "mesyuarat": 3, "jumlah": 59, "sokongan": 2};
+    seed["JITRA_2026_1_ZAMRI"] = {"bilPenternak": 18, "khidmatNasihat": 23, "kgFarms": 0, "kgTernakan": 0, "rbFarms": 2, "rbTernakan": 2, "bkFarms": 6, "bkTernakan": 33, "lawatSiasat": 23, "audit": 0, "persampelan": 37, "vaksinasi": 25, "ujianLapangan": 80, "mesyuarat": 1, "jumlah": 197, "sokongan": 0};
+    seed["JITRA_2026_1_NOR SUHADAH"] = {"bilPenternak": 10, "khidmatNasihat": 13, "kgFarms": 0, "kgTernakan": 0, "rbFarms": 5, "rbTernakan": 5, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 13, "audit": 0, "persampelan": 24, "vaksinasi": 19, "ujianLapangan": 132, "mesyuarat": 1, "jumlah": 207, "sokongan": 0};
+    seed["SUNGAI PETANI_2026_1_SUHAIMI"] = {"bilPenternak": 22, "khidmatNasihat": 22, "kgFarms": 0, "kgTernakan": 0, "rbFarms": 3, "rbTernakan": 4, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 7, "audit": 0, "persampelan": 28, "vaksinasi": 25, "ujianLapangan": 316, "mesyuarat": 0, "jumlah": 401, "sokongan": 0};
+    seed["SUNGAI PETANI_2026_1_NORAFIZA"] = {"bilPenternak": 49, "khidmatNasihat": 49, "kgFarms": 1, "kgTernakan": 15, "rbFarms": 5, "rbTernakan": 7, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 10, "audit": 0, "persampelan": 80, "vaksinasi": 45, "ujianLapangan": 667, "mesyuarat": 0, "jumlah": 857, "sokongan": 0};
+    seed["SUNGAI PETANI_2026_1_NORYATI"] = {"bilPenternak": 25, "khidmatNasihat": 25, "kgFarms": 3, "kgTernakan": 130, "rbFarms": 3, "rbTernakan": 5, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 7, "audit": 0, "persampelan": 30, "vaksinasi": 70, "ujianLapangan": 214, "mesyuarat": 0, "jumlah": 352, "sokongan": 0};
+    seed["KULIM_2026_1_UMI"] = {"bilPenternak": 13, "khidmatNasihat": 13, "kgFarms": 1, "kgTernakan": 15, "rbFarms": 5, "rbTernakan": 8, "bkFarms": 1, "bkTernakan": 1, "lawatSiasat": 6, "audit": 6, "persampelan": 0, "vaksinasi": 100, "ujianLapangan": 0, "mesyuarat": 0, "jumlah": 132, "sokongan": 0};
+    seed["KULIM_2026_1_AZIELA"] = {"bilPenternak": 18, "khidmatNasihat": 18, "kgFarms": 0, "kgTernakan": 0, "rbFarms": 4, "rbTernakan": 5, "bkFarms": 3, "bkTernakan": 3, "lawatSiasat": 6, "audit": 11, "persampelan": 0, "vaksinasi": 110, "ujianLapangan": 0, "mesyuarat": 0, "jumlah": 152, "sokongan": 0};
+    seed["KANGAR_2026_1_ZAKIAH"] = {"bilPenternak": 45, "khidmatNasihat": 45, "kgFarms": 4, "kgTernakan": 6, "rbFarms": 4, "rbTernakan": 6, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 5, "audit": 45, "persampelan": 0, "vaksinasi": 31, "ujianLapangan": 0, "mesyuarat": 3, "jumlah": 138, "sokongan": 0};
+    seed["KANGAR_2026_1_HARNANI"] = {"bilPenternak": 11, "khidmatNasihat": 11, "kgFarms": 3, "kgTernakan": 7, "rbFarms": 3, "rbTernakan": 7, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 4, "audit": 11, "persampelan": 0, "vaksinasi": 0, "ujianLapangan": 0, "mesyuarat": 0, "jumlah": 40, "sokongan": 0};
+    seed["KUALA KETIL_2026_1_AFIQ"] = {"bilPenternak": 28, "khidmatNasihat": 28, "kgFarms": 28, "kgTernakan": 128, "rbFarms": 22, "rbTernakan": 56, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 0, "audit": 0, "persampelan": 0, "vaksinasi": 547, "ujianLapangan": 0, "mesyuarat": 1, "jumlah": 626, "sokongan": 626};
+    seed["KUALA KETIL_2026_1_MANSOR"] = {"bilPenternak": 28, "khidmatNasihat": 28, "kgFarms": 28, "kgTernakan": 128, "rbFarms": 22, "rbTernakan": 56, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 0, "audit": 0, "persampelan": 0, "vaksinasi": 547, "ujianLapangan": 0, "mesyuarat": 1, "jumlah": 626, "sokongan": 626};
+    seed["SG BAKAP_2026_1_AZILA"] = {"bilPenternak": 2, "khidmatNasihat": 2, "kgFarms": 0, "kgTernakan": 0, "rbFarms": 2, "rbTernakan": 9, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 0, "audit": 0, "persampelan": 2, "vaksinasi": 0, "ujianLapangan": 0, "mesyuarat": 3, "jumlah": 9, "sokongan": 0};
+    seed["GURUN_2026_2_NABILAH"] = {"bilPenternak": 11, "khidmatNasihat": 3, "kgFarms": 3, "kgTernakan": 60, "rbFarms": 5, "rbTernakan": 6, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 3, "audit": 0, "persampelan": 0, "vaksinasi": 60, "ujianLapangan": 0, "mesyuarat": 8, "jumlah": 82, "sokongan": 3};
+    seed["GURUN_2026_2_NURSHUHADA"] = {"bilPenternak": 31, "khidmatNasihat": 31, "kgFarms": 3, "kgTernakan": 67, "rbFarms": 3, "rbTernakan": 2, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 6, "audit": 0, "persampelan": 12, "vaksinasi": 32, "ujianLapangan": 0, "mesyuarat": 6, "jumlah": 93, "sokongan": 0};
+    seed["GURUN_2026_2_ATIQAH"] = {"bilPenternak": 31, "khidmatNasihat": 31, "kgFarms": 5, "kgTernakan": 24, "rbFarms": 7, "rbTernakan": 15, "bkFarms": 2, "bkTernakan": 2, "lawatSiasat": 1, "audit": 1, "persampelan": 0, "vaksinasi": 56, "ujianLapangan": 0, "mesyuarat": 5, "jumlah": 108, "sokongan": 0};
+    seed["GURUN_2026_2_SHUKOR"] = {"bilPenternak": 14, "khidmatNasihat": 13, "kgFarms": 4, "kgTernakan": 60, "rbFarms": 4, "rbTernakan": 9, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 6, "audit": 3, "persampelan": 23, "vaksinasi": 175, "ujianLapangan": 0, "mesyuarat": 0, "jumlah": 228, "sokongan": 0};
+    seed["JITRA_2026_2_ZAMRI"] = {"bilPenternak": 19, "khidmatNasihat": 29, "kgFarms": 0, "kgTernakan": 0, "rbFarms": 3, "rbTernakan": 3, "bkFarms": 10, "bkTernakan": 52, "lawatSiasat": 29, "audit": 0, "persampelan": 97, "vaksinasi": 90, "ujianLapangan": 60, "mesyuarat": 2, "jumlah": 320, "sokongan": 0};
+    seed["JITRA_2026_2_NOR SUHADAH"] = {"bilPenternak": 17, "khidmatNasihat": 24, "kgFarms": 0, "kgTernakan": 0, "rbFarms": 12, "rbTernakan": 12, "bkFarms": 1, "bkTernakan": 14, "lawatSiasat": 24, "audit": 0, "persampelan": 111, "vaksinasi": 89, "ujianLapangan": 170, "mesyuarat": 2, "jumlah": 433, "sokongan": 0};
+    seed["KANGAR_2026_2_ZAKIAH"] = {"bilPenternak": 17, "khidmatNasihat": 17, "kgFarms": 10, "kgTernakan": 23, "rbFarms": 10, "rbTernakan": 30, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 11, "audit": 17, "persampelan": 0, "vaksinasi": 0, "ujianLapangan": 0, "mesyuarat": 2, "jumlah": 98, "sokongan": 0};
+    seed["KANGAR_2026_2_HARNANI"] = {"bilPenternak": 14, "khidmatNasihat": 14, "kgFarms": 2, "kgTernakan": 3, "rbFarms": 3, "rbTernakan": 3, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 2, "audit": 14, "persampelan": 0, "vaksinasi": 0, "ujianLapangan": 0, "mesyuarat": 1, "jumlah": 36, "sokongan": 0};
+    seed["KUALA KETIL_2026_2_AFIQ"] = {"bilPenternak": 24, "khidmatNasihat": 24, "kgFarms": 24, "kgTernakan": 149, "rbFarms": 22, "rbTernakan": 72, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 0, "audit": 0, "persampelan": 1, "vaksinasi": 0, "ujianLapangan": 0, "mesyuarat": 1, "jumlah": 72, "sokongan": 72};
+    seed["KUALA KETIL_2026_2_MANSOR"] = {"bilPenternak": 24, "khidmatNasihat": 24, "kgFarms": 24, "kgTernakan": 149, "rbFarms": 22, "rbTernakan": 72, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 0, "audit": 0, "persampelan": 1, "vaksinasi": 0, "ujianLapangan": 0, "mesyuarat": 1, "jumlah": 72, "sokongan": 72};
+    seed["KULIM_2026_2_UMI"] = {"bilPenternak": 13, "khidmatNasihat": 13, "kgFarms": 0, "kgTernakan": 0, "rbFarms": 5, "rbTernakan": 10, "bkFarms": 4, "bkTernakan": 9, "lawatSiasat": 0, "audit": 0, "persampelan": 21, "vaksinasi": 120, "ujianLapangan": 2, "mesyuarat": 0, "jumlah": 165, "sokongan": 0};
+    seed["KULIM_2026_2_AZIELA"] = {"bilPenternak": 13, "khidmatNasihat": 13, "kgFarms": 3, "kgTernakan": 16, "rbFarms": 6, "rbTernakan": 21, "bkFarms": 3, "bkTernakan": 4, "lawatSiasat": 0, "audit": 3, "persampelan": 0, "vaksinasi": 0, "ujianLapangan": 196, "mesyuarat": 0, "jumlah": 224, "sokongan": 0};
+    seed["SG BAKAP_2026_2_AZILA"] = {"bilPenternak": 9, "khidmatNasihat": 9, "kgFarms": 1, "kgTernakan": 8, "rbFarms": 4, "rbTernakan": 13, "bkFarms": 1, "bkTernakan": 7, "lawatSiasat": 0, "audit": 5, "persampelan": 0, "vaksinasi": 0, "ujianLapangan": 0, "mesyuarat": 2, "jumlah": 0, "sokongan": 0};
+    seed["SUNGAI PETANI_2026_2_SUHAIMI"] = {"bilPenternak": 40, "khidmatNasihat": 40, "kgFarms": 0, "kgTernakan": 0, "rbFarms": 5, "rbTernakan": 8, "bkFarms": 1, "bkTernakan": 2, "lawatSiasat": 9, "audit": 0, "persampelan": 82, "vaksinasi": 0, "ujianLapangan": 500, "mesyuarat": 0, "jumlah": 637, "sokongan": 0};
+    seed["SUNGAI PETANI_2026_2_NORAFIZA"] = {"bilPenternak": 53, "khidmatNasihat": 53, "kgFarms": 1, "kgTernakan": 5, "rbFarms": 5, "rbTernakan": 12, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 8, "audit": 0, "persampelan": 88, "vaksinasi": 0, "ujianLapangan": 658, "mesyuarat": 0, "jumlah": 813, "sokongan": 0};
+    seed["SUNGAI PETANI_2026_2_NORYATI"] = {"bilPenternak": 17, "khidmatNasihat": 17, "kgFarms": 2, "kgTernakan": 55, "rbFarms": 4, "rbTernakan": 5, "bkFarms": 1, "bkTernakan": 2, "lawatSiasat": 6, "audit": 0, "persampelan": 18, "vaksinasi": 0, "ujianLapangan": 21, "mesyuarat": 0, "jumlah": 69, "sokongan": 0};
+    seed["ALOR SETAR_2026_2_SUHAI"] = {"bilPenternak": 14, "khidmatNasihat": 14, "kgFarms": 5, "kgTernakan": 30, "rbFarms": 3, "rbTernakan": 3, "bkFarms": 8, "bkTernakan": 8, "lawatSiasat": 1, "audit": 1, "persampelan": 0, "vaksinasi": 36, "ujianLapangan": 0, "mesyuarat": 2, "jumlah": 70, "sokongan": 2};
+    seed["GURUN_2026_3_NABILAH"] = {"bilPenternak": 39, "khidmatNasihat": 32, "kgFarms": 32, "kgTernakan": 137, "rbFarms": 22, "rbTernakan": 22, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 32, "audit": 10, "persampelan": 0, "vaksinasi": 137, "ujianLapangan": 0, "mesyuarat": 7, "jumlah": 272, "sokongan": 3};
+    seed["GURUN_2026_3_NURSHUHADA"] = {"bilPenternak": 12, "khidmatNasihat": 20, "kgFarms": 5, "kgTernakan": 115, "rbFarms": 4, "rbTernakan": 4, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 4, "audit": 0, "persampelan": 33, "vaksinasi": 0, "ujianLapangan": 11, "mesyuarat": 1, "jumlah": 78, "sokongan": 0};
+    seed["GURUN_2026_3_ATIQAH"] = {"bilPenternak": 28, "khidmatNasihat": 28, "kgFarms": 5, "kgTernakan": 21, "rbFarms": 6, "rbTernakan": 17, "bkFarms": 1, "bkTernakan": 1, "lawatSiasat": 5, "audit": 9, "persampelan": 20, "vaksinasi": 51, "ujianLapangan": 10, "mesyuarat": 4, "jumlah": 139, "sokongan": 0};
+    seed["GURUN_2026_3_SHUKOR"] = {"bilPenternak": 17, "khidmatNasihat": 16, "kgFarms": 5, "kgTernakan": 137, "rbFarms": 5, "rbTernakan": 13, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 0, "audit": 8, "persampelan": 0, "vaksinasi": 119, "ujianLapangan": 1, "mesyuarat": 0, "jumlah": 154, "sokongan": 0};
+    seed["JITRA_2026_3_ZAMRI"] = {"bilPenternak": 12, "khidmatNasihat": 19, "kgFarms": 4, "kgTernakan": 9, "rbFarms": 0, "rbTernakan": 0, "bkFarms": 8, "bkTernakan": 30, "lawatSiasat": 19, "audit": 3, "persampelan": 20, "vaksinasi": 20, "ujianLapangan": 0, "mesyuarat": 1, "jumlah": 94, "sokongan": 0};
+    seed["JITRA_2026_3_NOR SUHADAH"] = {"bilPenternak": 15, "khidmatNasihat": 15, "kgFarms": 0, "kgTernakan": 0, "rbFarms": 7, "rbTernakan": 7, "bkFarms": 3, "bkTernakan": 17, "lawatSiasat": 15, "audit": 3, "persampelan": 20, "vaksinasi": 20, "ujianLapangan": 200, "mesyuarat": 3, "jumlah": 286, "sokongan": 0};
+    seed["KANGAR_2026_3_ZAKIAH"] = {"bilPenternak": 18, "khidmatNasihat": 18, "kgFarms": 18, "kgTernakan": 379, "rbFarms": 18, "rbTernakan": 164, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 5, "audit": 18, "persampelan": 84, "vaksinasi": 178, "ujianLapangan": 84, "mesyuarat": 5, "jumlah": 930, "sokongan": 0};
+    seed["KANGAR_2026_3_HARNANI"] = {"bilPenternak": 14, "khidmatNasihat": 14, "kgFarms": 12, "kgTernakan": 438, "rbFarms": 12, "rbTernakan": 190, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 3, "audit": 14, "persampelan": 79, "vaksinasi": 51, "ujianLapangan": 79, "mesyuarat": 3, "jumlah": 868, "sokongan": 0};
+    seed["KUALA KETIL_2026_3_AFIQ"] = {"bilPenternak": 24, "khidmatNasihat": 24, "kgFarms": 29, "kgTernakan": 152, "rbFarms": 23, "rbTernakan": 76, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 0, "audit": 0, "persampelan": 26, "vaksinasi": 0, "ujianLapangan": 0, "mesyuarat": 1, "jumlah": 103, "sokongan": 103};
+    seed["KUALA KETIL_2026_3_MANSOR"] = {"bilPenternak": 24, "khidmatNasihat": 24, "kgFarms": 29, "kgTernakan": 152, "rbFarms": 23, "rbTernakan": 76, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 0, "audit": 0, "persampelan": 26, "vaksinasi": 0, "ujianLapangan": 0, "mesyuarat": 1, "jumlah": 103, "sokongan": 103};
+    seed["ALOR SETAR_2026_3_SUHAI"] = {"bilPenternak": 15, "khidmatNasihat": 18, "kgFarms": 2, "kgTernakan": 112, "rbFarms": 3, "rbTernakan": 9, "bkFarms": 15, "bkTernakan": 245, "lawatSiasat": 2, "audit": 5, "persampelan": 0, "vaksinasi": 24, "ujianLapangan": 0, "mesyuarat": 4, "jumlah": 73, "sokongan": 7};
+    seed["KULIM_2026_3_UMI"] = {"bilPenternak": 18, "khidmatNasihat": 18, "kgFarms": 3, "kgTernakan": 16, "rbFarms": 7, "rbTernakan": 27, "bkFarms": 7, "bkTernakan": 11, "lawatSiasat": 14, "audit": 0, "persampelan": 0, "vaksinasi": 8, "ujianLapangan": 77, "mesyuarat": 1, "jumlah": 135, "sokongan": 0};
+    seed["KULIM_2026_3_AZIELA"] = {"bilPenternak": 14, "khidmatNasihat": 14, "kgFarms": 0, "kgTernakan": 0, "rbFarms": 3, "rbTernakan": 5, "bkFarms": 3, "bkTernakan": 20, "lawatSiasat": 6, "audit": 0, "persampelan": 27, "vaksinasi": 65, "ujianLapangan": 129, "mesyuarat": 1, "jumlah": 248, "sokongan": 0};
+    seed["SG BAKAP_2026_3_AZILA"] = {"bilPenternak": 12, "khidmatNasihat": 12, "kgFarms": 0, "kgTernakan": 0, "rbFarms": 2, "rbTernakan": 3, "bkFarms": 3, "bkTernakan": 53, "lawatSiasat": 0, "audit": 0, "persampelan": 0, "vaksinasi": 0, "ujianLapangan": 0, "mesyuarat": 2, "jumlah": 19, "sokongan": 0};
+    seed["SUNGAI PETANI_2026_3_SUHAIMI"] = {"bilPenternak": 43, "khidmatNasihat": 43, "kgFarms": 0, "kgTernakan": 0, "rbFarms": 3, "rbTernakan": 5, "bkFarms": 2, "bkTernakan": 2, "lawatSiasat": 6, "audit": 3, "persampelan": 70, "vaksinasi": 0, "ujianLapangan": 333, "mesyuarat": 0, "jumlah": 460, "sokongan": 0};
+    seed["SUNGAI PETANI_2026_3_NORAFIZA"] = {"bilPenternak": 60, "khidmatNasihat": 60, "kgFarms": 0, "kgTernakan": 0, "rbFarms": 5, "rbTernakan": 18, "bkFarms": 1, "bkTernakan": 1, "lawatSiasat": 8, "audit": 1, "persampelan": 97, "vaksinasi": 0, "ujianLapangan": 463, "mesyuarat": 1, "jumlah": 636, "sokongan": 0};
+    seed["SUNGAI PETANI_2026_3_NORYATI"] = {"bilPenternak": 36, "khidmatNasihat": 36, "kgFarms": 1, "kgTernakan": 10, "rbFarms": 2, "rbTernakan": 2, "bkFarms": 1, "bkTernakan": 1, "lawatSiasat": 7, "audit": 2, "persampelan": 73, "vaksinasi": 0, "ujianLapangan": 284, "mesyuarat": 1, "jumlah": 407, "sokongan": 0};
+    seed["GURUN_2026_4_NABILAH"] = {"bilPenternak": 25, "khidmatNasihat": 25, "kgFarms": 2, "kgTernakan": 26, "rbFarms": 0, "rbTernakan": 0, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 0, "audit": 2, "persampelan": 1, "vaksinasi": 66, "ujianLapangan": 1, "mesyuarat": 18, "jumlah": 115, "sokongan": 0};
+    seed["GURUN_2026_4_NURSHUHADA"] = {"bilPenternak": 37, "khidmatNasihat": 37, "kgFarms": 6, "kgTernakan": 80, "rbFarms": 4, "rbTernakan": 7, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 3, "audit": 3, "persampelan": 8, "vaksinasi": 66, "ujianLapangan": 1, "mesyuarat": 3, "jumlah": 131, "sokongan": 0};
+    seed["GURUN_2026_4_ATIQAH"] = {"bilPenternak": 26, "khidmatNasihat": 21, "kgFarms": 8, "kgTernakan": 115, "rbFarms": 5, "rbTernakan": 8, "bkFarms": 1, "bkTernakan": 10, "lawatSiasat": 7, "audit": 4, "persampelan": 1, "vaksinasi": 66, "ujianLapangan": 0, "mesyuarat": 1, "jumlah": 114, "sokongan": 0};
+    seed["GURUN_2026_4_SHUKOR"] = {"bilPenternak": 11, "khidmatNasihat": 11, "kgFarms": 7, "kgTernakan": 115, "rbFarms": 6, "rbTernakan": 8, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 6, "audit": 0, "persampelan": 0, "vaksinasi": 0, "ujianLapangan": 0, "mesyuarat": 0, "jumlah": 30, "sokongan": 0};
+    seed["JITRA_2026_4_NOR SUHADAH"] = {"bilPenternak": 31, "khidmatNasihat": 44, "kgFarms": 2, "kgTernakan": 25, "rbFarms": 19, "rbTernakan": 19, "bkFarms": 3, "bkTernakan": 51, "lawatSiasat": 40, "audit": 0, "persampelan": 92, "vaksinasi": 101, "ujianLapangan": 0, "mesyuarat": 1, "jumlah": 302, "sokongan": 0};
+    seed["ALOR SETAR_2026_4_SUHAI"] = {"bilPenternak": 11, "khidmatNasihat": 11, "kgFarms": 8, "kgTernakan": 154, "rbFarms": 2, "rbTernakan": 6, "bkFarms": 11, "bkTernakan": 18, "lawatSiasat": 0, "audit": 0, "persampelan": 0, "vaksinasi": 41, "ujianLapangan": 0, "mesyuarat": 0, "jumlah": 73, "sokongan": 0};
+    seed["SG BAKAP_2026_4_AZILA"] = {"bilPenternak": 15, "khidmatNasihat": 15, "kgFarms": 2, "kgTernakan": 124, "rbFarms": 1, "rbTernakan": 2, "bkFarms": 5, "bkTernakan": 34, "lawatSiasat": 0, "audit": 5, "persampelan": 22, "vaksinasi": 110, "ujianLapangan": 0, "mesyuarat": 2, "jumlah": 162, "sokongan": 0};
+    seed["KUALA KETIL_2026_4_AFIQ"] = {"bilPenternak": 25, "khidmatNasihat": 25, "kgFarms": 25, "kgTernakan": 84, "rbFarms": 20, "rbTernakan": 66, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 0, "audit": 0, "persampelan": 8, "vaksinasi": 50, "ujianLapangan": 0, "mesyuarat": 1, "jumlah": 129, "sokongan": 129};
+    seed["KUALA KETIL_2026_4_MANSOR"] = {"bilPenternak": 25, "khidmatNasihat": 25, "kgFarms": 25, "kgTernakan": 84, "rbFarms": 20, "rbTernakan": 66, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 0, "audit": 0, "persampelan": 8, "vaksinasi": 50, "ujianLapangan": 0, "mesyuarat": 1, "jumlah": 129, "sokongan": 129};
+    seed["SUNGAI PETANI_2026_4_SUHAIMI"] = {"bilPenternak": 26, "khidmatNasihat": 26, "kgFarms": 0, "kgTernakan": 0, "rbFarms": 0, "rbTernakan": 0, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 2, "audit": 0, "persampelan": 60, "vaksinasi": 50, "ujianLapangan": 294, "mesyuarat": 1, "jumlah": 433, "sokongan": 0};
+    seed["SUNGAI PETANI_2026_4_NORAFIZA"] = {"bilPenternak": 36, "khidmatNasihat": 36, "kgFarms": 0, "kgTernakan": 0, "rbFarms": 2, "rbTernakan": 2, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 2, "audit": 0, "persampelan": 62, "vaksinasi": 0, "ujianLapangan": 329, "mesyuarat": 0, "jumlah": 431, "sokongan": 0};
+    seed["SUNGAI PETANI_2026_4_NORYATI"] = {"bilPenternak": 36, "khidmatNasihat": 36, "kgFarms": 1, "kgTernakan": 10, "rbFarms": 4, "rbTernakan": 9, "bkFarms": 0, "bkTernakan": 0, "lawatSiasat": 6, "audit": 0, "persampelan": 48, "vaksinasi": 85, "ujianLapangan": 235, "mesyuarat": 0, "jumlah": 415, "sokongan": 0};
+    seed["KANGAR_2026_4_ZAKIAH"] = {"bilPenternak": 17, "khidmatNasihat": 17, "kgFarms": 11, "kgTernakan": 622, "rbFarms": 11, "rbTernakan": 281, "bkFarms": 1, "bkTernakan": 5, "lawatSiasat": 8, "audit": 17, "persampelan": 0, "vaksinasi": 14, "ujianLapangan": 0, "mesyuarat": 2, "jumlah": 81, "sokongan": 0};
+    seed["KANGAR_2026_4_HARNANI"] = {"bilPenternak": 13, "khidmatNasihat": 13, "kgFarms": 3, "kgTernakan": 435, "rbFarms": 3, "rbTernakan": 203, "bkFarms": 1, "bkTernakan": 5, "lawatSiasat": 0, "audit": 13, "persampelan": 0, "vaksinasi": 0, "ujianLapangan": 0, "mesyuarat": 1, "jumlah": 34, "sokongan": 0};
+    seed["KULIM_2026_4_UMI"] = {"bilPenternak": 18, "khidmatNasihat": 18, "kgFarms": 0, "kgTernakan": 0, "rbFarms": 4, "rbTernakan": 6, "bkFarms": 3, "bkTernakan": 3, "lawatSiasat": 2, "audit": 0, "persampelan": 0, "vaksinasi": 304, "ujianLapangan": 200, "mesyuarat": 0, "jumlah": 531, "sokongan": 0};
+    seed["KULIM_2026_4_AZIELA"] = {"bilPenternak": 15, "khidmatNasihat": 15, "kgFarms": 1, "kgTernakan": 20, "rbFarms": 8, "rbTernakan": 29, "bkFarms": 9, "bkTernakan": 10, "lawatSiasat": 10, "audit": 0, "persampelan": 114, "vaksinasi": 65, "ujianLapangan": 153, "mesyuarat": 0, "jumlah": 375, "sokongan": 0};
+    Object.keys(seed).forEach(function(k){
+      if(!ov[k]) ov[k] = seed[k];
+    });
+    saveLTKOverride(ov);
+    localStorage.setItem('vu_ltk_seeded_v1','1');
+  }catch(e){ console.error('seedHistoricalLTK error:', e); }
+}
+seedHistoricalLTK();
+
 function ltkKey(po,yr,mo,officer){ return po+'_'+yr+'_'+mo+(officer?('_'+officer):''); }
 
 // ── CALCULATE LOG TEKNIKAL FOR ONE MONTH ──────────
@@ -11106,6 +11319,17 @@ function getLTKOfficers(po, yr, mo){
       if(u) set[u] = true;
     });
   });
+  // Add any officer names that have manual override data for this PO/yr/mo (e.g. historical/departed officers)
+  try{
+    var ov = getLTKOverride();
+    var prefix = normPO(po)+'_'+yr+'_'+mo+'_';
+    Object.keys(ov).forEach(function(k){
+      if(k.indexOf(prefix)===0){
+        var officerPart = k.slice(prefix.length);
+        if(officerPart) set[officerPart] = true;
+      }
+    });
+  }catch(e){}
   return Object.keys(set).sort();
 }
 
@@ -11132,13 +11356,15 @@ function renderLTK(){
     }
   }
 
-  // Find months with SP03 data
+  // Find months with SP03 data OR manual override data (historical months entered manually)
   window._ltkCurrentPO = selectedLtkPO;
   var sp03 = getSP03().filter(function(r){ return r.yr===yr && (isMLAdmin() ? normPO(r.po)===normPO(selectedLtkPO) : r.po===CU.po); });
   var months = [];
+  var ovAll = getLTKOverride();
   for(var mo=0; mo<12; mo++){
     var moRecs = sp03.filter(function(r){ return r.mo===mo; });
-    if(moRecs.length > 0) months.push(mo);
+    var hasOverride = Object.keys(ovAll).some(function(k){ return k.indexOf(normPO(selectedLtkPO)+'_'+yr+'_'+mo+'_')===0; });
+    if(moRecs.length > 0 || hasOverride) months.push(mo);
   }
   // Apply month filter dropdown
   var moFilterSel = document.getElementById('ltk-mo');
@@ -11301,19 +11527,19 @@ function renderLTK(){
   var banner = document.getElementById('ltk-notif-banner');
   if(banner){
     var ov2 = getLTKOverride();
-    var missingAlasan = [];
+    var missingAlasanSet = {};
     months.forEach(function(mo){
       getLTKOfficers(selectedLtkPO, yr, mo).forEach(function(off){
-        var auto3 = calcLTKMonth(selectedLtkPO, yr, mo, off);
-        if(!auto3) return;
+        var auto3 = calcLTKMonth(selectedLtkPO, yr, mo, off) || {bilPenternak:0, jumlah:0};
         var key3 = ltkKey(selectedLtkPO, yr, mo, off);
         var ovr3 = ov2[key3]||{};
         var bilP3 = (ovr3.bilPenternak !== undefined ? ovr3.bilPenternak : auto3.bilPenternak);
         var jul3  = (ovr3.jumlah !== undefined ? ovr3.jumlah : auto3.jumlah);
         var hasAl = !!(ovr3.alasan && ovr3.alasan.trim());
-        if(bilP3 < 10 && jul3 < 30 && !hasAl) missingAlasan.push(mo);
+        if(bilP3 < 10 && jul3 < 30 && !hasAl) missingAlasanSet[mo] = true;
       });
     });
+    var missingAlasan = Object.keys(missingAlasanSet).map(Number).sort(function(a,b){return a-b;});
     if(missingAlasan.length){
       banner.style.display = 'block';
       banner.innerHTML = '&#9888; <b>'+missingAlasan.length+' bulan</b> memerlukan alasan (Bilangan Penternak &lt; 10 DAN Jumlah Aktiviti &lt; 30): <b>'+missingAlasan.map(function(m){return BLN_LTK[m];}).join(', ')+'</b> — Klik &#9998; Edit pada bulan berkenaan.';
@@ -13534,9 +13760,10 @@ function janaLaporanAkhir(){
   allPt.forEach(function(p){
     if(!ptByPO[p.po]) ptByPO[p.po]=[];
     ptByPO[p.po].push(p);
-    var pegNm = (pegMap[p.pegawaiId]||{}).nm || p.po;
-    if(!ptByPeg[pegNm]) ptByPeg[pegNm]={nm:pegNm, po:p.po, list:[]};
-    ptByPeg[pegNm].list.push(p);
+    var pegNm = (pegMap[p.pid]||{}).nm || p.pegawai || 'Tidak Diketahui';
+    var pegKey = pegNm+'__'+p.po;
+    if(!ptByPeg[pegKey]) ptByPeg[pegKey]={nm:pegNm, po:p.po, list:[]};
+    ptByPeg[pegKey].list.push(p);
   });
 
   // Visited / not visited for the year
@@ -13573,40 +13800,34 @@ function janaLaporanAkhir(){
     return {ba:baTot, bp:bpTot};
   }
 
-  // Per pegawai BA/BP monthly
+  // Per pegawai BA/BP monthly — built from REAL per-officer Log Teknikal data (same as Log Teknikal page)
   var pegBABP = {};
   var poBABP  = {};
   pos.forEach(function(po2){
     var poRow = {ba:0,bp:0,months:{}};
-    for(var mo=0;mo<12;mo++){
-      var a=calcLTKMonth(po2,yr,mo);
-      if(!a){ poRow.months[mo]={ba:0,bp:0}; continue; }
-      var key2=ltkKey(po2,yr,mo);
-      var ovr2=ov[key2]||{};
-      var ba=(ovr2.jumlah!==undefined?ovr2.jumlah:a.jumlah)||0;
-      var bp=(ovr2.bilPenternak!==undefined?ovr2.bilPenternak:a.bilPenternak)||0;
-      poRow.months[mo]={ba:ba,bp:bp};
-      poRow.ba+=ba; poRow.bp+=bp;
-    }
+    for(var mo=0;mo<12;mo++){ poRow.months[mo]={ba:0,bp:0}; }
+    var officersByMo = {};
+    for(var mo2=0;mo2<12;mo2++){ officersByMo[mo2] = getLTKOfficers(po2,yr,mo2); }
+    // Union of all officers appearing in any month for this PO
+    var allOfficersForPO = {};
+    Object.keys(officersByMo).forEach(function(mo3){ officersByMo[mo3].forEach(function(o){ if(o!=='ADMIN') allOfficersForPO[o]=true; }); });
+    Object.keys(allOfficersForPO).forEach(function(off){
+      var pegKey = off+'__'+po2;
+      var row = pegBABP[pegKey] || {nm:off, po:po2, ba:0, bp:0, months:{}};
+      for(var mo4=0;mo4<12;mo4++){
+        var a = calcLTKMonth(po2,yr,mo4,off) || {bilPenternak:0,jumlah:0};
+        var key4 = ltkKey(po2,yr,mo4,off);
+        var ovr4 = ov[key4]||{};
+        var ba4 = (ovr4.jumlah!==undefined?ovr4.jumlah:a.jumlah)||0;
+        var bp4 = (ovr4.bilPenternak!==undefined?ovr4.bilPenternak:a.bilPenternak)||0;
+        row.months[mo4] = {ba: (row.months[mo4]?row.months[mo4].ba:0)+ba4, bp:(row.months[mo4]?row.months[mo4].bp:0)+bp4};
+        row.ba += ba4; row.bp += bp4;
+        poRow.months[mo4].ba += ba4; poRow.months[mo4].bp += bp4;
+        poRow.ba += ba4; poRow.bp += bp4;
+      }
+      pegBABP[pegKey] = row;
+    });
     poBABP[po2]=poRow;
-  });
-  // Per pegawai - use ltk data grouped by pegawai
-  Object.keys(ptByPeg).forEach(function(pegNm){
-    var info=ptByPeg[pegNm];
-    var row={nm:pegNm,po:info.po,ba:0,bp:0,months:{}};
-    // Approximate: take fraction of PO's BA/BP based on penternak count ratio
-    var poTotal=(ptByPO[info.po]||[]).length;
-    var myCount=info.list.length;
-    var ratio=poTotal>0?myCount/poTotal:0;
-    var poRow=poBABP[info.po]||{ba:0,bp:0,months:{}};
-    for(var mo=0;mo<12;mo++){
-      var poMo=(poRow.months[mo])||{ba:0,bp:0};
-      var mba=Math.round(poMo.ba*ratio);
-      var mbp=Math.round(poMo.bp*ratio);
-      row.months[mo]={ba:mba,bp:mbp};
-      row.ba+=mba; row.bp+=mbp;
-    }
-    pegBABP[pegNm]=row;
   });
 
   // Kewangan summary
