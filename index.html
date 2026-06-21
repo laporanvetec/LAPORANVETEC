@@ -12506,8 +12506,9 @@ function renderStaffRPT(mo,yr){
   h+='<div style="font-size:11px;color:'+(lastSubmit?'#276749':'#c53030')+';margin-bottom:8px;font-weight:600">';
   h+=(lastSubmit?'&#9989; Data telah disahkan — boleh export dan hantar kepada NURSHUHADA':'&#9888; Sila sahkan data terlebih dahulu di atas sebelum export');
   h+='</div>';
-  h+='<p style="font-size:12px;color:#718096;margin:0 0 14px">Export semua data anda untuk '+BLN_RPT[mo]+' '+yr+' sebagai satu fail JSON untuk dihantar kepada NURSHUHADA.</p>';
+  h+='<p style="font-size:12px;color:#718096;margin:0 0 14px">Export semua data anda untuk '+BLN_RPT[mo]+' '+yr+' sebagai satu fail JSON untuk dihantar kepada NURSHUHADA, atau sebagai Excel berwarna untuk rujukan/cetak sendiri.</p>';
   h+='<button class="btn bg" onclick="exportMyData()" style="width:100%;padding:12px;font-size:13px">&#8659; Export Laporan Saya (JSON) — '+BLN_RPT[mo]+' '+yr+'</button>';
+  h+='<button class="btn" onclick="exportMyDataExcel()" style="width:100%;padding:12px;font-size:13px;margin-top:8px;background:#276749;color:#fff;border:none">&#128202; Export Laporan Saya (Excel Berwarna) — '+BLN_RPT[mo]+' '+yr+'</button>';
   h+='<div style="margin-top:10px;background:#f7fafc;border-radius:6px;padding:10px;font-size:11px;color:#718096">';
   h+='Fail JSON ini mengandungi: Senarai Penternak, Tarikh Sasaran, SP03, Log Teknikal, LTJ, Latihan, Teknologi, Inovasi.<br>';
   h+='Hantar fail ini kepada NURSHUHADA melalui WhatsApp atau email.</div>';
@@ -13217,6 +13218,45 @@ function renderAllOfficerSummary(mo,yr){
 }
 
 // ── EXPORT MY DATA (Staff) ────────────────────────
+// ── EXPORT MY DATA AS EXCEL (Staff) — reuses existing colorful exports ────
+function exportMyDataExcel(){
+  if(!CU) return;
+  ld();
+  var moRaw=document.getElementById('rpt-mo').value; var mo=(moRaw==='') ? new Date().getMonth() : parseInt(moRaw);
+  var yr=parseInt(document.getElementById('rpt-yr').value)||2026;
+  var exported = [];
+
+  try{
+    var dlMo = document.getElementById('dl-mo'), dlYr = document.getElementById('dl-yr');
+    if(dlMo) dlMo.value = mo;
+    if(dlYr) dlYr.value = yr;
+    var sp03Data = getSP03DataForDownload();
+    if(sp03Data.records.length){ exportSP03Excel(sp03Data); exported.push('SP03'); }
+  }catch(e){ console.error('SP03 export error:', e); }
+
+  try{
+    if(rRB.filter(function(r){return r.pid===CU.pid;}).length){ exRB(); exported.push('Pengeluaran RB'); }
+  }catch(e){ console.error('RB export error:', e); }
+
+  try{
+    if(rRK.filter(function(r){return r.pid===CU.pid;}).length){ exRK(); exported.push('Pengeluaran RK'); }
+  }catch(e){ console.error('RK export error:', e); }
+
+  try{
+    if(rUG.filter(function(r){return r.pid===CU.pid;}).length){ exUG(); exported.push('Pengeluaran UG'); }
+  }catch(e){ console.error('UG export error:', e); }
+
+  try{
+    exLTK(); exported.push('Log Teknikal');
+  }catch(e){ console.error('LTK export error:', e); }
+
+  if(exported.length){
+    toast('&#8659; '+exported.length+' fail Excel dimuat turun: '+exported.join(', '),'#276749');
+  } else {
+    toast('Tiada data untuk dieksport bagi tempoh ini','#c53030');
+  }
+}
+
 function exportMyData(){
   if(!CU) return;
   ld();
