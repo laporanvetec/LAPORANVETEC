@@ -1979,6 +1979,9 @@ function approveDeleteAs(reqId, mode){
       if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_sp03', JSON.stringify(sp03New));
     }
     
+    // Log gugur penternak
+    logGugurPenternak({nm:r.nm,po:r.requestedPO||r.po||'',j:r.j||'',al:r.al||'',rid:r.rid||''}, (CU&&CU.nm)||'ADMIN', r.sebab||r.reason||'', mode);
+
     // Mark request as approved
     reqs[idx].status = 'approved';
     reqs[idx].approvedBy = CU.nm;
@@ -4702,14 +4705,7 @@ function renderSP(){
       };
       pt.push(newP);
       sv();
-      // Log tambah penternak
-      try{
-        var tambahLog=JSON.parse(localStorage.getItem('vu_tambah_log')||'[]');
-        var now=new Date();
-        tambahLog.push({nm:newP.nm,po:newP.po,j:newP.j,al:newP.al||'',bulan:now.getMonth(),tahun:now.getFullYear(),tarikhTambah:now.toLocaleDateString('ms-MY'),tambahOleh:(window.CU&&window.CU.nm)||''});
-        localStorage.setItem('vu_tambah_log',JSON.stringify(tambahLog));
-        if(window.GS_READY&&typeof rtWrite==='function') rtWrite('vu_tambah_log',JSON.stringify(tambahLog));
-      }catch(e){}
+      logTambahPenternak(newP);
       toast('&#9989; '+data.nm+' ditambah ke LBL anda','#276749');
       renderSP();
     };
@@ -5117,8 +5113,10 @@ function saveP(){
   } else if(existingP){
     // Admin editing masterlist-only entry - add to pt
     pt.push(p);
+    logTambahPenternak(p,'ADMIN');
   } else {
     pt.push(p);
+    logTambahPenternak(p,(window.CU&&window.CU.nm)||'');
   }
   sv();
   
@@ -5299,18 +5297,7 @@ function confirmDeletePenternak(targetRid, alsoML){
   
   if(alsoML){
     // Log penternak gugur sebelum padam
-    try{
-      var gugurLog = JSON.parse(localStorage.getItem('vu_gugur_log')||'[]');
-      gugurLog.push({
-        nm: p.nm||'', po: p.po||'', j: p.j||'', al: p.al||'',
-        sebab: '', // boleh admin isi kemudian
-        tarikhGugur: new Date().toLocaleDateString('ms-MY'),
-        gugurOleh: (window.CU && window.CU.nm)||'ADMIN',
-        rid: targetRid
-      });
-      localStorage.setItem('vu_gugur_log', JSON.stringify(gugurLog));
-      if(window.GS_READY && typeof rtWrite==='function') rtWrite('vu_gugur_log', JSON.stringify(gugurLog));
-    }catch(e){}
+    logGugurPenternak(p, (window.CU&&window.CU.nm)||'ADMIN', '', 'full');
 
     // Delete from masterlist too
     var ml2 = JSON.parse(localStorage.getItem('vu_ml')||'[]');
@@ -10671,7 +10658,7 @@ function saveS3Manual(addToSenarai){
         al:document.getElementById('s3add-al').value.trim(),
         bn:'',pv:'',tl:'',tr:tarikhStr,lat:'',lng:''
       };
-      pt.push(np); sv();
+      pt.push(np); sv(); logTambahPenternak(np);
       farmRid=newRid;
       // Sync tarikh
       if(tarikhStr) syncSebenarFromTr(pt.length-1, yr);
@@ -11007,6 +10994,26 @@ var BLN_LTK = ['JAN','FEB','MAC','APR','MEI','JUN','JUL','OGO','SEP','OKT','NOV'
 var BLN_FULL = ['Januari','Februari','Mac','April','Mei','Jun','Julai','Ogos','September','Oktober','November','Disember'];
 
 function getLTKOverride(){ return JSON.parse(localStorage.getItem('vu_ltk_ov')||'{}'); }
+
+// Log tambah/gugur penternak
+function logTambahPenternak(p, oleh){
+  try{
+    var log=JSON.parse(localStorage.getItem('vu_tambah_log')||'[]');
+    var now=new Date();
+    log.push({nm:p.nm||'',po:p.po||'',j:p.j||'',al:p.al||'',bulan:now.getMonth(),tahun:now.getFullYear(),tarikhTambah:now.toLocaleDateString('ms-MY'),tambahOleh:oleh||(window.CU&&window.CU.nm)||''});
+    localStorage.setItem('vu_tambah_log',JSON.stringify(log));
+    if(window.GS_READY&&typeof rtWrite==='function') rtWrite('vu_tambah_log',JSON.stringify(log));
+  }catch(e){}
+}
+function logGugurPenternak(p, oleh, sebab, mode){
+  try{
+    var log=JSON.parse(localStorage.getItem('vu_gugur_log')||'[]');
+    var now=new Date();
+    log.push({nm:p.nm||'',po:p.po||'',j:p.j||'',al:p.al||'',sebab:sebab||'',bulan:now.getMonth(),tahun:now.getFullYear(),tarikhGugur:now.toLocaleDateString('ms-MY'),gugurOleh:oleh||(window.CU&&window.CU.nm)||'',mode:mode||'',rid:p.rid||''});
+    localStorage.setItem('vu_gugur_log',JSON.stringify(log));
+    if(window.GS_READY&&typeof rtWrite==='function') rtWrite('vu_gugur_log',JSON.stringify(log));
+  }catch(e){}
+}
 function saveLTKOverride(d){ localStorage.setItem('vu_ltk_ov', JSON.stringify(d)); }
 
 // One-time seed: historical Log Teknikal data (Jan-Mei 2026), entered manually since
@@ -12461,7 +12468,7 @@ function mergePoData(pkg){
     d.penternak.forEach(function(np){
       var ei=pt.findIndex(function(p){return p.rid===np.rid||(p.nm===np.nm&&p.po===np.po);});
       if(ei>=0){ pt[ei]=Object.assign(pt[ei],np); }
-      else { pt.push(np); counts.ptCount++; }
+      else { pt.push(np); logTambahPenternak(np,'Import'); counts.ptCount++; }
     });
     sv();
   }
@@ -15204,7 +15211,7 @@ function addFromML(){
       return normStr(p.nm)===normStr(r.nm) && normStr(p.po)===normStr(CU.po) && normStr(p.j||'')===normStr(r.j||'');
     });
     if(exists) return;
-    pt.push({
+    var _np_ml = {
       rid: r.rid||('pt_ml_'+Date.now()+'_'+Math.random().toString(36).substr(2,4)),
       pid: CU.pid,
       po: CU.po,
@@ -15220,7 +15227,9 @@ function addFromML(){
       lat: r.lat||'',
       lng: r.lng||'',
       pegawaiId: CU.pid
-    });
+    };
+    pt.push(_np_ml);
+    logTambahPenternak(_np_ml);
     added++;
   });
 
