@@ -13344,6 +13344,10 @@ function renderAdminRPT(mo,yr){
   h+='<small style="opacity:.8">← Jumlah penternak tahun lalu sebagai perbandingan</small>';
   h+='</div>';
   h+='<button class="btn" onclick="janaLaporanAkhir()" style="background:#fff;color:#c53030;padding:12px 24px;font-size:14px;font-weight:800;border-radius:8px;width:100%;border:none;cursor:pointer">&#128196; JANA LAPORAN AKHIR SEKARANG</button>';
+  h+='<div style="display:flex;gap:8px;margin-top:8px">';
+  h+='<button class="btn" onclick="exportRptExcel()" style="background:#276749;color:#fff;padding:10px;font-size:12px;font-weight:700;border-radius:8px;flex:1;border:none;cursor:pointer">&#128202; Export Excel Berwarna</button>';
+  h+='<button class="btn" onclick="exportRptPPT()" style="background:#2b4acf;color:#fff;padding:10px;font-size:12px;font-weight:700;border-radius:8px;flex:1;border:none;cursor:pointer">&#128203; Export PowerPoint</button>';
+  h+='</div>';
   h+='</div>';
   h+='<div id="rpt-final-output"></div>';
 
@@ -13779,6 +13783,583 @@ var PO_COLORS = {'GURUN':'#F9C000','ALOR SETAR':'#00B0F0','KUALA KETIL':'#00B050
 function fPct(a,b){ return b>0?((a/b)*100).toFixed(1)+'%':'0%'; }
 function fNum(n){ return (n||0).toLocaleString(); }
 
+function exportRptExcel(){
+  if(typeof XLSX==='undefined'){alert('Excel belum dimuatkan.');return;}
+  ld();
+  var yr=parseInt(document.getElementById('rpt-final-yr').value)||2026;
+  var baseline=parseInt(document.getElementById('rpt-baseline').value)||671;
+  var ov=getLTKOverride();
+  var wb=XLSX.utils.book_new();
+  var BLN=['Januari','Februari','Mac','April','Mei','Jun','Julai','Ogos','September','Oktober','November','Disember'];
+  var BSHRT=['JAN','FEB','MAC','APR','MEI','JUN','JUL','OGO','SEP','OKT','NOV','DIS'];
+  var C={navy:'0F2D5E',gold:'F9C000',green:'276749',red:'C53030',white:'FFFFFF',lb:'EBF4FF',lg:'F0FFF4',gray:'F7FAFC',teal:'0D9488',purple:'553C9A',orange:'FF6600'};
+  function fRM(v){return 'RM '+parseFloat(v||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');}
+  function fPCT(a,b){return b?((a/b)*100).toFixed(1)+'%':'0.0%';}
+  function H(v,bg,fc,sz){return {v:v,t:'s',s:{fill:{fgColor:{rgb:bg||C.navy}},font:{bold:true,color:{rgb:fc||C.white},sz:sz||10},alignment:{horizontal:'center',vertical:'center',wrapText:true},border:{top:{style:'thin',color:{rgb:'000000'}},bottom:{style:'thin',color:{rgb:'000000'}},left:{style:'thin',color:{rgb:'000000'}},right:{style:'thin',color:{rgb:'000000'}}}}};}
+  function D(v,bg,bold,color,align){return {v:v===null||v===undefined?'':v,t:'s',s:{fill:{fgColor:{rgb:bg||C.white}},font:{bold:!!bold,color:{rgb:color||'1E293B'},sz:9},alignment:{horizontal:align||'center',vertical:'center'},border:{top:{style:'thin',color:{rgb:'CBD5E0'}},bottom:{style:'thin',color:{rgb:'CBD5E0'}},left:{style:'thin',color:{rgb:'CBD5E0'}},right:{style:'thin',color:{rgb:'CBD5E0'}}}}};}
+
+  // Prepare shared data (mirrors janaLaporanAkhir logic)
+  var allPt=pt, allPeg=peg;
+  var pegMap2={};
+  allPeg.forEach(function(g){ pegMap2[g.id]={nm:g.nm,po:g.po}; });
+  var ptByPO2={},ptByPeg2={};
+  allPt.forEach(function(p){
+    var poN=normPO(p.po);
+    if(!ptByPO2[poN]) ptByPO2[poN]=[];
+    ptByPO2[poN].push(p);
+    var nm=(pegMap2[p.pid]||{}).nm||p.pegawai||'Tidak Diketahui';
+    var k=nm+'__'+poN;
+    if(!ptByPeg2[k]) ptByPeg2[k]={nm:nm,po:poN,list:[]};
+    ptByPeg2[k].list.push(p);
+  });
+  function isVis(p){ if(!p.tr) return false; var t=(p.tr||'').split('/'); var d=new Date(t[2],t[1]-1,t[0]); return d.getFullYear()===yr; }
+  var visited=allPt.filter(isVis).length;
+  var ltjAll2=getLTJ().filter(function(r){return r.yr===yr;});
+  var ltjPt2={};
+  allPt.forEach(function(p){ if(p.tlj||p.ltjCount){ var rid=p.rid||p.id; ltjPt2[rid]={p:p,cum:p.ltjCount||0}; }});
+  ltjAll2.forEach(function(r){ var rid=r.rid||r.ptId; if(!ltjPt2[rid]&&rid){ var ptFound=allPt.find(function(pp){return pp.rid===rid||pp.id===rid;}); if(ptFound) ltjPt2[rid]={p:ptFound,cum:0}; } if(ltjPt2[rid]) ltjPt2[rid].cum++; });
+  var kwAll2=getKW().filter(function(r){return r.yr===yr;});
+  var kwByPTJ={KEDAH:{asal:0,jb:0},PENANG:{asal:0,jb:0},PERLIS:{asal:0,jb:0}};
+  kwAll2.forEach(function(r){ var k=(r.ptj||'KEDAH').toUpperCase(); if(k.indexOf('PENANG')>=0||k.indexOf('PINANG')>=0) k='PENANG'; else if(k.indexOf('PERLIS')>=0) k='PERLIS'; else k='KEDAH'; kwByPTJ[k].asal+=(r.asal||0)+(r.vtambah||0)-(r.vkurang||0); kwByPTJ[k].jb+=(r.tanggung||0)+(r.sebenar||0); });
+
+  // ── SHEET 1: RINGKASAN EKSEKUTIF ──
+  var r1=[];
+  r1.push([H('LAPORAN TAHUNAN VETEC UTARA '+yr,C.navy,C.gold,14)]);
+  r1.push([H('JABATAN PERKHIDMATAN VETERINAR MALAYSIA | KEDAH / PERLIS / PULAU PINANG',C.teal,C.white,10)]);
+  r1.push([]);
+  var totalBA=0,totalBP=0;
+  PO_LIST.forEach(function(po2){
+    for(var mo=0;mo<12;mo++){
+      getLTKOfficersPrimary(po2,yr,mo).forEach(function(off){
+        if(off==='ADMIN')return;
+        var a=calcLTKMonth(po2,yr,mo,off)||{bilPenternak:0,jumlah:0};
+        var k2=ltkKey(po2,yr,mo,off);var ov2=ov[k2]||{};
+        totalBA+=(ov2.jumlah!==undefined?ov2.jumlah:a.jumlah)||0;
+        totalBP+=(ov2.bilPenternak!==undefined?ov2.bilPenternak:a.bilPenternak)||0;
+      });
+    }
+  });
+  var ltjMet=Object.values(ltjPt2).filter(function(x){return x.cum>=3;}).length;
+  var ltjTotal=Object.keys(ltjPt2).length;
+  var kwTotAsal=kwByPTJ.KEDAH.asal+kwByPTJ.PENANG.asal+kwByPTJ.PERLIS.asal;
+  var kwTotJB=kwByPTJ.KEDAH.jb+kwByPTJ.PENANG.jb+kwByPTJ.PERLIS.jb;
+  r1.push([H('ITEM',C.purple),H('NILAI',C.purple),H('CATATAN',C.purple)]);
+  var stats2=[['Jumlah Penternak VetEC',allPt.length,'Keseluruhan 8 PO'],['Pegawai Teknikal Aktif',allPeg.filter(function(g){return g.nm!=='ADMIN';}).length,''],['Penternak Dilawat '+yr,visited,fPCT(visited,allPt.length)+' daripada jumlah'],['Belum Dilawat',allPt.length-visited,fPCT(allPt.length-visited,allPt.length)+' belum dilawat'],['Jumlah Aktiviti (BA)',totalBA,''],['Jumlah Lawatan (BP)',totalBP,''],['LTJ Cukup 3x',ltjMet+' / '+ltjTotal,fPCT(ltjMet,ltjTotal||1)+' sasaran tercapai'],['Peruntukan Kewangan',fRM(kwTotAsal),''],['Jumlah Belanja',fRM(kwTotJB),fPCT(kwTotJB,kwTotAsal||1)+' daripada peruntukan']];
+  stats2.forEach(function(s,i){ r1.push([D(s[0],i%2?C.lb:C.white,true,C.navy,'left'),D(s[1],i%2?C.lb:C.white,true,C.green,'center'),D(s[2],i%2?C.lb:C.white,false,'718096','left')]); });
+  var ws1=XLSX.utils.aoa_to_sheet(r1);
+  ws1['!cols']=[{wch:30},{wch:20},{wch:35}];
+  ws1['!merges']=[{s:{r:0,c:0},e:{r:0,c:2}},{s:{r:1,c:0},e:{r:1,c:2}}];
+  ws1['!rows']=[{hpt:36},{hpt:24}];
+  XLSX.utils.book_append_sheet(wb,ws1,'RINGKASAN');
+
+  // ── SHEET 2: SENARAI PENTERNAK MENGIKUT PO & PEGAWAI ──
+  var r2=[[H('NO'),H('PO'),H('BIL PEGAWAI'),H('BIL PENTERNAK'),H('% DARI VETEC'),H('DILAWAT '+yr,C.teal),H('% DILAWAT',C.teal),H('BELUM LAWAT',C.red)]];
+  PO_LIST.forEach(function(po2,i){
+    var ptPO=(ptByPO2[po2]||[]);
+    var pg=allPeg.filter(function(g){return normPO(g.po)===po2&&g.nm!=='ADMIN';});
+    var vis=ptPO.filter(isVis).length;
+    var bg=i%2?C.lb:C.white;
+    r2.push([D(i+1,bg,true),D(po2,bg,true,C.navy,'left'),D(pg.length,bg),D(ptPO.length,bg,true),D(fPCT(ptPO.length,allPt.length),bg),D(vis,bg,false,C.green),D(fPCT(vis,ptPO.length||1),bg),D(ptPO.length-vis,bg,false,C.red)]);
+  });
+  r2.push([D('JUMLAH',C.gold,true,'000000'),D('',C.gold),D(allPeg.filter(function(g){return g.nm!=='ADMIN';}).length,C.gold,true),D(allPt.length,C.gold,true),D('100%',C.gold,true),D(visited,C.gold,true,C.green),D(fPCT(visited,allPt.length),C.gold,true),D(allPt.length-visited,C.gold,true,C.red)]);
+  r2.push([]);
+  r2.push([H('KEDUDUKAN'),H('PEGAWAI'),H('PO'),H('BIL PENTERNAK'),H('% DARI VETEC'),H('DILAWAT',C.teal),H('% DILAWAT',C.teal),H('BELUM LAWAT',C.red)]);
+  var pList=Object.values(ptByPeg2).filter(function(x){return x.nm!=='ADMIN';});
+  pList.sort(function(a,b){return b.list.length-a.list.length;});
+  pList.forEach(function(info,i){
+    var vis2=info.list.filter(isVis).length;
+    var bg=i%2?'F0F9FF':C.white;
+    r2.push([D(i+1,bg,true,i<3?C.red:C.navy),D(info.nm,bg,true,C.navy,'left'),D(info.po,bg,false,'475569','left'),D(info.list.length,bg,true),D(fPCT(info.list.length,allPt.length),bg),D(vis2,bg,false,C.green),D(fPCT(vis2,info.list.length||1),bg),D(info.list.length-vis2,bg,false,C.red)]);
+  });
+  var ws2=XLSX.utils.aoa_to_sheet(r2);
+  ws2['!cols']=[{wch:6},{wch:18},{wch:10},{wch:14},{wch:12},{wch:12},{wch:12},{wch:12}];
+  ws2['!rows']=[{hpt:28}];
+  ws2['!freeze']={xSplit:0,ySplit:1};
+  XLSX.utils.book_append_sheet(wb,ws2,'SENARAI PENTERNAK');
+
+  // ── SHEET 3: LTJ ──
+  var r3=[[H('NO'),H('PUSAT OPERASI'),H('BIL PENTERNAK LTJ'),H('SASARAN LAWATAN'),H('PENCAPAIAN LAWATAN',C.teal),H('CUKUP 3x',C.green),H('% PENCAPAIAN',C.gold,'000000')]];
+  var ltjByPO2={};
+  Object.values(ltjPt2).forEach(function(x){ var po3=normPO(x.p.po); if(!ltjByPO2[po3]) ltjByPO2[po3]={total:0,met:0,visits:0}; ltjByPO2[po3].total++; if(x.cum>=3) ltjByPO2[po3].met++; ltjByPO2[po3].visits+=x.cum; });
+  var ltjTotT=0,ltjTotV=0,ltjTotM=0;
+  PO_LIST.forEach(function(po2,i){
+    var row=ltjByPO2[po2]||{total:0,met:0,visits:0};
+    var bg=i%2?C.lb:C.white; var pct=parseFloat(fPCT(row.visits,(row.total*3)||1));
+    ltjTotT+=row.total;ltjTotV+=row.visits;ltjTotM+=row.met;
+    r3.push([D(i+1,bg,true),D(po2,bg,true,C.navy,'left'),D(row.total,bg),D(row.total*3,bg),D(row.visits,bg,false,C.green),D(row.met+' / '+row.total,bg,true,row.met===row.total&&row.total>0?C.green:C.red),D(fPCT(row.visits,(row.total*3)||1),bg,true,pct>=80?C.green:pct>=50?'744210':C.red)]);
+  });
+  r3.push([D('JUMLAH',C.gold,true,'000000'),D('KESELURUHAN',C.gold,true,'000000'),D(ltjTotT,C.gold,true),D(ltjTotT*3,C.gold,true),D(ltjTotV,C.gold,true,C.green),D(ltjTotM+' / '+ltjTotT,C.gold,true),D(fPCT(ltjTotV,(ltjTotT*3)||1),C.gold,true)]);
+  var ws3=XLSX.utils.aoa_to_sheet(r3);
+  ws3['!cols']=[{wch:5},{wch:18},{wch:16},{wch:16},{wch:18},{wch:14},{wch:14}];
+  ws3['!rows']=[{hpt:28}];
+  XLSX.utils.book_append_sheet(wb,ws3,'LTJ');
+
+  // ── SHEET 4: KEWANGAN ──
+  var r4=[[H('PTJ'),H('PERUNTUKAN TAHUN SEMASA (RM)',C.purple),H('JUMLAH BELANJA (RM)',C.teal),H('BAKI (RM)',C.green),H('% BELANJA',C.gold,'000000'),H('STATUS')]];
+  var kwTotA=0,kwTotJ=0;
+  ['KEDAH','PENANG','PERLIS'].forEach(function(ptj,i){
+    var row=kwByPTJ[ptj]||{asal:0,jb:0};
+    var baki=row.asal-row.jb; var pct=row.asal>0?(row.jb/row.asal*100):0;
+    kwTotA+=row.asal;kwTotJ+=row.jb;
+    var bg=i%2?'F3E8FF':'FAF5FF';
+    r4.push([D('PTJ '+ptj,bg,true,C.navy,'left'),D(fRM(row.asal),bg,false,'1E293B','right'),D(fRM(row.jb),bg,false,'2b6cb0','right'),D(fRM(baki),bg,false,baki<0?C.red:C.green,'right'),D(pct.toFixed(2)+'%',bg,true,pct>=100?C.red:pct>=90?C.green:'744210'),D(pct>=95?'Baik':'Perlu Tindakan',bg,false,pct>=95?C.green:C.red)]);
+  });
+  var kwTotB=kwTotA-kwTotJ; var kwTotP=kwTotA>0?(kwTotJ/kwTotA*100):0;
+  r4.push([D('JUMLAH','DDA0DD',true,'000000','left'),D(fRM(kwTotA),'DDA0DD',true,'000000','right'),D(fRM(kwTotJ),'DDA0DD',true,'2b6cb0','right'),D(fRM(kwTotB),'DDA0DD',true,kwTotB<0?C.red:C.green,'right'),D(kwTotP.toFixed(2)+'%','DDA0DD',true),D(kwTotP>=95?'Baik':'Perlu Tindakan','DDA0DD',true,kwTotP>=95?C.green:C.red)]);
+  var ws4=XLSX.utils.aoa_to_sheet(r4);
+  ws4['!cols']=[{wch:16},{wch:24},{wch:22},{wch:18},{wch:12},{wch:20}];
+  ws4['!rows']=[{hpt:28}];
+  XLSX.utils.book_append_sheet(wb,ws4,'KEWANGAN');
+
+  // ── SHEET 5: KEDUDUKAN PEGAWAI MENGIKUT BP ──
+  var r5=[[H('KEDUDUKAN',C.gold,'000000'),H('PEGAWAI TEKNIKAL'),H('PUSAT OPERASI'),H('BIL PENTERNAK (BP)',C.teal),H('JUMLAH AKTIVITI (BA)',C.green),H('AVG BP/BULAN','7030A0')]];
+  var pegBA2=[];
+  PO_LIST.forEach(function(po2){
+    var allOff2={};
+    for(var mo=0;mo<12;mo++){getLTKOfficersPrimary(po2,yr,mo).forEach(function(o){if(o!=='ADMIN')allOff2[o]=true;});}
+    Object.keys(allOff2).sort().forEach(function(off){
+      var ba=0,bp=0;
+      for(var mo=0;mo<12;mo++){
+        var a=calcLTKMonth(po2,yr,mo,off)||{bilPenternak:0,jumlah:0};
+        var k2=ltkKey(po2,yr,mo,off);var ovr2=ov[k2]||{};
+        ba+=(ovr2.jumlah!==undefined?ovr2.jumlah:a.jumlah)||0;
+        bp+=(ovr2.bilPenternak!==undefined?ovr2.bilPenternak:a.bilPenternak)||0;
+      }
+      pegBA2.push({nm:off,po:po2,ba:ba,bp:bp});
+    });
+  });
+  pegBA2.sort(function(a,b){return b.bp-a.bp;});
+  pegBA2.forEach(function(p,i){
+    var bg=i<3?'FFF9C4':i%2?'F0F9FF':C.white;
+    var medal=i===0?'🥇 ':i===1?'🥈 ':i===2?'🥉 ':'';
+    r5.push([D(i+1,bg,true,i<3?C.red:C.navy),D(medal+p.nm,bg,true,C.navy,'left'),D(p.po,bg,false,'475569','left'),D(p.bp,bg,true,C.teal),D(p.ba,bg,true,C.green),D((p.bp/12).toFixed(1)+'x',bg,false,'553c9a')]);
+  });
+  var ws5=XLSX.utils.aoa_to_sheet(r5);
+  ws5['!cols']=[{wch:10},{wch:20},{wch:16},{wch:18},{wch:18},{wch:14}];
+  ws5['!rows']=[{hpt:28}];
+  ws5['!freeze']={xSplit:0,ySplit:1};
+  XLSX.utils.book_append_sheet(wb,ws5,'KEDUDUKAN PEGAWAI');
+
+  // ── SHEET 6: BA/BP MENGIKUT PO (12 BULAN) ──
+  // Helper: merged cell placeholder (same fill as parent, NO border — invisible within merge)
+  function MP(rgb){return {v:'',t:'s',s:{fill:{fgColor:{rgb:rgb||'0F2D5E'}},font:{sz:1},border:{}}};}
+
+  // ── SHEET 6: BA/BP MENGIKUT PO (2-row header, proper merges) ──
+  // Row 0: fixed cols (rowspan) | month names (colspan) | JUMLAH/KDK (rowspan)
+  var h6r0=[H('NO'),H('PUSAT OPERASI','0F2D5E')];
+  BSHRT.forEach(function(m){ h6r0.push(H(m,'0D7377')); h6r0.push(MP('0D7377')); });
+  h6r0.push(H('JUMLAH BP',C.gold,'000000')); h6r0.push(H('JUMLAH BA',C.gold,'000000'));
+  h6r0.push(H('KDK BP',C.purple)); h6r0.push(H('KDK BA',C.purple));
+  // Row 1: placeholders for rowspan cols | BA/BP for each month | placeholders for rowspan
+  var h6r1=[MP('0F2D5E'),MP('0F2D5E')];
+  BSHRT.forEach(function(){ h6r1.push(H('BP','0D7377')); h6r1.push(H('BA','1A5F63')); });
+  h6r1.push(MP(C.gold)); h6r1.push(MP(C.gold)); h6r1.push(MP(C.purple)); h6r1.push(MP(C.purple));
+  var r6=[h6r0,h6r1];
+  // Merges for Sheet 6
+  var m6=[{s:{r:0,c:0},e:{r:1,c:0}},{s:{r:0,c:1},e:{r:1,c:1}}]; // NO, PO rowspan
+  BSHRT.forEach(function(_,i){ m6.push({s:{r:0,c:2+i*2},e:{r:0,c:3+i*2}}); }); // month colspan
+  var j6=2+BSHRT.length*2;
+  [{c:j6},{c:j6+1},{c:j6+2},{c:j6+3}].forEach(function(x){ m6.push({s:{r:0,c:x.c},e:{r:1,c:x.c}}); }); // JUMLAH/KDK rowspan
+
+  // Pre-compute rankings
+  var po6tot={};
+  PO_LIST.forEach(function(po2){
+    var officers2=[];for(var mo=0;mo<12;mo++){getLTKOfficersPrimary(po2,yr,mo).forEach(function(o){if(o!=='ADMIN'&&officers2.indexOf(o)<0)officers2.push(o);});}
+    var tBA=0,tBP=0;
+    for(var mo=0;mo<12;mo++){officers2.forEach(function(off){var a=calcLTKMonth(po2,yr,mo,off)||{bilPenternak:0,jumlah:0};var k2=ltkKey(po2,yr,mo,off);var ov2=ov[k2]||{};tBA+=(ov2.jumlah!==undefined?ov2.jumlah:a.jumlah)||0;tBP+=(ov2.bilPenternak!==undefined?ov2.bilPenternak:a.bilPenternak)||0;});}
+    po6tot[po2]={ba:tBA,bp:tBP};
+  });
+  var sortedPO6BP=PO_LIST.slice().sort(function(a,b){return po6tot[b].bp-po6tot[a].bp;});
+  var sortedPO6BA=PO_LIST.slice().sort(function(a,b){return po6tot[b].ba-po6tot[a].ba;});
+  PO_LIST.forEach(function(po2,idx){
+    var officers2=[];for(var mo=0;mo<12;mo++){getLTKOfficersPrimary(po2,yr,mo).forEach(function(o){if(o!=='ADMIN'&&officers2.indexOf(o)<0)officers2.push(o);});}
+    var tBA=0,tBP=0,mData=[];
+    for(var mo=0;mo<12;mo++){var ba=0,bp=0;officers2.forEach(function(off){var a=calcLTKMonth(po2,yr,mo,off)||{bilPenternak:0,jumlah:0};var k2=ltkKey(po2,yr,mo,off);var ov2=ov[k2]||{};ba+=(ov2.jumlah!==undefined?ov2.jumlah:a.jumlah)||0;bp+=(ov2.bilPenternak!==undefined?ov2.bilPenternak:a.bilPenternak)||0;});mData.push(bp,ba);tBA+=ba;tBP+=bp;}
+    var rkBP6=sortedPO6BP.indexOf(po2)+1,rkBA6=sortedPO6BA.indexOf(po2)+1;
+    var bg=idx%2?C.lb:C.white;
+    var row=[D(idx+1,bg,true),D(po2,bg,true,C.navy,'left')];
+    mData.forEach(function(v){row.push(D(v||0,bg));});
+    row.push(D(tBP,C.lg,true,C.teal));row.push(D(tBA,C.lg,true,C.green));
+    row.push(D(rkBP6,rkBP6<=3?'FFF9C4':bg,true,rkBP6===1?C.red:rkBP6<=3?'744210':C.purple));
+    row.push(D(rkBA6,rkBA6<=3?'FFF9C4':bg,true,rkBA6===1?C.red:rkBA6<=3?'744210':C.purple));
+    r6.push(row);
+  });
+  var ws6=XLSX.utils.aoa_to_sheet(r6);
+  ws6['!cols']=[{wch:5},{wch:16}].concat(BSHRT.map(function(){return [{wch:6},{wch:6}];}).reduce(function(a,b){return a.concat(b);})).concat([{wch:10},{wch:10},{wch:8},{wch:8}]);
+  ws6['!rows']=[{hpt:28},{hpt:20}];
+  ws6['!merges']=m6;
+  ws6['!freeze']={xSplit:2,ySplit:2};
+  XLSX.utils.book_append_sheet(wb,ws6,'BA_BP MENGIKUT PO');
+
+  // ── SHEET 7: BA/BP MENGIKUT PEGAWAI (2-row header, proper merges) ──
+  var h7r0=[H('NO'),H('PEGAWAI TEKNIKAL','0F2D5E'),H('PUSAT OPERASI','0F2D5E')];
+  BSHRT.forEach(function(m){ h7r0.push(H(m,'0D7377')); h7r0.push(MP('0D7377')); });
+  h7r0.push(H('JUMLAH BA',C.gold,'000000'));h7r0.push(H('JUMLAH BP',C.gold,'000000'));
+  h7r0.push(H('KDK BP',C.purple));h7r0.push(H('KDK BA',C.purple));
+  var h7r1=[MP('0F2D5E'),MP('0F2D5E'),MP('0F2D5E')];
+  BSHRT.forEach(function(){ h7r1.push(H('BA','0D7377')); h7r1.push(H('BP','1A5F63')); });
+  h7r1.push(MP(C.gold));h7r1.push(MP(C.gold));h7r1.push(MP(C.purple));h7r1.push(MP(C.purple));
+  var r7=[h7r0,h7r1];
+  var m7=[{s:{r:0,c:0},e:{r:1,c:0}},{s:{r:0,c:1},e:{r:1,c:1}},{s:{r:0,c:2},e:{r:1,c:2}}];
+  BSHRT.forEach(function(_,i){ m7.push({s:{r:0,c:3+i*2},e:{r:0,c:4+i*2}}); });
+  var j7=3+BSHRT.length*2;
+  [{c:j7},{c:j7+1},{c:j7+2},{c:j7+3}].forEach(function(x){ m7.push({s:{r:0,c:x.c},e:{r:1,c:x.c}}); });
+
+  var allPegRows=[],rowIdx7=0;
+  PO_LIST.forEach(function(po2){
+    var allOff3={};for(var mo=0;mo<12;mo++){getLTKOfficersPrimary(po2,yr,mo).forEach(function(o){if(o!=='ADMIN')allOff3[o]=true;});}
+    Object.keys(allOff3).sort().forEach(function(off){
+      var tBA=0,tBP=0,mData=[];
+      for(var mo=0;mo<12;mo++){var a=calcLTKMonth(po2,yr,mo,off)||{bilPenternak:0,jumlah:0};var k2=ltkKey(po2,yr,mo,off);var ov2=ov[k2]||{};var ba=(ov2.jumlah!==undefined?ov2.jumlah:a.jumlah)||0;var bp=(ov2.bilPenternak!==undefined?ov2.bilPenternak:a.bilPenternak)||0;mData.push(ba,bp);tBA+=ba;tBP+=bp;}
+      allPegRows.push({off:off,po:po2,mData:mData,tBA:tBA,tBP:tBP});
+    });
+  });
+  allPegRows.sort(function(a,b){return b.tBP-a.tBP;});
+  var rkBP7=allPegRows.map(function(p){return p.off+'__'+p.po;});
+  var rkBA7=allPegRows.slice().sort(function(a,b){return b.tBA-a.tBA;}).map(function(p){return p.off+'__'+p.po;});
+  allPegRows.forEach(function(p,i){
+    var bg=i<3?'FFF9C4':i%2?'F0F9FF':C.white;
+    var rkBP8=rkBP7.indexOf(p.off+'__'+p.po)+1,rkBA8=rkBA7.indexOf(p.off+'__'+p.po)+1;
+    var row=[D(rowIdx7+1,bg,true,i<3?C.red:C.navy),D(p.off,bg,true,C.navy,'left'),D(p.po,bg,false,'475569','left')];
+    p.mData.forEach(function(v){row.push(D(v||0,bg));});
+    row.push(D(p.tBA,C.lg,true,C.green));row.push(D(p.tBP,C.lg,true,C.teal));
+    row.push(D(rkBP8,rkBP8<=3?'FFF9C4':bg,true,rkBP8===1?C.red:rkBP8<=3?'744210':C.purple));
+    row.push(D(rkBA8,rkBA8<=3?'FFF9C4':bg,true,rkBA8===1?C.red:rkBA8<=3?'744210':C.purple));
+    r7.push(row);rowIdx7++;
+  });
+  var ws7=XLSX.utils.aoa_to_sheet(r7);
+  ws7['!cols']=[{wch:5},{wch:18},{wch:16}].concat(BSHRT.map(function(){return [{wch:6},{wch:6}];}).reduce(function(a,b){return a.concat(b);})).concat([{wch:10},{wch:10},{wch:8},{wch:8}]);
+  ws7['!rows']=[{hpt:26},{hpt:20}];
+  ws7['!merges']=m7;
+  ws7['!freeze']={xSplit:3,ySplit:2};
+  XLSX.utils.book_append_sheet(wb,ws7,'BA_BP MENGIKUT PEGAWAI');
+
+  // ── SHEET 8: LOG TEKNIKAL TAHUNAN ──
+  var r8=[[H('BIL'),H('BULAN'),H('VETEC'),H('PEGAWAI',C.navy),H('PO'),H('BIL PENTERNAK',C.teal,'FFFFFF'),H('A-KHIDMAT NASIHAT','F4A07A','000000'),H('B-KG FARMS','8FD9A8','000000'),H('B-KG TERNAKAN','8FD9A8','000000'),H('C-RB KES','FFD580','000000'),H('C-RB TERNAKAN','FFD580','000000'),H('D-BK PENTERNAK','A8D8E8','000000'),H('D-BK TERNAKAN','A8D8E8','000000'),H('E-LAWAT SIASAT','C8A2C8'),H('F-AUDIT','B0C4DE','000000'),H('G-PERSAMPELAN','F8BBD0','000000'),H('H-VAKSINASI','CD853F'),H('I-UJIAN LAPANGAN','D2691E'),H('J-MESYUARAT','90EE90','000000'),H('JUMLAH AKTIVITI',C.gold,'000000'),H('JUMLAH SOKONGAN',C.navy)]];
+  var bil8=0;
+  PO_LIST.forEach(function(po2){
+    for(var mo=0;mo<12;mo++){
+      getLTKOfficersPrimary(po2,yr,mo).forEach(function(off){
+        if(off==='ADMIN')return;
+        var a=calcLTKMonth(po2,yr,mo,off)||{bilPenternak:0,khidmatNasihat:0,kgFarms:0,kgTernakan:0,rbFarms:0,rbTernakan:0,bkFarms:0,bkTernakan:0,lawatSiasat:0,audit:0,persampelan:0,vaksinasi:0,ujianLapangan:0,mesyuarat:0,jumlah:0,sokongan:0};
+        var k2=ltkKey(po2,yr,mo,off);var ovr2=ov[k2]||{};
+        function v(f){return (ovr2[f]!==undefined?ovr2[f]:a[f])||0;}
+        bil8++;
+        var bg=bil8%2?C.lb:C.white;
+        r8.push([D(bil8,bg),D(BLN[mo],bg,false,C.navy,'left'),D('UTARA',bg),D(off,bg,true,C.navy,'left'),D(po2,bg,false,'475569','left'),D(v('bilPenternak'),bg,true,C.teal),D(v('khidmatNasihat'),bg),D(v('kgFarms'),bg),D(v('kgTernakan'),bg),D(v('rbFarms'),bg),D(v('rbTernakan'),bg),D(v('bkFarms'),bg),D(v('bkTernakan'),bg),D(v('lawatSiasat'),bg),D(v('audit'),bg),D(v('persampelan'),bg),D(v('vaksinasi'),bg),D(v('ujianLapangan'),bg),D(v('mesyuarat'),bg),D(v('jumlah'),bg,true,C.green),D(v('sokongan'),bg)]);
+      });
+    }
+  });
+  var ws8=XLSX.utils.aoa_to_sheet(r8);
+  ws8['!cols']=[{wch:5},{wch:12},{wch:7},{wch:18},{wch:16},{wch:10},{wch:10},{wch:8},{wch:10},{wch:8},{wch:10},{wch:10},{wch:10},{wch:10},{wch:7},{wch:10},{wch:10},{wch:10},{wch:10},{wch:12},{wch:12}];
+  ws8['!rows']=[{hpt:30}];
+  ws8['!freeze']={xSplit:4,ySplit:1};
+  XLSX.utils.book_append_sheet(wb,ws8,'LOG TEKNIKAL');
+
+  // Sheet 9: Graf (nota — Excel export tidak support embedding Chart.js canvas secara langsung)
+  // User should refer to the screen graphs or PPT export for visual charts
+  var H9=function(v,bg,fc){return {v:v,t:'s',s:{fill:{fgColor:{rgb:bg||'0F2D5E'}},font:{bold:true,color:{rgb:fc||'FFFFFF'},sz:11},alignment:{horizontal:'center',vertical:'center',wrapText:true},border:{top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}}}};};
+  var D9=function(v,bg,sz){return {v:v||'',t:'s',s:{fill:{fgColor:{rgb:bg||'FFFFFF'}},font:{sz:sz||10},alignment:{horizontal:'left',vertical:'center'}}};};
+  var rNota=[[H9('NOTA BERKENAAN GRAF DAN VISUALISASI','0F2D5E','F9C000')],[],[D9('Fail Excel ini mengandungi 8 sheet data berwarna yang komprehensif.','EBF4FF',11)],[D9('Graf dan visualisasi (Pencapaian Pegawai, Pencapaian Per PO, Pencapaian Keseluruhan)','EBF4FF',11)],[D9('boleh dijana secara automatik dalam app melalui:','EBF4FF',11)],[],[D9('  1. Jana Laporan Akhir dalam app VetEC Sync','F0FFF4',11)],[D9('  2. Scroll ke bawah untuk lihat 3 graf interaktif','F0FFF4',11)],[D9('  3. Klik "Export PowerPoint" untuk graf dalam format PPT','F0FFF4',11)],[],[D9('Sheet-sheet dalam fail ini:','FFF9C4',11)],[D9('  RINGKASAN — Statistik utama laporan tahunan','FFFFFF',10)],[D9('  SENARAI PENTERNAK — Mengikut PO dan Pegawai','FFFFFF',10)],[D9('  LTJ — Pencapaian Lawatan Teknikal Jualan','FFFFFF',10)],[D9('  KEWANGAN — Rumusan belanja mengikut PTJ','FFFFFF',10)],[D9('  KEDUDUKAN PEGAWAI — Ranking BP dan BA','FFFFFF',10)],[D9('  BA_BP MENGIKUT PO — 12 bulan per PO','FFFFFF',10)],[D9('  BA_BP MENGIKUT PEGAWAI — 12 bulan per pegawai','FFFFFF',10)],[D9('  LOG TEKNIKAL — Semua aktiviti A-J per pegawai','FFFFFF',10)]];
+  var wsNota=XLSX.utils.aoa_to_sheet(rNota);
+  wsNota['!cols']=[{wch:70}];
+  wsNota['!rows']=[{hpt:32}];
+  wsNota['!merges']=[{s:{r:0,c:0},e:{r:0,c:0}}];
+  XLSX.utils.book_append_sheet(wb,wsNota,'GRAF (LIHAT PPT)');
+
+  if(!document.getElementById('la-chart')){
+    toast('Sila klik "JANA LAPORAN AKHIR SEKARANG" dahulu. Untuk graf, guna "Export PowerPoint".','#c53030');
+  }
+  XLSX.writeFile(wb,'Laporan_VetEC_Utara_'+yr+'.xlsx');
+  toast('&#8659; Excel lengkap (8 sheet data + 1 sheet nota) Laporan '+yr+' berjaya dimuat turun. Untuk graf visual, guna Export PowerPoint.','#276749');
+}
+
+function exportRptPPT(){
+  if(typeof PptxGenJS==='undefined'){alert('PptxGenJS belum dimuatkan.');return;}
+  ld();
+  var yr=parseInt(document.getElementById('rpt-final-yr').value)||2026;
+  var ov=getLTKOverride();
+
+  // Build all required data (standalone, not depending on janaLaporanAkhir)
+  var ptByPO={};
+  pt.forEach(function(p){ var po2=normPO(p.po); if(!ptByPO[po2]) ptByPO[po2]=[]; ptByPO[po2].push(p); });
+  var kwAll2=getKW().filter(function(r){return r.yr===yr;});
+  var kwByPTJ={KEDAH:{asal:0,jb:0},PENANG:{asal:0,jb:0},PERLIS:{asal:0,jb:0}};
+  kwAll2.forEach(function(r){var k=(r.ptj||'KEDAH').toUpperCase();if(k.indexOf('PENANG')>=0||k.indexOf('PINANG')>=0)k='PENANG';else if(k.indexOf('PERLIS')>=0)k='PERLIS';else k='KEDAH';kwByPTJ[k].asal+=(r.asal||0)+(r.vtambah||0)-(r.vkurang||0);kwByPTJ[k].jb+=(r.tanggung||0)+(r.sebenar||0);});
+  var poLabels=[],poBA=[],poBP=[];
+  PO_LIST.forEach(function(po2){
+    var ba=0,bp=0;var allOff={};
+    for(var mo=0;mo<12;mo++){getLTKOfficersPrimary(po2,yr,mo).forEach(function(o){if(o!=='ADMIN')allOff[o]=true;});}
+    Object.keys(allOff).forEach(function(off){
+      for(var mo=0;mo<12;mo++){var a=calcLTKMonth(po2,yr,mo,off)||{bilPenternak:0,jumlah:0};var k=ltkKey(po2,yr,mo,off);var ovr=ov[k]||{};ba+=(ovr.jumlah!==undefined?ovr.jumlah:a.jumlah)||0;bp+=(ovr.bilPenternak!==undefined?ovr.bilPenternak:a.bilPenternak)||0;}
+    });
+    poLabels.push(po2);poBA.push(ba);poBP.push(bp);
+  });
+  var pegData=[];
+  PO_LIST.forEach(function(po2){
+    var allOff={};for(var mo=0;mo<12;mo++){getLTKOfficersPrimary(po2,yr,mo).forEach(function(o){if(o!=='ADMIN')allOff[o]=true;});}
+    Object.keys(allOff).forEach(function(off){
+      var ba=0,bp=0;
+      for(var mo=0;mo<12;mo++){var a=calcLTKMonth(po2,yr,mo,off)||{bilPenternak:0,jumlah:0};var k=ltkKey(po2,yr,mo,off);var ovr=ov[k]||{};ba+=(ovr.jumlah!==undefined?ovr.jumlah:a.jumlah)||0;bp+=(ovr.bilPenternak!==undefined?ovr.bilPenternak:a.bilPenternak)||0;}
+      if(ba>0||bp>0) pegData.push({nm:off,po:po2,ba:ba,bp:bp});
+    });
+  });
+  pegData.sort(function(a,b){return b.ba-a.ba;});
+  var ltjAll3=getLTJ().filter(function(r){return r.yr===yr;});
+  var ltjPOdata={};
+  pt.forEach(function(p){if(p.ltjCount){var rid=p.rid||p.id;var po3=normPO(p.po);if(!ltjPOdata[po3])ltjPOdata[po3]={t:0,m:0,v:0};ltjPOdata[po3].t++;if(p.ltjCount>=3)ltjPOdata[po3].m++;ltjPOdata[po3].v+=p.ltjCount||0;}});
+  ltjAll3.forEach(function(r){var rid=r.rid||r.ptId;var ptF=pt.find(function(pp){return pp.rid===rid||pp.id===rid;});if(!ptF)return;var po3=normPO(ptF.po);if(!ltjPOdata[po3])ltjPOdata[po3]={t:0,m:0,v:0};});
+
+  var pres=new PptxGenJS();
+  pres.layout='LAYOUT_WIDE';
+  pres.title='Laporan Tahunan VetEC Utara '+yr;
+  var NAVY='0F2D5E', GOLD='F9C000', GREEN='276749', WHITE='FFFFFF', TEAL='0D9488';
+  var MONTHS=['JAN','FEB','MAC','APR','MEI','JUN','JUL','OGO','SEP','OKT','NOV','DIS'];
+  var PO_COLORS_PPT={GURUN:'F9C000','SG BAKAP':'FF6600',KANGAR:'7B2D8B','ALOR SETAR':'00B0F0','SUNGAI PETANI':'7030A0','KUALA KETIL':'00B050',JITRA:'FF69B4',KULIM:'FF0000'};
+
+  // ── SLIDE 1: TITLE ──
+  var s1=pres.addSlide();
+  s1.background={color:NAVY};
+  s1.addShape(pres.shapes.RECTANGLE,{x:0,y:4.5,w:13.3,h:3,fill:{color:TEAL}});
+  s1.addText('VetEC Utara',{x:0.6,y:0.8,w:12,h:1.2,fontSize:44,bold:true,color:GOLD,fontFace:'Calibri'});
+  s1.addText('LAPORAN TAHUNAN '+yr,{x:0.6,y:1.9,w:12,h:0.8,fontSize:28,bold:true,color:WHITE,fontFace:'Calibri'});
+  s1.addText('Sistem Pengurusan Laporan Bulanan VetEC Utara\nJabatan Perkhidmatan Veterinar Malaysia',{x:0.6,y:2.7,w:10,h:1,fontSize:14,color:'CADCFC',fontFace:'Calibri'});
+  s1.addText('KEDAH | PERLIS | PULAU PINANG',{x:0.6,y:4.8,w:12,h:0.6,fontSize:16,bold:true,color:NAVY,fontFace:'Calibri'});
+  s1.addText('8 Pusat Operasi  |  Auto-jana dari VetEC Sync',{x:0.6,y:5.5,w:12,h:0.5,fontSize:12,color:NAVY,fontFace:'Calibri'});
+
+  // ── SLIDE 2: RINGKASAN STATISTIK ──
+  var totalPT=pt.length;
+  var totalOfficers=JSON.parse(localStorage.getItem('vu_g')||'[]').filter(function(g){return g.nm!=='ADMIN';}).length;
+  var totalBA=0,totalBP=0;
+  PO_LIST.forEach(function(po2){
+    for(var mo=0;mo<12;mo++){
+      getLTKOfficersPrimary(po2,yr,mo).forEach(function(off){
+        if(off==='ADMIN')return;
+        var a=calcLTKMonth(po2,yr,mo,off)||{bilPenternak:0,jumlah:0};
+        var k=ltkKey(po2,yr,mo,off);var ovr=ov[k]||{};
+        totalBA+=(ovr.jumlah!==undefined?ovr.jumlah:a.jumlah)||0;
+        totalBP+=(ovr.bilPenternak!==undefined?ovr.bilPenternak:a.bilPenternak)||0;
+      });
+    }
+  });
+  var s2=pres.addSlide();
+  s2.background={color:'F8FAFC'};
+  s2.addShape(pres.shapes.RECTANGLE,{x:0,y:0,w:13.3,h:1.1,fill:{color:NAVY}});
+  s2.addText('📊 RINGKASAN STATISTIK UTAMA '+yr,{x:0.5,y:0.2,w:12,h:0.7,fontSize:22,bold:true,color:WHITE,fontFace:'Calibri'});
+  var stats=[{label:'Jumlah Penternak',val:totalPT,color:'0F2D5E'},{label:'Pegawai Teknikal',val:totalOfficers,color:TEAL},{label:'Jumlah Aktiviti (BA)',val:totalBA,color:GREEN},{label:'Lawatan Tercatat (BP)',val:totalBP,color:'7030A0'},{label:'Pusat Operasi',val:8,color:'FF6600'}];
+  stats.forEach(function(st,i){
+    var x=0.4+(i%5)*2.5;var y=i<5?1.4:3.5;
+    s2.addShape(pres.shapes.ROUNDED_RECTANGLE,{x:x,y:y,w:2.3,h:1.8,fill:{color:st.color},shadow:{type:'outer',color:'000000',blur:8,offset:3,angle:45,opacity:0.15},rectRadius:0.12});
+    s2.addText(st.val.toLocaleString(),{x:x,y:y+0.2,w:2.3,h:1,fontSize:34,bold:true,color:WHITE,align:'center',fontFace:'Calibri'});
+    s2.addText(st.label,{x:x,y:y+1.1,w:2.3,h:0.55,fontSize:10,color:WHITE,align:'center',fontFace:'Calibri'});
+  });
+
+  // ── SLIDE 3: BA/BP MENGIKUT PO (BAR CHART) ──
+  var s3=pres.addSlide();
+  s3.background={color:'F8FAFC'};
+  s3.addShape(pres.shapes.RECTANGLE,{x:0,y:0,w:13.3,h:1.1,fill:{color:TEAL}});
+  s3.addText('📈 BILANGAN AKTIVITI (BA) & PENTERNAK (BP) MENGIKUT PO — '+yr,{x:0.4,y:0.2,w:12.5,h:0.7,fontSize:18,bold:true,color:WHITE,fontFace:'Calibri'});
+  s3.addChart(pres.charts.BAR,[
+    {name:'Bilangan Aktiviti (BA)',labels:poLabels,values:poBA},
+    {name:'Bilangan Penternak (BP)',labels:poLabels,values:poBP}
+  ],{x:0.4,y:1.3,w:12.5,h:4,barDir:'col',barGrouping:'clustered',
+    chartColors:[NAVY,'0D9488'],
+    chartArea:{fill:{color:WHITE},roundedCorners:true},
+    catAxisLabelColor:'475569',valAxisLabelColor:'475569',
+    valGridLine:{color:'E2E8F0',size:0.5},catGridLine:{style:'none'},
+    showValue:true,dataLabelColor:'1E293B',dataLabelFontSize:8,
+    legendPos:'b',showLegend:true,legendFontSize:11
+  });
+
+  // ── SLIDE 4: TREND BULANAN (BAR ALL MONTHS) ──
+  var s4=pres.addSlide();
+  s4.background={color:'F8FAFC'};
+  s4.addShape(pres.shapes.RECTANGLE,{x:0,y:0,w:13.3,h:1.1,fill:{color:'553C9A'}});
+  s4.addText('📅 TREND AKTIVITI BULANAN (SEMUA PO) — '+yr,{x:0.4,y:0.2,w:12.5,h:0.7,fontSize:18,bold:true,color:WHITE,fontFace:'Calibri'});
+  var moBA=new Array(12).fill(0);
+  PO_LIST.forEach(function(po2){
+    for(var mo=0;mo<12;mo++){
+      getLTKOfficersPrimary(po2,yr,mo).forEach(function(off){
+        if(off==='ADMIN')return;
+        var a=calcLTKMonth(po2,yr,mo,off)||{jumlah:0};
+        var k=ltkKey(po2,yr,mo,off);var ovr=ov[k]||{};
+        moBA[mo]+=(ovr.jumlah!==undefined?ovr.jumlah:a.jumlah)||0;
+      });
+    }
+  });
+  s4.addChart(pres.charts.LINE,[{name:'Jumlah Aktiviti',labels:MONTHS,values:moBA}],{
+    x:0.4,y:1.3,w:12.5,h:4,lineSize:3,lineSmooth:true,
+    chartColors:[TEAL],showValue:true,dataLabelFontSize:9,
+    chartArea:{fill:{color:WHITE},roundedCorners:true},
+    catAxisLabelColor:'475569',valAxisLabelColor:'475569',
+    valGridLine:{color:'E2E8F0',size:0.5},catGridLine:{style:'none'},
+    showLegend:false
+  });
+
+  // ── SLIDE 5: SENARAI PEGAWAI & PENCAPAIAN ──
+  var s5=pres.addSlide();
+  s5.background={color:'F8FAFC'};
+  s5.addShape(pres.shapes.RECTANGLE,{x:0,y:0,w:13.3,h:1.1,fill:{color:GREEN}});
+  s5.addText('👤 PENCAPAIAN PEGAWAI TEKNIKAL — '+yr,{x:0.4,y:0.2,w:12.5,h:0.7,fontSize:18,bold:true,color:WHITE,fontFace:'Calibri'});
+  var tblRows=[[
+    {text:'NO',options:{fill:{color:NAVY},color:WHITE,bold:true,fontSize:10,align:'center'}},
+    {text:'PEGAWAI',options:{fill:{color:NAVY},color:WHITE,bold:true,fontSize:10,align:'center'}},
+    {text:'PO',options:{fill:{color:NAVY},color:WHITE,bold:true,fontSize:10,align:'center'}},
+    {text:'JUMLAH AKTIVITI (BA)',options:{fill:{color:NAVY},color:WHITE,bold:true,fontSize:10,align:'center'}},
+    {text:'BILANGAN PENTERNAK (BP)',options:{fill:{color:NAVY},color:WHITE,bold:true,fontSize:10,align:'center'}}
+  ]];
+  pegData.slice(0,15).forEach(function(p,i){
+    var bg=i%2?'EBF8FF':'FFFFFF';
+    tblRows.push([
+      {text:String(i+1),options:{fill:{color:bg},fontSize:9,align:'center',bold:true,color:i<3?'C53030':'1E293B'}},
+      {text:p.nm,options:{fill:{color:bg},fontSize:9,bold:true,color:NAVY}},
+      {text:p.po,options:{fill:{color:bg},fontSize:9,color:'475569'}},
+      {text:p.ba.toLocaleString(),options:{fill:{color:bg},fontSize:10,bold:true,align:'center',color:GREEN}},
+      {text:p.bp.toLocaleString(),options:{fill:{color:bg},fontSize:10,align:'center',color:TEAL}}
+    ]);
+  });
+  s5.addTable(tblRows,{x:0.4,y:1.3,w:12.5,colW:[0.6,2.8,2.2,3.4,3.5],border:{pt:1,color:'E2E8F0'}});
+
+  // ── SLIDE 4: SENARAI PENTERNAK MENGIKUT PO ──
+  var s4=pres.addSlide();
+  s4.background={color:'F8FAFC'};
+  s4.addShape(pres.shapes.RECTANGLE,{x:0,y:0,w:13.3,h:1.1,fill:{color:NAVY}});
+  s4.addText('👥 SENARAI PENTERNAK MENGIKUT PO — '+yr,{x:0.4,y:0.2,w:12.5,h:0.7,fontSize:18,bold:true,color:WHITE,fontFace:'Calibri'});
+  var visited2=pt.filter(function(p){if(!p.tr) return false; var t=(p.tr||'').split('/'); var d=new Date(t[2],t[1]-1,t[0]); return d.getFullYear()===yr;}).length;
+  var ptRows4=[[
+    {text:'PO',options:{fill:{color:NAVY},color:WHITE,bold:true,fontSize:10,align:'center'}},
+    {text:'Bil Pegawai',options:{fill:{color:NAVY},color:WHITE,bold:true,fontSize:10,align:'center'}},
+    {text:'Bil Penternak',options:{fill:{color:NAVY},color:WHITE,bold:true,fontSize:10,align:'center'}},
+    {text:'% VetEC',options:{fill:{color:NAVY},color:WHITE,bold:true,fontSize:10,align:'center'}},
+    {text:'Dilawat '+yr,options:{fill:{color:'0D9488'},color:WHITE,bold:true,fontSize:10,align:'center'}},
+    {text:'% Dilawat',options:{fill:{color:'0D9488'},color:WHITE,bold:true,fontSize:10,align:'center'}},
+    {text:'Belum',options:{fill:{color:'C53030'},color:WHITE,bold:true,fontSize:10,align:'center'}}
+  ]];
+  PO_LIST.forEach(function(po2,i){
+    var ptPO=(ptByPO[po2]||[]);
+    var pg=peg.filter(function(g){return normPO(g.po)===po2&&g.nm!=='ADMIN';}).length;
+    var vis=ptPO.filter(function(p){if(!p.tr) return false; var t=(p.tr||'').split('/'); return new Date(t[2],t[1]-1,t[0]).getFullYear()===yr;}).length;
+    var bg=i%2?'EBF4FF':'FFFFFF';
+    ptRows4.push([{text:po2,options:{fill:{color:bg},bold:true,color:NAVY,fontSize:9}},{text:String(pg),options:{fill:{color:bg},fontSize:9,align:'center'}},{text:String(ptPO.length),options:{fill:{color:bg},bold:true,fontSize:10,align:'center'}},{text:((ptPO.length/pt.length)*100).toFixed(1)+'%',options:{fill:{color:bg},fontSize:9,align:'center'}},{text:String(vis),options:{fill:{color:bg},color:GREEN,bold:true,fontSize:10,align:'center'}},{text:ptPO.length>0?((vis/ptPO.length)*100).toFixed(1)+'%':'0%',options:{fill:{color:bg},fontSize:9,align:'center'}},{text:String(ptPO.length-vis),options:{fill:{color:bg},color:'C53030',fontSize:9,align:'center'}}]);
+  });
+  ptRows4.push([{text:'JUMLAH',options:{fill:{color:GOLD},color:'000000',bold:true,fontSize:9}},{text:String(peg.filter(function(g){return g.nm!=='ADMIN';}).length),options:{fill:{color:GOLD},color:'000000',bold:true,fontSize:10,align:'center'}},{text:String(pt.length),options:{fill:{color:GOLD},color:'000000',bold:true,fontSize:11,align:'center'}},{text:'100%',options:{fill:{color:GOLD},color:'000000',bold:true,fontSize:9,align:'center'}},{text:String(visited2),options:{fill:{color:GOLD},color:GREEN,bold:true,fontSize:10,align:'center'}},{text:((visited2/pt.length)*100).toFixed(1)+'%',options:{fill:{color:GOLD},color:'000000',bold:true,fontSize:9,align:'center'}},{text:String(pt.length-visited2),options:{fill:{color:GOLD},color:'C53030',bold:true,fontSize:9,align:'center'}}]);
+  s4.addTable(ptRows4,{x:0.4,y:1.3,w:12.5,colW:[2.2,1.2,1.5,1.2,1.5,1.3,1.3],border:{pt:1,color:'E2E8F0'}});
+
+  // ── SLIDE 5: LTJ ──
+  var s5b=pres.addSlide();
+  s5b.background={color:'F8FAFC'};
+  s5b.addShape(pres.shapes.RECTANGLE,{x:0,y:0,w:13.3,h:1.1,fill:{color:'276749'}});
+  s5b.addText('📋 PENCAPAIAN LTJ (SASARAN 3 KALI/TAHUN) — '+yr,{x:0.4,y:0.2,w:12.5,h:0.7,fontSize:18,bold:true,color:WHITE,fontFace:'Calibri'});
+  var ltjByPO3={};
+  try{
+    var ltjAll3=getLTJ().filter(function(r){return r.yr===yr;});
+    pt.forEach(function(p){if(p.ltjCount){var rid=p.rid||p.id;ltjByPO3[rid]={p:p,cum:p.ltjCount||0};}});
+    ltjAll3.forEach(function(r){var rid=r.rid||r.ptId;if(!ltjByPO3[rid]){var ptF=pt.find(function(pp){return pp.rid===rid||pp.id===rid;});if(ptF)ltjByPO3[rid]={p:ptF,cum:0};}if(ltjByPO3[rid])ltjByPO3[rid].cum++;});
+  }catch(e){}
+  var ltjPOdata={};
+  Object.values(ltjByPO3).forEach(function(x){var po3=normPO(x.p.po);if(!ltjPOdata[po3])ltjPOdata[po3]={t:0,m:0,v:0};ltjPOdata[po3].t++;if(x.cum>=3)ltjPOdata[po3].m++;ltjPOdata[po3].v+=x.cum;});
+  var ltjRows=[[{text:'PO',options:{fill:{color:'276749'},color:WHITE,bold:true,fontSize:10,align:'center'}},{text:'Bil Penternak LTJ',options:{fill:{color:'276749'},color:WHITE,bold:true,fontSize:10,align:'center'}},{text:'Sasaran',options:{fill:{color:'276749'},color:WHITE,bold:true,fontSize:10,align:'center'}},{text:'Pencapaian',options:{fill:{color:'0D9488'},color:WHITE,bold:true,fontSize:10,align:'center'}},{text:'Cukup 3x',options:{fill:{color:'276749'},color:WHITE,bold:true,fontSize:10,align:'center'}},{text:'% Pencapaian',options:{fill:{color:GOLD},color:'000000',bold:true,fontSize:10,align:'center'}}]];
+  var ltjTotT2=0,ltjTotV2=0,ltjTotM2=0;
+  PO_LIST.forEach(function(po2,i){
+    var row=ltjPOdata[po2]||{t:0,m:0,v:0};
+    var pct=row.t>0?((row.v/(row.t*3))*100).toFixed(1)+'%':'0%';
+    var bg=i%2?'F0FFF4':'FFFFFF';
+    ltjTotT2+=row.t;ltjTotV2+=row.v;ltjTotM2+=row.m;
+    ltjRows.push([{text:po2,options:{fill:{color:bg},bold:true,color:NAVY,fontSize:9}},{text:String(row.t),options:{fill:{color:bg},fontSize:9,align:'center'}},{text:String(row.t*3),options:{fill:{color:bg},fontSize:9,align:'center'}},{text:String(row.v),options:{fill:{color:bg},color:GREEN,bold:true,fontSize:10,align:'center'}},{text:row.m+' / '+row.t,options:{fill:{color:bg},color:row.m===row.t&&row.t>0?GREEN:'C53030',bold:true,fontSize:9,align:'center'}},{text:pct,options:{fill:{color:bg},bold:true,fontSize:9,align:'center'}}]);
+  });
+  ltjRows.push([{text:'JUMLAH',options:{fill:{color:GOLD},color:'000000',bold:true,fontSize:9}},{text:String(ltjTotT2),options:{fill:{color:GOLD},color:'000000',bold:true,fontSize:10,align:'center'}},{text:String(ltjTotT2*3),options:{fill:{color:GOLD},color:'000000',bold:true,fontSize:9,align:'center'}},{text:String(ltjTotV2),options:{fill:{color:GOLD},color:GREEN,bold:true,fontSize:10,align:'center'}},{text:ltjTotM2+' / '+ltjTotT2,options:{fill:{color:GOLD},color:'000000',bold:true,fontSize:9,align:'center'}},{text:ltjTotT2>0?((ltjTotV2/(ltjTotT2*3))*100).toFixed(1)+'%':'0%',options:{fill:{color:GOLD},color:'000000',bold:true,fontSize:9,align:'center'}}]);
+  s5b.addTable(ltjRows,{x:0.4,y:1.3,w:12.5,colW:[2.2,2.2,1.8,2.0,2.0,2.3],border:{pt:1,color:'E2E8F0'}});
+
+  // ── SLIDE 6: KEWANGAN ──
+  var s6b=pres.addSlide();
+  s6b.background={color:'F8FAFC'};
+  s6b.addShape(pres.shapes.RECTANGLE,{x:0,y:0,w:13.3,h:1.1,fill:{color:'553C9A'}});
+  s6b.addText('💰 RUMUSAN KEWANGAN MENGIKUT PTJ — '+yr,{x:0.4,y:0.2,w:12.5,h:0.7,fontSize:18,bold:true,color:WHITE,fontFace:'Calibri'});
+  var kwTotA2=0,kwTotJ2=0;
+  ['KEDAH','PENANG','PERLIS'].forEach(function(ptj){kwTotA2+=kwByPTJ[ptj].asal;kwTotJ2+=kwByPTJ[ptj].jb;});
+  var kwRows=[[{text:'PTJ',options:{fill:{color:'553C9A'},color:WHITE,bold:true,fontSize:10}},{text:'Peruntukan (RM)',options:{fill:{color:'553C9A'},color:WHITE,bold:true,fontSize:10,align:'right'}},{text:'Jumlah Belanja (RM)',options:{fill:{color:TEAL},color:WHITE,bold:true,fontSize:10,align:'right'}},{text:'Baki (RM)',options:{fill:{color:'276749'},color:WHITE,bold:true,fontSize:10,align:'right'}},{text:'% Belanja',options:{fill:{color:GOLD},color:'000000',bold:true,fontSize:10,align:'center'}},{text:'Status',options:{fill:{color:'553C9A'},color:WHITE,bold:true,fontSize:10,align:'center'}}]];
+  ['KEDAH','PENANG','PERLIS'].forEach(function(ptj,i){
+    var row=kwByPTJ[ptj]||{asal:0,jb:0};
+    var baki=row.asal-row.jb;var pct=row.asal>0?(row.jb/row.asal*100):0;
+    var bg=i%2?'F3E8FF':'FAF5FF';
+    kwRows.push([{text:'PTJ '+ptj,options:{fill:{color:bg},bold:true,color:NAVY,fontSize:9}},{text:'RM '+row.asal.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,','),options:{fill:{color:bg},fontSize:9,align:'right'}},{text:'RM '+row.jb.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,','),options:{fill:{color:bg},color:'2b6cb0',bold:true,fontSize:9,align:'right'}},{text:'RM '+baki.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,','),options:{fill:{color:bg},color:baki<0?'C53030':GREEN,bold:true,fontSize:9,align:'right'}},{text:pct.toFixed(2)+'%',options:{fill:{color:bg},bold:true,fontSize:10,align:'center',color:pct>=100?'C53030':pct>=90?GREEN:'744210'}},{text:pct>=95?'✅ Baik':'⚠️ Perlu Tindakan',options:{fill:{color:bg},fontSize:9,align:'center',color:pct>=95?GREEN:'C53030'}}]);
+  });
+  var kwTotB2=kwTotA2-kwTotJ2;var kwTotP2=kwTotA2>0?(kwTotJ2/kwTotA2*100):0;
+  kwRows.push([{text:'JUMLAH',options:{fill:{color:'DDA0DD'},bold:true,color:'000000',fontSize:9}},{text:'RM '+kwTotA2.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,','),options:{fill:{color:'DDA0DD'},bold:true,color:'000000',fontSize:9,align:'right'}},{text:'RM '+kwTotJ2.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,','),options:{fill:{color:'DDA0DD'},bold:true,color:'2b6cb0',fontSize:9,align:'right'}},{text:'RM '+kwTotB2.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,','),options:{fill:{color:'DDA0DD'},bold:true,color:kwTotB2<0?'C53030':GREEN,fontSize:9,align:'right'}},{text:kwTotP2.toFixed(2)+'%',options:{fill:{color:'DDA0DD'},bold:true,fontSize:11,align:'center'}},{text:kwTotP2>=95?'✅ Baik':'⚠️ Perlu Tindakan',options:{fill:{color:'DDA0DD'},bold:true,fontSize:9,align:'center'}}]);
+  s6b.addTable(kwRows,{x:1,y:1.3,w:11.3,colW:[1.8,2.5,2.5,2.2,1.6,2.7],border:{pt:1,color:'E2E8F0'}});
+
+  // Remaining original slides reordered with new numbering
+  var s_trend=pres.addSlide();
+  s_trend.background={color:'F8FAFC'};
+  s_trend.addShape(pres.shapes.RECTANGLE,{x:0,y:0,w:13.3,h:1.1,fill:{color:'553C9A'}});
+  s_trend.addText('📅 TREND AKTIVITI BULANAN (SEMUA PO) — '+yr,{x:0.4,y:0.2,w:12.5,h:0.7,fontSize:18,bold:true,color:WHITE,fontFace:'Calibri'});
+  var moBA2=new Array(12).fill(0);
+  PO_LIST.forEach(function(po2){
+    for(var mo=0;mo<12;mo++){
+      getLTKOfficersPrimary(po2,yr,mo).forEach(function(off){
+        if(off==='ADMIN')return;
+        var a=calcLTKMonth(po2,yr,mo,off)||{jumlah:0};
+        var k=ltkKey(po2,yr,mo,off);var ovr2=ov[k]||{};
+        moBA2[mo]+=(ovr2.jumlah!==undefined?ovr2.jumlah:a.jumlah)||0;
+      });
+    }
+  });
+  s_trend.addChart(pres.charts.LINE,[{name:'Jumlah Aktiviti',labels:MONTHS,values:moBA2}],{
+    x:0.4,y:1.3,w:12.5,h:4,lineSize:3,lineSmooth:true,
+    chartColors:[TEAL],showValue:true,dataLabelFontSize:9,
+    chartArea:{fill:{color:WHITE},roundedCorners:true},
+    catAxisLabelColor:'475569',valAxisLabelColor:'475569',
+    valGridLine:{color:'E2E8F0',size:0.5},catGridLine:{style:'none'},showLegend:false
+  });
+
+  // ── KEDUDUKAN PEGAWAI SLIDE ──
+  var s_ked=pres.addSlide();
+  s_ked.background={color:'F8FAFC'};
+  s_ked.addShape(pres.shapes.RECTANGLE,{x:0,y:0,w:13.3,h:1.1,fill:{color:'F9C000'}});
+  s_ked.addText('🏅 KEDUDUKAN PEGAWAI MENGIKUT BP (BILANGAN PENTERNAK DILAWAT) — '+yr,{x:0.4,y:0.2,w:12.5,h:0.7,fontSize:16,bold:true,color:NAVY,fontFace:'Calibri'});
+  var kedRows=[[{text:'KEDUDUKAN',options:{fill:{color:NAVY},color:WHITE,bold:true,fontSize:10,align:'center'}},{text:'PEGAWAI',options:{fill:{color:NAVY},color:WHITE,bold:true,fontSize:10}},{text:'PO',options:{fill:{color:NAVY},color:WHITE,bold:true,fontSize:10,align:'center'}},{text:'BILANGAN PENTERNAK (BP)',options:{fill:{color:TEAL},color:WHITE,bold:true,fontSize:10,align:'center'}},{text:'JUMLAH AKTIVITI (BA)',options:{fill:{color:'276749'},color:WHITE,bold:true,fontSize:10,align:'center'}}]];
+  pegData.slice(0,12).forEach(function(p,i){
+    var bg=i<3?'FFF9C4':i%2?'EBF4FF':'FFFFFF';
+    var medal=i===0?'🥇 ':i===1?'🥈 ':i===2?'🥉 ':'';
+    kedRows.push([{text:String(i+1),options:{fill:{color:bg},bold:true,color:i<3?'C53030':NAVY,fontSize:i<3?13:10,align:'center'}},{text:medal+p.nm,options:{fill:{color:bg},bold:true,color:NAVY,fontSize:10}},{text:p.po,options:{fill:{color:bg},fontSize:9,color:'475569',align:'center'}},{text:String(p.bp),options:{fill:{color:bg},bold:true,color:TEAL,fontSize:i<3?13:11,align:'center'}},{text:String(p.ba),options:{fill:{color:bg},bold:true,color:GREEN,fontSize:11,align:'center'}}]);
+  });
+  s_ked.addTable(kedRows,{x:0.5,y:1.3,w:12.3,colW:[1.5,3.5,2.5,3,3.3],border:{pt:1,color:'E2E8F0'}});
+
+  // Capture Chart.js graphs from screen and add as image slides
+  var chartIds=['la-chart','la-chart-po','la-chart-overall'];
+  var chartTitles=['📊 PENCAPAIAN PEGAWAI - BP & BA - '+yr,'🏛️ PENCAPAIAN PER PUSAT OPERASI - '+yr,'🎯 PENCAPAIAN KESELURUHAN - '+yr];
+  var chartBGs=[NAVY,'1a3a52','2d1b69'];
+
+  function captureNext(idx){
+    if(idx >= chartIds.length){
+      pres.writeFile({fileName:'Laporan_VetEC_Utara_'+yr+'.pptx'});
+      toast('&#128196; PowerPoint Laporan '+yr+' ('+chartIds.length+' graf) berjaya dimuat turun','#2b4acf');
+      return;
+    }
+    var canvas = document.getElementById(chartIds[idx]);
+    if(!canvas || typeof html2canvas === 'undefined'){
+      captureNext(idx+1); return;
+    }
+    var parentDiv = canvas.parentElement;
+    html2canvas(parentDiv||canvas, {backgroundColor:'#1a1a2e', scale:1.5, useCORS:true}).then(function(cap){
+      var imgData = cap.toDataURL('image/png');
+      var sChart = pres.addSlide();
+      sChart.background = {color:chartBGs[idx]||NAVY};
+      sChart.addShape(pres.shapes.RECTANGLE,{x:0,y:0,w:13.3,h:1.1,fill:{color:'00000055'}});
+      sChart.addText(chartTitles[idx],{x:0.4,y:0.2,w:12.5,h:0.7,fontSize:16,bold:true,color:'FFFFFF',fontFace:'Calibri'});
+      sChart.addImage({data:imgData, x:0.3, y:1.2, w:12.7, h:5.1});
+      captureNext(idx+1);
+    }).catch(function(){ captureNext(idx+1); });
+  }
+
+  // Jana laporan dulu kalau belum
+  if(!document.getElementById('la-chart')){
+    toast('Sila klik "JANA LAPORAN AKHIR SEKARANG" dahulu sebelum export PPT','#c53030');
+    return;
+  }
+  captureNext(0);
+}
+
 function janaLaporanAkhir(){
   ld();
   var yr  = parseInt(document.getElementById('rpt-final-yr').value)||2026;
@@ -14031,60 +14612,110 @@ function janaLaporanAkhir(){
   // ── SECTION 6: BA/BP TABLE per PO ───────────
   S+='<div class="la-sec"><div class="la-sh">&#128202; BILANGAN AKTIVITI (BA) & BILANGAN PENTERNAK (BP) MENGIKUT PO</div><div style="padding:14px;overflow-x:auto">';
   S+='<table style="border-collapse:collapse;font-size:10px;white-space:nowrap">';
-  S+='<thead><tr style="background:#0f2d5e;color:#fff"><th class="la-th" rowspan="2">NO</th><th class="la-th" rowspan="2">PO</th>';
-  BLN_LA.forEach(function(m){ S+='<th class="la-th" colspan="2">'+m+'</th>'; });
-  S+='<th class="la-th" colspan="2">JUMLAH</th></tr><tr style="background:#1a4a8a;color:#fff">';
-  for(var mi=0;mi<13;mi++){ S+='<th class="la-th" style="font-size:9px">BP</th><th class="la-th" style="font-size:9px">BA</th>'; }
+  // ROW 1: Fixed cols (rowspan=2) + Month names (colspan=2) + JUMLAH (rowspan=2) + KEDUDUKAN (rowspan=2)
+  S+='<thead>';
+  S+='<tr style="background:#0f2d5e;color:#fff">';
+  S+='<th class="la-th" rowspan="2" style="vertical-align:middle">NO</th>';
+  S+='<th class="la-th" rowspan="2" style="vertical-align:middle">PO</th>';
+  BLN_LA.forEach(function(m){ S+='<th class="la-th" colspan="2" style="background:#0d7377;text-align:center">'+m+'</th>'; });
+  S+='<th class="la-th" rowspan="2" style="background:#c9a800;color:#000;vertical-align:middle">JUMLAH<br>BP</th>';
+  S+='<th class="la-th" rowspan="2" style="background:#c9a800;color:#000;vertical-align:middle">JUMLAH<br>BA</th>';
+  S+='<th class="la-th" rowspan="2" style="background:#553c9a;vertical-align:middle">KDK<br>BP</th>';
+  S+='<th class="la-th" rowspan="2" style="background:#553c9a;vertical-align:middle">KDK<br>BA</th>';
+  S+='</tr>';
+  // ROW 2: Only BA/BP sub-headers for month columns
+  S+='<tr style="background:#1a5f63;color:#fff">';
+  BLN_LA.forEach(function(){ S+='<th class="la-th" style="font-size:9px;background:#1a5f63">BP</th><th class="la-th" style="font-size:9px;background:#0d7377">BA</th>'; });
   S+='</tr></thead><tbody>';
+
+  // Compute rankings
   var totBP=new Array(13).fill(0), totBA=new Array(13).fill(0);
-  pos.forEach(function(po2,i){
+  var poRows=pos.map(function(po2){
     var row=poBABP[po2]||{ba:0,bp:0,months:{}};
-    var poColor=PO_COLORS[po2]||'#ddd';
-    S+='<tr style="background:'+(i%2?'#f9fafb':'#fff')+'">';
+    return {po:po2, row:row};
+  });
+  var rankBP=poRows.slice().sort(function(a,b){return b.row.bp-a.row.bp;}).map(function(r){return r.po;});
+  var rankBA=poRows.slice().sort(function(a,b){return b.row.ba-a.row.ba;}).map(function(r){return r.po;});
+
+  poRows.forEach(function(pr,i){
+    var po2=pr.po, row=pr.row;
+    var poColor=PO_COLORS[po2]||'#e2e8f0';
+    var rkBP=rankBP.indexOf(po2)+1, rkBA=rankBA.indexOf(po2)+1;
+    var rowBg=i%2?'#f9fafb':'#fff';
+    S+='<tr style="background:'+rowBg+'">';
     S+='<td class="la-td" style="text-align:center;font-weight:700">'+(i+1)+'</td>';
-    S+='<td class="la-td" style="font-weight:700;background:'+poColor+';color:'+(po2==='ALOR STAR'?'#000':'#000')+'">'+po2+'</td>';
-    for(var mo=0;mo<12;mo++){
+    S+='<td class="la-td" style="font-weight:700;background:'+poColor+';color:#000;text-align:center">'+po2+'</td>';
+    for(var mo=0;mo<BLN_LA.length;mo++){
       var moD=(row.months[mo])||{ba:0,bp:0};
       S+='<td class="la-td" style="text-align:center">'+moD.bp+'</td>';
       S+='<td class="la-td" style="text-align:center">'+moD.ba+'</td>';
       totBP[mo]+=moD.bp; totBA[mo]+=moD.ba;
     }
-    S+='<td class="la-td" style="text-align:center;font-weight:700;background:#fffde7">'+row.bp+'</td>';
-    S+='<td class="la-td" style="text-align:center;font-weight:700;background:#fffde7">'+row.ba+'</td>';
+    S+='<td class="la-td" style="text-align:center;font-weight:700;background:#FFF9C4;color:#0d9488">'+row.bp+'</td>';
+    S+='<td class="la-td" style="text-align:center;font-weight:700;background:#FFF9C4;color:#0d9488">'+row.ba+'</td>';
     totBP[12]+=row.bp; totBA[12]+=row.ba;
+    var rkBPbg=rkBP===1?'#c53030':rkBP===2?'#dd6b20':rkBP===3?'#d97706':'#553c9a';
+    var rkBAbg=rkBA===1?'#c53030':rkBA===2?'#dd6b20':rkBA===3?'#d97706':'#553c9a';
+    S+='<td class="la-td" style="text-align:center;font-weight:800;background:'+rkBPbg+';color:#fff">'+rkBP+'</td>';
+    S+='<td class="la-td" style="text-align:center;font-weight:800;background:'+rkBAbg+';color:#fff">'+rkBA+'</td>';
     S+='</tr>';
   });
-  S+='<tr style="background:#FFFF99;font-weight:800"><td class="la-td" colspan="2">JUMLAH</td>';
-  for(var mi2=0;mi2<13;mi2++){
+  // Total row
+  S+='<tr style="background:#FFFF99;font-weight:800"><td class="la-td" colspan="2" style="text-align:center">JUMLAH</td>';
+  for(var mi2=0;mi2<BLN_LA.length;mi2++){
     S+='<td class="la-td" style="text-align:center">'+totBP[mi2]+'</td>';
     S+='<td class="la-td" style="text-align:center">'+totBA[mi2]+'</td>';
   }
+  S+='<td class="la-td" style="text-align:center;font-weight:800;background:#F9C000">'+totBP[12]+'</td>';
+  S+='<td class="la-td" style="text-align:center;font-weight:800;background:#F9C000">'+totBA[12]+'</td>';
+  S+='<td class="la-td" colspan="2"></td>';
   S+='</tr></tbody></table></div></div>';
 
   // ── SECTION 7: BA/BP PER PEGAWAI + CHART ───
   S+='<div class="la-sec"><div class="la-sh">&#128202; BILANGAN AKTIVITI (BA) & PENTERNAK (BP) MENGIKUT PEGAWAI + KEDUDUKAN</div><div style="padding:14px">';
-  // Sort by BA for ranking
   var pegArr=Object.keys(pegBABP).map(function(k){return pegBABP[k];});
-  pegArr.sort(function(a,b){return b.ba-a.ba;});
-  S+='<div style="overflow-x:auto;margin-bottom:16px"><table style="width:100%;border-collapse:collapse;font-size:11px">';
-  S+='<thead><tr style="background:#0f2d5e;color:#fff"><th class="la-th">KEDUDUKAN (BA)</th><th class="la-th">PEGAWAI</th><th class="la-th">PO</th>';
-  BLN_LA.forEach(function(m){ S+='<th class="la-th" style="font-size:9px">'+m+'<br>BP/BA</th>'; });
-  S+='<th class="la-th">JUMLAH BP</th><th class="la-th">JUMLAH BA</th><th class="la-th">PURATA BP/BLN</th><th class="la-th">PURATA BA/BLN</th></tr></thead><tbody>';
+  var rankPegBP=pegArr.slice().sort(function(a,b){return b.bp-a.bp;}).map(function(r){return r.nm+'__'+r.po;});
+  var rankPegBA=pegArr.slice().sort(function(a,b){return b.ba-a.ba;}).map(function(r){return r.nm+'__'+r.po;});
+  pegArr.sort(function(a,b){return b.bp-a.bp;});
   var activeMo=BLN_LA.length;
+  S+='<div style="overflow-x:auto;margin-bottom:16px"><table style="border-collapse:collapse;font-size:10px;white-space:nowrap">';
+  // ROW 1: Fixed cols (rowspan=2) + Month names (colspan=2) + JUMLAH/KEDUDUKAN (rowspan=2)
+  S+='<thead>';
+  S+='<tr style="background:#0f2d5e;color:#fff">';
+  S+='<th class="la-th" rowspan="2" style="vertical-align:middle">NO</th>';
+  S+='<th class="la-th" rowspan="2" style="vertical-align:middle;min-width:120px">PEGAWAI TEKNIKAL</th>';
+  S+='<th class="la-th" rowspan="2" style="vertical-align:middle;min-width:100px">PUSAT OPERASI</th>';
+  BLN_LA.forEach(function(m){ S+='<th class="la-th" colspan="2" style="background:#0d7377;text-align:center">'+m+'</th>'; });
+  S+='<th class="la-th" rowspan="2" style="background:#c9a800;color:#000;vertical-align:middle">JUMLAH<br>BA</th>';
+  S+='<th class="la-th" rowspan="2" style="background:#c9a800;color:#000;vertical-align:middle">JUMLAH<br>BP</th>';
+  S+='<th class="la-th" rowspan="2" style="background:#553c9a;vertical-align:middle">KEDUDUKAN<br>BP</th>';
+  S+='<th class="la-th" rowspan="2" style="background:#553c9a;vertical-align:middle">KEDUDUKAN<br>BA</th>';
+  S+='</tr>';
+  // ROW 2: Only BA/BP sub-headers
+  S+='<tr style="background:#1a5f63;color:#fff">';
+  BLN_LA.forEach(function(){ S+='<th class="la-th" style="font-size:9px;background:#0d7377">BA</th><th class="la-th" style="font-size:9px;background:#1a5f63">BP</th>'; });
+  S+='</tr></thead><tbody>';
+
   pegArr.forEach(function(info,i){
-    S+='<tr style="background:'+(i%2?'#f9fafb':'#fff')+'">';
-    S+='<td class="la-td" style="text-align:center;font-weight:800;color:#c53030">'+(i+1)+'</td>';
-    S+='<td class="la-td" style="font-weight:600">'+info.nm+'</td>';
-    S+='<td class="la-td"><span class="bj">'+info.po+'</span></td>';
-    for(var mo=0;mo<12;mo++){
+    var pegKey=info.nm+'__'+info.po;
+    var rkBP2=rankPegBP.indexOf(pegKey)+1;
+    var rkBA2=rankPegBA.indexOf(pegKey)+1;
+    var rowBg=i%2?'#f9fafb':'#fff';
+    var rkBPbg2=rkBP2===1?'#c53030':rkBP2===2?'#dd6b20':rkBP2===3?'#d97706':'#553c9a';
+    var rkBAbg2=rkBA2===1?'#c53030':rkBA2===2?'#dd6b20':rkBA2===3?'#d97706':'#553c9a';
+    S+='<tr style="background:'+rowBg+'">';
+    S+='<td class="la-td" style="text-align:center;font-weight:700;color:'+(i<3?'#c53030':'#0f2d5e')+'">'+(i+1)+'</td>';
+    S+='<td class="la-td" style="font-weight:700;color:#0f2d5e">'+info.nm+'</td>';
+    S+='<td class="la-td" style="color:#475569;text-align:center">'+info.po+'</td>';
+    for(var mo=0;mo<BLN_LA.length;mo++){
       var md=(info.months[mo])||{ba:0,bp:0};
-      S+='<td class="la-td" style="text-align:center;font-size:10px">'+md.bp+'<br><b>'+md.ba+'</b></td>';
+      S+='<td class="la-td" style="text-align:center">'+md.ba+'</td>';
+      S+='<td class="la-td" style="text-align:center">'+md.bp+'</td>';
     }
-    var avgBP=(info.bp/activeMo).toFixed(1), avgBA=(info.ba/activeMo).toFixed(1);
-    S+='<td class="la-td" style="text-align:center;font-weight:700;color:#0f2d5e">'+info.bp+'</td>';
-    S+='<td class="la-td" style="text-align:center;font-weight:700;color:#276749">'+info.ba+'</td>';
-    S+='<td class="la-td" style="text-align:center">'+avgBP+'</td>';
-    S+='<td class="la-td" style="text-align:center">'+avgBA+'</td>';
+    S+='<td class="la-td" style="text-align:center;font-weight:700;background:#FFF9C4;color:#276749;font-size:12px">'+info.ba+'</td>';
+    S+='<td class="la-td" style="text-align:center;font-weight:700;background:#FFF9C4;color:#0d9488;font-size:12px">'+info.bp+'</td>';
+    S+='<td class="la-td" style="text-align:center;font-weight:800;background:'+rkBPbg2+';color:#fff">'+rkBP2+'</td>';
+    S+='<td class="la-td" style="text-align:center;font-weight:800;background:'+rkBAbg2+';color:#fff">'+rkBA2+'</td>';
     S+='</tr>';
   });
   S+='</tbody></table></div>';
