@@ -2384,7 +2384,7 @@ function getOfficers(po){
 
 
 var RTDB='https://vetec-utara-default-rtdb.firebaseio.com';
-var GS_KEYS=['vu_g','vu_p','vu_rb','vu_rk','vu_ug','vu_ts','vu_ltj','vu_lt','vu_tkp','vu_tkt','vu_ivi','vu_ivp','vu_kw','vu_sp03','vu_ml','vu_ltk_ov','vu_submit_log','vu_import_hist','vu_officers','vu_ml_req','vu_notif','vu_clearance_log','vu_rpt_imported','vu_rpt_hist','vu_peng_keep','vu_gugur_log'];
+var GS_KEYS=['vu_g','vu_p','vu_rb','vu_rk','vu_ug','vu_ts','vu_ltj','vu_lt','vu_tkp','vu_tkt','vu_ivi','vu_ivp','vu_kw','vu_sp03','vu_ml','vu_ltk_ov','vu_submit_log','vu_import_hist','vu_officers','vu_ml_req','vu_notif','vu_clearance_log','vu_rpt_imported','vu_rpt_hist','vu_peng_keep','vu_gugur_log','vu_tambah_log'];
 var _lsOrig=localStorage.setItem.bind(localStorage);
 window.GS_READY=false;
 window.FB_READY=false;
@@ -4702,6 +4702,14 @@ function renderSP(){
       };
       pt.push(newP);
       sv();
+      // Log tambah penternak
+      try{
+        var tambahLog=JSON.parse(localStorage.getItem('vu_tambah_log')||'[]');
+        var now=new Date();
+        tambahLog.push({nm:newP.nm,po:newP.po,j:newP.j,al:newP.al||'',bulan:now.getMonth(),tahun:now.getFullYear(),tarikhTambah:now.toLocaleDateString('ms-MY'),tambahOleh:(window.CU&&window.CU.nm)||''});
+        localStorage.setItem('vu_tambah_log',JSON.stringify(tambahLog));
+        if(window.GS_READY&&typeof rtWrite==='function') rtWrite('vu_tambah_log',JSON.stringify(tambahLog));
+      }catch(e){}
       toast('&#9989; '+data.nm+' ditambah ke LBL anda','#276749');
       renderSP();
     };
@@ -14379,13 +14387,13 @@ function exportRptPPT(){
 function janaLaporanAkhir(){
   ld();
   var yr  = parseInt(document.getElementById('rpt-final-yr').value)||2026;
-  var baseline = allPt.length; // dinamik ikut jumlah penternak semasa
   var out = document.getElementById('rpt-final-output');
   out.innerHTML = '<div style="text-align:center;padding:30px;color:#718096">Sedang menjana laporan...</div>';
 
   // ── Collect all data ──────────────────────────
   var allPt   = pt; // semua penternak (semua PO)
   var allPeg  = peg;
+  var baseline = allPt.length; // dinamik ikut jumlah penternak semasa
   var sp03All = getSP03().filter(function(r){ return r.yr===yr; });
   var ltjAll  = getLTJ().filter(function(r){ return r.yr===yr; });
   var kwAll   = getKW().filter(function(r){ return r.yr===yr; });
@@ -14538,36 +14546,62 @@ function janaLaporanAkhir(){
   S+=kpi('Pencapaian LTJ', fPct(ltjMet,ltjTotal||1), ltjMet+'/'+ltjTotal+' penternak','#553c9a');
   S+='</div></div>';
 
-  // ── SECTION 1b: PENTERNAK DIGUGUR ───────────
-  var gugurLog2 = [];
-  try{ gugurLog2 = JSON.parse(localStorage.getItem('vu_gugur_log')||'[]'); }catch(e){}
-  S+='<div class="la-sec"><div class="la-sh">&#128465; SENARAI PENTERNAK DIGUGUR / DIKELUARKAN</div><div style="padding:14px">';
-  if(!gugurLog2.length){
-    S+='<div style="color:#718096;font-size:12px;text-align:center;padding:20px">Tiada rekod penternak digugur setakat ini.</div>';
-  } else {
-    S+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
-    S+='<thead><tr style="background:#c53030;color:#fff">';
-    S+='<th class="la-th">NO</th><th class="la-th">NAMA PENTERNAK</th><th class="la-th">PO</th><th class="la-th">JENIS TERNAKAN</th><th class="la-th">ALAMAT</th><th class="la-th">TARIKH GUGUR</th><th class="la-th">GUGUR OLEH</th>';
-    S+='<th class="la-th" style="background:#553c9a">SEBAB GUGUR</th>';
-    S+='</tr></thead><tbody>';
-    gugurLog2.forEach(function(g,i){
-      var bg=i%2?'#fff5f5':'#fff';
-      S+='<tr style="background:'+bg+'">';
-      S+='<td class="la-td" style="text-align:center;font-weight:700;color:#c53030">'+(i+1)+'</td>';
-      S+='<td class="la-td" style="font-weight:700">'+( g.nm||'-')+'</td>';
-      S+='<td class="la-td"><span class="bj">'+(g.po||'-')+'</span></td>';
-      S+='<td class="la-td">'+(g.j||'-')+'</td>';
-      S+='<td class="la-td" style="font-size:10px;color:#718096">'+(g.al||'-')+'</td>';
-      S+='<td class="la-td" style="text-align:center">'+(g.tarikhGugur||'-')+'</td>';
-      S+='<td class="la-td" style="text-align:center">'+(g.gugurOleh||'-')+'</td>';
-      S+='<td class="la-td" style="color:#553c9a;font-style:italic">'+(g.sebab||'<span style="color:#a0aec0">Tiada sebab dicatat</span>')+'</td>';
-      S+='</tr>';
+  // ── SECTION 1b: LOG PERUBAHAN PENTERNAK (TAMBAH & GUGUR) ───────────
+  var BLN_FULL2=['Januari','Februari','Mac','April','Mei','Jun','Julai','Ogos','September','Oktober','November','Disember'];
+  var gugurLog2=[]; try{ gugurLog2=JSON.parse(localStorage.getItem('vu_gugur_log')||'[]'); }catch(e){}
+  var tambahLog2=[]; try{ tambahLog2=JSON.parse(localStorage.getItem('vu_tambah_log')||'[]'); }catch(e){}
+  gugurLog2=gugurLog2.filter(function(g){return !g.tahun||g.tahun===yr;});
+  tambahLog2=tambahLog2.filter(function(g){return !g.tahun||g.tahun===yr;});
+
+  function buildPerubahanTable(logs, type){
+    var byPOMonth={};
+    logs.forEach(function(g){
+      var po2=g.po||'Tidak Diketahui';
+      var mo=g.bulan!==undefined?g.bulan:-1;
+      var key=po2+'___'+mo;
+      if(!byPOMonth[key]) byPOMonth[key]={po:po2,mo:mo,items:[]};
+      byPOMonth[key].items.push(g);
     });
-    S+='<tr style="background:#FFF9C4;font-weight:800"><td class="la-td" colspan="7">JUMLAH DIGUGUR</td>';
-    S+='<td class="la-td" style="text-align:center;font-size:16px;color:#c53030">'+gugurLog2.length+' penternak</td></tr>';
-    S+='</tbody></table></div>';
-    S+='<div style="margin-top:10px;font-size:11px;color:#718096;background:#fff5f5;padding:10px;border-radius:6px;border-left:3px solid #c53030">&#9432; Rekod ini disimpan secara automatik bila admin menggugur penternak dari sistem. Sebab boleh ditambah kemudian melalui edit log.</div>';
+    var keys=Object.keys(byPOMonth).sort();
+    if(!keys.length) return '<div style="color:#718096;font-size:12px;text-align:center;padding:16px">Tiada rekod '+type+' untuk tahun '+yr+'</div>';
+    var h='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+    var hdrColor=type==='ditambah'?'#276749':'#c53030';
+    h+='<thead><tr style="background:'+hdrColor+';color:#fff">';
+    h+='<th class="la-th">NO</th><th class="la-th">BULAN</th><th class="la-th">PO</th><th class="la-th">NAMA PENTERNAK</th><th class="la-th">JENIS TERNAKAN</th><th class="la-th">TARIKH</th><th class="la-th">OLEH</th></tr></thead><tbody>';
+    var n=0;
+    keys.forEach(function(key){
+      var grp=byPOMonth[key];
+      grp.items.forEach(function(g,gi){
+        n++;
+        var bg=n%2?'#f9fafb':'#fff';
+        h+='<tr style="background:'+bg+'">';
+        h+='<td class="la-td" style="text-align:center;font-weight:700;color:'+hdrColor+'">'+n+'</td>';
+        h+='<td class="la-td" style="text-align:center;font-weight:700">'+(grp.mo>=0?BLN_FULL2[grp.mo]:'?')+'</td>';
+        h+='<td class="la-td"><span class="bj">'+(grp.po||'-')+'</span></td>';
+        h+='<td class="la-td" style="font-weight:700">'+(g.nm||'-')+'</td>';
+        h+='<td class="la-td">'+(g.j||'-')+'</td>';
+        h+='<td class="la-td" style="text-align:center;font-size:10px">'+(g.tarikhTambah||g.tarikhGugur||'-')+'</td>';
+        h+='<td class="la-td" style="text-align:center;font-size:10px">'+(g.tambahOleh||g.gugurOleh||'-')+'</td>';
+        h+='</tr>';
+      });
+    });
+    h+='<tr style="background:#FFFF99;font-weight:800"><td class="la-td" colspan="3">JUMLAH</td><td class="la-td" style="color:'+hdrColor+'">'+n+' penternak</td><td class="la-td" colspan="3"></td></tr>';
+    h+='</tbody></table></div>';
+    return h;
   }
+
+  S+='<div class="la-sec"><div class="la-sh">&#128221; LOG PERUBAHAN PENTERNAK — '+yr+'</div><div style="padding:14px">';
+  S+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">';
+  S+='<div>';
+  S+='<div style="background:#276749;color:#fff;padding:8px 12px;border-radius:6px;font-weight:700;font-size:12px;margin-bottom:8px">&#10133; PENTERNAK DITAMBAH ('+tambahLog2.length+')</div>';
+  S+=buildPerubahanTable(tambahLog2,'ditambah');
+  S+='</div>';
+  S+='<div>';
+  S+='<div style="background:#c53030;color:#fff;padding:8px 12px;border-radius:6px;font-weight:700;font-size:12px;margin-bottom:8px">&#10134; PENTERNAK DIGUGUR ('+gugurLog2.length+')</div>';
+  S+=buildPerubahanTable(gugurLog2,'digugur');
+  S+='</div>';
+  S+='</div>';
+  S+='<div style="margin-top:10px;font-size:11px;color:#718096;background:#f7fafc;padding:8px 12px;border-radius:6px">&#9432; Log ini direkod secara automatik bermula dari sesi ini. Rekod sebelum tarikh ini tidak tercatat.</div>';
   S+='</div></div>';
 
   // ── SECTION 2: PENTERNAK ────────────────────
