@@ -1980,7 +1980,7 @@ function approveDeleteAs(reqId, mode){
     }
     
     // Log gugur penternak
-    logGugurPenternak({nm:r.nm,po:r.requestedPO||r.po||'',j:r.j||'',al:r.al||'',rid:r.rid||''}, (CU&&CU.nm)||'ADMIN', r.sebab||r.reason||'', mode);
+    logGugurPenternak({nm:r.nm,po:r.requestedPO||r.po||'',j:r.j||'',al:r.al||'',rid:r.rid||''}, r.requestedBy||r.requestedByNm||'', r.sebab||r.reason||'', mode, (CU&&CU.nm)||'ADMIN');
 
     // Mark request as approved
     reqs[idx].status = 'approved';
@@ -11005,11 +11005,11 @@ function logTambahPenternak(p, oleh){
     if(window.GS_READY&&typeof rtWrite==='function') rtWrite('vu_tambah_log',JSON.stringify(log));
   }catch(e){}
 }
-function logGugurPenternak(p, oleh, sebab, mode){
+function logGugurPenternak(p, oleh, sebab, mode, lulusOleh){
   try{
     var log=JSON.parse(localStorage.getItem('vu_gugur_log')||'[]');
     var now=new Date();
-    log.push({nm:p.nm||'',po:p.po||'',j:p.j||'',al:p.al||'',sebab:sebab||'',bulan:now.getMonth(),tahun:now.getFullYear(),tarikhGugur:now.toLocaleDateString('ms-MY'),gugurOleh:oleh||(window.CU&&window.CU.nm)||'',mode:mode||'',rid:p.rid||''});
+    log.push({nm:p.nm||'',po:p.po||'',j:p.j||'',al:p.al||'',sebab:sebab||'',bulan:now.getMonth(),tahun:now.getFullYear(),tarikhGugur:now.toLocaleDateString('ms-MY'),gugurOleh:oleh||(window.CU&&window.CU.nm)||'',lulusOleh:lulusOleh||'',mode:mode||'',rid:p.rid||''});
     localStorage.setItem('vu_gugur_log',JSON.stringify(log));
     if(window.GS_READY&&typeof rtWrite==='function') rtWrite('vu_gugur_log',JSON.stringify(log));
   }catch(e){}
@@ -14575,7 +14575,12 @@ function janaLaporanAkhir(){
     var h='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
     var hdrColor=type==='ditambah'?'#276749':'#c53030';
     h+='<thead><tr style="background:'+hdrColor+';color:#fff">';
-    h+='<th class="la-th">NO</th><th class="la-th">BULAN</th><th class="la-th">PO</th><th class="la-th">NAMA PENTERNAK</th><th class="la-th">JENIS TERNAKAN</th><th class="la-th">TARIKH</th><th class="la-th">OLEH</th></tr></thead><tbody>';
+    if(type==='ditambah'){
+      h+='<th class="la-th">NO</th><th class="la-th">BULAN</th><th class="la-th">PO</th><th class="la-th">NAMA PENTERNAK</th><th class="la-th">JENIS TERNAKAN</th><th class="la-th">TARIKH</th><th class="la-th">DITAMBAH OLEH</th>';
+    } else {
+      h+='<th class="la-th">NO</th><th class="la-th">BULAN</th><th class="la-th">PO</th><th class="la-th">NAMA PENTERNAK</th><th class="la-th">JENIS TERNAKAN</th><th class="la-th">TARIKH</th><th class="la-th">DIMOHON OLEH</th><th class="la-th" style="background:#553c9a">DILULUSKAN OLEH</th>';
+    }
+    h+='</tr></thead><tbody>';
     var n=0;
     keys.forEach(function(key){
       var grp=byPOMonth[key];
@@ -14589,7 +14594,12 @@ function janaLaporanAkhir(){
         h+='<td class="la-td" style="font-weight:700">'+(g.nm||'-')+'</td>';
         h+='<td class="la-td">'+(g.j||'-')+'</td>';
         h+='<td class="la-td" style="text-align:center;font-size:10px">'+(g.tarikhTambah||g.tarikhGugur||'-')+'</td>';
-        h+='<td class="la-td" style="text-align:center;font-size:10px">'+(g.tambahOleh||g.gugurOleh||'-')+'</td>';
+        if(type==='ditambah'){
+          h+='<td class="la-td" style="text-align:center;font-size:10px">'+(g.tambahOleh||'-')+'</td>';
+        } else {
+          h+='<td class="la-td" style="text-align:center;font-size:10px;font-weight:700;color:#c53030">'+(g.gugurOleh||'-')+'</td>';
+          h+='<td class="la-td" style="text-align:center;font-size:10px;color:#553c9a">'+(g.lulusOleh||'ADMIN')+'</td>';
+        }
         h+='</tr>';
       });
     });
