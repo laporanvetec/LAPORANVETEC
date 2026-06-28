@@ -13809,7 +13809,8 @@ function exportRptExcel(){
   if(typeof XLSX==='undefined'){alert('Excel belum dimuatkan.');return;}
   ld();
   var yr=parseInt(document.getElementById('rpt-final-yr').value)||2026;
-  var baseline=allPt.length; // dinamik ikut jumlah penternak semasa
+  var allPt=pt, allPeg=peg;
+  var baseline=allPt.length;
   var ov=getLTKOverride();
   var wb=XLSX.utils.book_new();
   var BLN=['Januari','Februari','Mac','April','Mei','Jun','Julai','Ogos','September','Oktober','November','Disember'];
