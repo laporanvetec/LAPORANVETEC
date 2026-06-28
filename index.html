@@ -159,11 +159,11 @@ input[type=search],#lg-nm,#s3add-cari,#ml-q,#gm-q,#lt-q,#tk-q,#iv-q,#mlpk-q{text
 var DEFAULT_OFFICERS={
   'GURUN':['ADMIN','NURSHUHADA','NABILAH','SHUKOR','ATIQAH'],
   'KULIM':['AZIELA','UMI'],
-  'SUNGAI PETANI':['NORYATI','SUHAIMI','NORAFIZA'],
+  'SUNGAI PETANI':['NORHAYATI','SUHAIMI','NORAFIZA'],
   'KUALA KETIL':['MANSOR'],
-  'ALOR STAR':['SUHAI'], 'ALOR SETAR':['SUHAI'],
+  'ALOR SETAR':['SUHAI'],
   'JITRA':['ARIFF','AFIQ'],
-  'KANGAR/PERLIS':['HARNANI','ZAKIAH'], 'KANGAR':['HARNANI','ZAKIAH'],
+  'KANGAR':['HARNANI','ZAKIAH'],
   'SG BAKAP':['AZILA']
 };
 
@@ -13844,7 +13844,7 @@ function exportRptExcel(){
   var kwTotAsal=kwByPTJ.KEDAH.asal+kwByPTJ.PENANG.asal+kwByPTJ.PERLIS.asal;
   var kwTotJB=kwByPTJ.KEDAH.jb+kwByPTJ.PENANG.jb+kwByPTJ.PERLIS.jb;
   r1.push([H('ITEM',C.purple),H('NILAI',C.purple),H('CATATAN',C.purple)]);
-  var stats2=[['Jumlah Penternak VetEC',allPt.length,'Keseluruhan 8 PO'],['Pegawai Teknikal Aktif',allPeg.filter(function(g){return g.nm!=='ADMIN';}).length,''],['Penternak Dilawat '+yr,visited,fPCT(visited,allPt.length)+' daripada jumlah'],['Belum Dilawat',allPt.length-visited,fPCT(allPt.length-visited,allPt.length)+' belum dilawat'],['Jumlah Aktiviti (BA)',totalBA,''],['Jumlah Lawatan (BP)',totalBP,''],['LTJ Cukup 3x',ltjMet+' / '+ltjTotal,fPCT(ltjMet,ltjTotal||1)+' sasaran tercapai'],['Peruntukan Kewangan',fRM(kwTotAsal),''],['Jumlah Belanja',fRM(kwTotJB),fPCT(kwTotJB,kwTotAsal||1)+' daripada peruntukan']];
+  var stats2=[['Jumlah Penternak VetEC',allPt.length,'Keseluruhan 8 PO'],['Pegawai Teknikal Aktif',(function(){var os={};PO_LIST.forEach(function(p){getOfficers(p).forEach(function(n){if(n!=='ADMIN')os[n+'__'+p]=true;});});return Object.keys(os).length;})(),''],['Penternak Dilawat '+yr,visited,fPCT(visited,allPt.length)+' daripada jumlah'],['Belum Dilawat',allPt.length-visited,fPCT(allPt.length-visited,allPt.length)+' belum dilawat'],['Jumlah Aktiviti (BA)',totalBA,''],['Jumlah Lawatan (BP)',totalBP,''],['LTJ Cukup 3x',ltjMet+' / '+ltjTotal,fPCT(ltjMet,ltjTotal||1)+' sasaran tercapai'],['Peruntukan Kewangan',fRM(kwTotAsal),''],['Jumlah Belanja',fRM(kwTotJB),fPCT(kwTotJB,kwTotAsal||1)+' daripada peruntukan']];
   stats2.forEach(function(s,i){ r1.push([D(s[0],i%2?C.lb:C.white,true,C.navy,'left'),D(s[1],i%2?C.lb:C.white,true,C.green,'center'),D(s[2],i%2?C.lb:C.white,false,'718096','left')]); });
   var ws1=XLSX.utils.aoa_to_sheet(r1);
   ws1['!cols']=[{wch:30},{wch:20},{wch:35}];
@@ -13861,7 +13861,7 @@ function exportRptExcel(){
     var bg=i%2?C.lb:C.white;
     r2.push([D(i+1,bg,true),D(po2,bg,true,C.navy,'left'),D(pg.length,bg),D(ptPO.length,bg,true),D(fPCT(ptPO.length,allPt.length),bg),D(vis,bg,false,C.green),D(fPCT(vis,ptPO.length||1),bg),D(ptPO.length-vis,bg,false,C.red)]);
   });
-  r2.push([D('JUMLAH',C.gold,true,'000000'),D('',C.gold),D(allPeg.filter(function(g){return g.nm!=='ADMIN';}).length,C.gold,true),D(allPt.length,C.gold,true),D('100%',C.gold,true),D(visited,C.gold,true,C.green),D(fPCT(visited,allPt.length),C.gold,true),D(allPt.length-visited,C.gold,true,C.red)]);
+  r2.push([D('JUMLAH',C.gold,true,'000000'),D('',C.gold),D((function(){var os={};PO_LIST.forEach(function(p){getOfficers(p).forEach(function(n){if(n!=='ADMIN')os[n+'__'+p]=true;});});return Object.keys(os).length;})(),C.gold,true),D(allPt.length,C.gold,true),D('100%',C.gold,true),D(visited,C.gold,true,C.green),D(fPCT(visited,allPt.length),C.gold,true),D(allPt.length-visited,C.gold,true,C.red)]);
   r2.push([]);
   r2.push([H('KEDUDUKAN'),H('PEGAWAI'),H('PO'),H('BIL PENTERNAK'),H('% DARI VETEC'),H('DILAWAT',C.teal),H('% DILAWAT',C.teal),H('BELUM LAWAT',C.red)]);
   var pList=Object.values(ptByPeg2).filter(function(x){return x.nm!=='ADMIN';});
@@ -14129,7 +14129,9 @@ function exportRptPPT(){
 
   // ── SLIDE 2: RINGKASAN STATISTIK ──
   var totalPT=pt.length;
-  var totalOfficers=JSON.parse(localStorage.getItem('vu_g')||'[]').filter(function(g){return g.nm!=='ADMIN';}).length;
+  var officerSet={};
+  PO_LIST.forEach(function(po2){ getOfficers(po2).forEach(function(nm){ if(nm!=='ADMIN') officerSet[nm+'__'+po2]=true; }); });
+  var totalOfficers=Object.keys(officerSet).length;
   var totalBA=0,totalBP=0;
   PO_LIST.forEach(function(po2){
     for(var mo=0;mo<12;mo++){
