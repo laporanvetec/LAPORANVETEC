@@ -2384,7 +2384,7 @@ function getOfficers(po){
 
 
 var RTDB='https://vetec-utara-default-rtdb.firebaseio.com';
-var GS_KEYS=['vu_g','vu_p','vu_rb','vu_rk','vu_ug','vu_ts','vu_ltj','vu_lt','vu_tkp','vu_tkt','vu_ivi','vu_ivp','vu_kw','vu_sp03','vu_ml','vu_ltk_ov','vu_submit_log','vu_import_hist','vu_officers','vu_ml_req','vu_notif','vu_clearance_log','vu_rpt_imported','vu_rpt_hist','vu_peng_keep'];
+var GS_KEYS=['vu_g','vu_p','vu_rb','vu_rk','vu_ug','vu_ts','vu_ltj','vu_lt','vu_tkp','vu_tkt','vu_ivi','vu_ivp','vu_kw','vu_sp03','vu_ml','vu_ltk_ov','vu_submit_log','vu_import_hist','vu_officers','vu_ml_req','vu_notif','vu_clearance_log','vu_rpt_imported','vu_rpt_hist','vu_peng_keep','vu_gugur_log'];
 var _lsOrig=localStorage.setItem.bind(localStorage);
 window.GS_READY=false;
 window.FB_READY=false;
@@ -5290,6 +5290,20 @@ function confirmDeletePenternak(targetRid, alsoML){
   if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_p', JSON.stringify(ptNew));
   
   if(alsoML){
+    // Log penternak gugur sebelum padam
+    try{
+      var gugurLog = JSON.parse(localStorage.getItem('vu_gugur_log')||'[]');
+      gugurLog.push({
+        nm: p.nm||'', po: p.po||'', j: p.j||'', al: p.al||'',
+        sebab: '', // boleh admin isi kemudian
+        tarikhGugur: new Date().toLocaleDateString('ms-MY'),
+        gugurOleh: (window.CU && window.CU.nm)||'ADMIN',
+        rid: targetRid
+      });
+      localStorage.setItem('vu_gugur_log', JSON.stringify(gugurLog));
+      if(window.GS_READY && typeof rtWrite==='function') rtWrite('vu_gugur_log', JSON.stringify(gugurLog));
+    }catch(e){}
+
     // Delete from masterlist too
     var ml2 = JSON.parse(localStorage.getItem('vu_ml')||'[]');
     var mlNew = ml2.filter(function(x){
@@ -13787,7 +13801,7 @@ function exportRptExcel(){
   if(typeof XLSX==='undefined'){alert('Excel belum dimuatkan.');return;}
   ld();
   var yr=parseInt(document.getElementById('rpt-final-yr').value)||2026;
-  var baseline=parseInt(document.getElementById('rpt-baseline').value)||671;
+  var baseline=allPt.length; // dinamik ikut jumlah penternak semasa
   var ov=getLTKOverride();
   var wb=XLSX.utils.book_new();
   var BLN=['Januari','Februari','Mac','April','Mei','Jun','Julai','Ogos','September','Oktober','November','Disember'];
@@ -14365,7 +14379,7 @@ function exportRptPPT(){
 function janaLaporanAkhir(){
   ld();
   var yr  = parseInt(document.getElementById('rpt-final-yr').value)||2026;
-  var baseline = parseInt(document.getElementById('rpt-baseline').value)||671;
+  var baseline = allPt.length; // dinamik ikut jumlah penternak semasa
   var out = document.getElementById('rpt-final-output');
   out.innerHTML = '<div style="text-align:center;padding:30px;color:#718096">Sedang menjana laporan...</div>';
 
@@ -14498,12 +14512,62 @@ function janaLaporanAkhir(){
       +(sub?'<div style="font-size:10px;opacity:.8;margin-top:2px">'+sub+'</div>':'')
       +'</div>';
   }
-  S+=kpi('Jumlah Pegawai Teknikal', allPeg.length, 'Seluruh VetEC Utara','#0f2d5e');
-  S+=kpi('Penternak Semasa', fNum(allPt.length), 'Baseline: '+fNum(baseline),'#276749');
-  S+=kpi('Pertambahan Penternak', '+'+(allPt.length-baseline), fPct(allPt.length-baseline,baseline),'#2b6cb0');
-  S+=kpi('Dilawat Tahun Ini', fNum(visited), fPct(visited,allPt.length),'#744210');
-  S+=kpi('Belum Dilawat', fNum(notVisited), fPct(notVisited,allPt.length),'#c53030');
+  // 1. Jumlah Pegawai Teknikal — dari roster rasmi (bukan login history)
+  var rosterCount=0;
+  PO_LIST.forEach(function(po2){rosterCount+=(getOfficers(po2).filter(function(n){return n!=='ADMIN';}).length);});
+  S+=kpi('Jumlah Pegawai Teknikal', rosterCount, 'Seluruh VetEC Utara','#0f2d5e');
+
+  // 2. Penternak Semasa — semasa / baseline
+  S+=kpi('Penternak Semasa', fNum(allPt.length)+' / '+fNum(baseline), 'Baseline: '+fNum(baseline),'#276749');
+
+  // 3. Pencapaian Penternak — sasaran = 30 per pegawai × 18 penjawatan = 540
+  var sasaranPenternak = 30 * 18; // = 540
+  var pctSasaran = allPt.length / sasaranPenternak * 100;
+  S+=kpi('Pencapaian Penternak', pctSasaran.toFixed(1)+'%', fNum(allPt.length)+'/'+fNum(sasaranPenternak)+' (30 org × 18 penjawatan)','#2b6cb0');
+
+  // 4. Dilawat Tahun Ini — status LBL = 1 (p.tr ada tarikh lawatan)
+  // "status 1" = p.tr ada nilai, "status 0" = p.tr kosong/tiada
+  var visitedLBL = allPt.filter(function(p){ return p.tr && p.tr.trim() && p.tr.trim()!=='0'; }).length;
+  S+=kpi('Dilawat Tahun Ini', fNum(visitedLBL), fPct(visitedLBL,allPt.length)+' ('+fNum(visitedLBL)+'/'+fNum(allPt.length)+')', '#744210');
+
+  // 5. Belum Dilawat — status 0 = tiada tarikh LBL
+  var belumLBL = allPt.length - visitedLBL;
+  S+=kpi('Belum Dilawat', fNum(belumLBL), fPct(belumLBL,allPt.length)+' daripada '+fNum(allPt.length),'#c53030');
+
+  // 6. Pencapaian LTJ
   S+=kpi('Pencapaian LTJ', fPct(ltjMet,ltjTotal||1), ltjMet+'/'+ltjTotal+' penternak','#553c9a');
+  S+='</div></div>';
+
+  // ── SECTION 1b: PENTERNAK DIGUGUR ───────────
+  var gugurLog2 = [];
+  try{ gugurLog2 = JSON.parse(localStorage.getItem('vu_gugur_log')||'[]'); }catch(e){}
+  S+='<div class="la-sec"><div class="la-sh">&#128465; SENARAI PENTERNAK DIGUGUR / DIKELUARKAN</div><div style="padding:14px">';
+  if(!gugurLog2.length){
+    S+='<div style="color:#718096;font-size:12px;text-align:center;padding:20px">Tiada rekod penternak digugur setakat ini.</div>';
+  } else {
+    S+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+    S+='<thead><tr style="background:#c53030;color:#fff">';
+    S+='<th class="la-th">NO</th><th class="la-th">NAMA PENTERNAK</th><th class="la-th">PO</th><th class="la-th">JENIS TERNAKAN</th><th class="la-th">ALAMAT</th><th class="la-th">TARIKH GUGUR</th><th class="la-th">GUGUR OLEH</th>';
+    S+='<th class="la-th" style="background:#553c9a">SEBAB GUGUR</th>';
+    S+='</tr></thead><tbody>';
+    gugurLog2.forEach(function(g,i){
+      var bg=i%2?'#fff5f5':'#fff';
+      S+='<tr style="background:'+bg+'">';
+      S+='<td class="la-td" style="text-align:center;font-weight:700;color:#c53030">'+(i+1)+'</td>';
+      S+='<td class="la-td" style="font-weight:700">'+( g.nm||'-')+'</td>';
+      S+='<td class="la-td"><span class="bj">'+(g.po||'-')+'</span></td>';
+      S+='<td class="la-td">'+(g.j||'-')+'</td>';
+      S+='<td class="la-td" style="font-size:10px;color:#718096">'+(g.al||'-')+'</td>';
+      S+='<td class="la-td" style="text-align:center">'+(g.tarikhGugur||'-')+'</td>';
+      S+='<td class="la-td" style="text-align:center">'+(g.gugurOleh||'-')+'</td>';
+      S+='<td class="la-td" style="color:#553c9a;font-style:italic">'+(g.sebab||'<span style="color:#a0aec0">Tiada sebab dicatat</span>')+'</td>';
+      S+='</tr>';
+    });
+    S+='<tr style="background:#FFF9C4;font-weight:800"><td class="la-td" colspan="7">JUMLAH DIGUGUR</td>';
+    S+='<td class="la-td" style="text-align:center;font-size:16px;color:#c53030">'+gugurLog2.length+' penternak</td></tr>';
+    S+='</tbody></table></div>';
+    S+='<div style="margin-top:10px;font-size:11px;color:#718096;background:#fff5f5;padding:10px;border-radius:6px;border-left:3px solid #c53030">&#9432; Rekod ini disimpan secara automatik bila admin menggugur penternak dari sistem. Sebab boleh ditambah kemudian melalui edit log.</div>';
+  }
   S+='</div></div>';
 
   // ── SECTION 2: PENTERNAK ────────────────────
@@ -14867,7 +14931,7 @@ function exLaporanAkhir(){
   if(typeof XLSX==='undefined'){alert('Excel belum dimuatkan.');return;}
   ld();
   var yr=parseInt((document.getElementById('rpt-final-yr')||{value:'2026'}).value)||2026;
-  var baseline=parseInt((document.getElementById('rpt-baseline')||{value:'671'}).value)||671;
+  ld(); var baseline=pt.length; // dinamik
   var wb=XLSX.utils.book_new();
   var pos2=[]; var ptByPO2={};
   pt.forEach(function(p){ if(pos2.indexOf(p.po)<0)pos2.push(p.po); if(!ptByPO2[p.po])ptByPO2[p.po]=[]; ptByPO2[p.po].push(p); });
