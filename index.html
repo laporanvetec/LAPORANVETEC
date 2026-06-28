@@ -14086,7 +14086,36 @@ function exportRptExcel(){
   ws8['!freeze']={xSplit:4,ySplit:1};
   XLSX.utils.book_append_sheet(wb,ws8,'LOG TEKNIKAL');
 
-  // Sheet 9: Graf (nota — Excel export tidak support embedding Chart.js canvas secara langsung)
+  // ── SHEET 9: PENTERNAK DITAMBAH ──
+  var tambahLog3=[]; try{ tambahLog3=JSON.parse(localStorage.getItem('vu_tambah_log')||'[]').filter(function(g){return !g.tahun||g.tahun===yr;}); }catch(e){}
+  var BLN_EX=['Januari','Februari','Mac','April','Mei','Jun','Julai','Ogos','September','Oktober','November','Disember'];
+  var rT=[[ H('NO','276749'),H('BULAN','276749'),H('PUSAT OPERASI','276749'),H('NAMA PENTERNAK','276749'),H('JENIS TERNAKAN','276749'),H('ALAMAT','276749'),H('TARIKH TAMBAH','276749'),H('DITAMBAH OLEH','276749') ]];
+  tambahLog3.forEach(function(g,i){
+    var bg=i%2?'F0FFF4':'FFFFFF';
+    rT.push([D(i+1,bg,true,C.green),D(g.bulan>=0?BLN_EX[g.bulan]:'?',bg,false),D(g.po||'-',bg,true,C.navy,'left'),D(g.nm||'-',bg,true,C.navy,'left'),D(g.j||'-',bg),D(g.al||'-',bg,false,'718096','left'),D(g.tarikhTambah||'-',bg,false,'475569'),D(g.tambahOleh||'-',bg,false,C.green)]);
+  });
+  if(!tambahLog3.length) rT.push([D('Tiada rekod ditambah untuk tahun '+yr,'F0FFF4',false,'718096','left')]);
+  var wsT=XLSX.utils.aoa_to_sheet(rT);
+  wsT['!cols']=[{wch:5},{wch:12},{wch:16},{wch:25},{wch:18},{wch:30},{wch:14},{wch:16}];
+  wsT['!rows']=[{hpt:28}];
+  wsT['!freeze']={xSplit:0,ySplit:1};
+  XLSX.utils.book_append_sheet(wb,wsT,'PENTERNAK DITAMBAH');
+
+  // ── SHEET 10: PENTERNAK DIGUGUR ──
+  var gugurLog4=[]; try{ gugurLog4=JSON.parse(localStorage.getItem('vu_gugur_log')||'[]').filter(function(g){return !g.tahun||g.tahun===yr;}); }catch(e){}
+  var rG=[[ H('NO','C53030'),H('BULAN','C53030'),H('PUSAT OPERASI','C53030'),H('NAMA PENTERNAK','C53030'),H('JENIS TERNAKAN','C53030'),H('TARIKH GUGUR','C53030'),H('DIMOHON OLEH','C53030'),H('DILULUSKAN OLEH','553C9A'),H('SEBAB','553C9A') ]];
+  gugurLog4.forEach(function(g,i){
+    var bg=i%2?'FFF5F5':'FFFFFF';
+    rG.push([D(i+1,bg,true,C.red),D(g.bulan>=0?BLN_EX[g.bulan]:'?',bg,false),D(g.po||'-',bg,true,C.navy,'left'),D(g.nm||'-',bg,true,C.navy,'left'),D(g.j||'-',bg),D(g.tarikhGugur||'-',bg,false,'475569'),D(g.gugurOleh||'-',bg,true,C.red),D(g.lulusOleh||'ADMIN',bg,false,'553C9A'),D(g.sebab||'-',bg,false,'718096','left')]);
+  });
+  if(!gugurLog4.length) rG.push([D('Tiada rekod digugur untuk tahun '+yr,'FFF5F5',false,'718096','left')]);
+  var wsG=XLSX.utils.aoa_to_sheet(rG);
+  wsG['!cols']=[{wch:5},{wch:12},{wch:16},{wch:25},{wch:18},{wch:14},{wch:16},{wch:16},{wch:30}];
+  wsG['!rows']=[{hpt:28}];
+  wsG['!freeze']={xSplit:0,ySplit:1};
+  XLSX.utils.book_append_sheet(wb,wsG,'PENTERNAK DIGUGUR');
+
+  // Sheet 11: Graf (nota)
   // User should refer to the screen graphs or PPT export for visual charts
   var H9=function(v,bg,fc){return {v:v,t:'s',s:{fill:{fgColor:{rgb:bg||'0F2D5E'}},font:{bold:true,color:{rgb:fc||'FFFFFF'},sz:11},alignment:{horizontal:'center',vertical:'center',wrapText:true},border:{top:{style:'thin'},bottom:{style:'thin'},left:{style:'thin'},right:{style:'thin'}}}};};
   var D9=function(v,bg,sz){return {v:v||'',t:'s',s:{fill:{fgColor:{rgb:bg||'FFFFFF'}},font:{sz:sz||10},alignment:{horizontal:'left',vertical:'center'}}};};
