@@ -7970,67 +7970,95 @@ function addLTJWarnings(){
 // GAMBAR AKTIVITI
 // ═══════════════════════════════════════════════════
 // Storage: IndexedDB for images (localStorage too small)
-var gmDB = null;
+var gmDB = null; // tidak digunakan lagi, kekal untuk backward-compat
 var gmImages = []; // temp array for current add session
 var gmStream = null;
 var gmEditId = null;
 
-// Init IndexedDB
-function initGMDB(cb){
-  if(gmDB){ if(cb)cb(); return; }
-  var req = indexedDB.open('VetECGambar', 1);
-  req.onupgradeneeded = function(e){
-    var db = e.target.result;
-    if(!db.objectStoreNames.contains('gambar')){
-      var store = db.createObjectStore('gambar', {keyPath:'id'});
-      store.createIndex('pegawaiId','pegawaiId',{unique:false});
-      store.createIndex('yr','yr',{unique:false});
-    }
-  };
-  req.onsuccess = function(e){ gmDB = e.target.result; if(cb)cb(); };
-  req.onerror = function(){ console.error('IndexedDB failed'); if(cb)cb(); };
-}
+// ── GAMBAR AKTIVITI — Firebase RTDB ─────────────────────────────────
+// Compress ~150KB, sync semua pegawai, auto-padam 30 hari
+function initGMDB(cb){ if(cb) cb(); } // stub — tidak perlu IndexedDB lagi
 
 function saveGMRecord(rec, cb){
-  initGMDB(function(){
-    if(!gmDB){ if(cb)cb(false); return; }
-    var tx = gmDB.transaction('gambar','readwrite');
-    var req = tx.objectStore('gambar').put(rec);
-    req.onsuccess = function(){ if(cb)cb(true); };
-    req.onerror   = function(){ if(cb)cb(false); };
+  if(!window.GS_READY || typeof rtWrite !== 'function'){
+    toast('Tiada sambungan Firebase. Gambar tidak dapat disimpan.','#c53030');
+    if(cb) cb(false); return;
+  }
+  function compressAll(imgs, done){
+    var out=[]; var i=0;
+    function next(){
+      if(i>=imgs.length){ done(out); return; }
+      compressImage(imgs[i], 600, 0.65, function(c){ out.push(c); i++; next(); });
+    }
+    next();
+  }
+  compressAll(rec.images||[], function(compressed){
+    rec.images = compressed;
+    rec.savedAt = Date.now();
+    rec.expireAt = Date.now() + (30*24*60*60*1000); // 30 hari
+    rtWrite('vu_gm/'+rec.pegawaiId+'/'+rec.id, JSON.stringify(rec));
+    if(cb) cb(true);
   });
 }
+
 function getAllGMRecords(pegawaiId, cb){
-  initGMDB(function(){
-    if(!gmDB){ cb([]); return; }
-    var tx = gmDB.transaction('gambar','readonly');
-    var req = tx.objectStore('gambar').index('pegawaiId').getAll(pegawaiId);
-    req.onsuccess = function(e){ cb(e.target.result||[]); };
-    req.onerror   = function(){ cb([]); };
+  if(!window.GS_READY || typeof rtRead !== 'function'){ cb([]); return; }
+  rtRead('vu_gm/'+pegawaiId, function(raw){
+    if(!raw){ cb([]); return; }
+    var obj; try{ obj=JSON.parse(raw); }catch(e){ obj=raw; }
+    var recs=[]; var now=Date.now();
+    Object.keys(obj||{}).forEach(function(k){
+      var r=obj[k]; if(typeof r==='string'){try{r=JSON.parse(r);}catch(e){return;}}
+      if(!r||!r.id) return;
+      if(r.expireAt && now>r.expireAt){ rtWrite('vu_gm/'+pegawaiId+'/'+r.id, null); return; }
+      recs.push(r);
+    });
+    recs.sort(function(a,b){return (b.ts||0)-(a.ts||0);});
+    cb(recs);
   });
 }
-function deleteGMRecord(id, cb){
-  initGMDB(function(){
-    if(!gmDB){ if(cb)cb(); return; }
-    var tx = gmDB.transaction('gambar','readwrite');
-    tx.objectStore('gambar').delete(id);
-    tx.oncomplete = function(){ if(cb)cb(); };
+
+function getAllGMRecordsAdmin(cb){
+  if(!window.GS_READY || typeof rtRead !== 'function'){ cb([]); return; }
+  rtRead('vu_gm', function(raw){
+    if(!raw){ cb([]); return; }
+    var obj; try{ obj=JSON.parse(raw); }catch(e){ obj=raw; }
+    var recs=[]; var now=Date.now();
+    Object.keys(obj||{}).forEach(function(pegId){
+      var pegRecs=obj[pegId]; if(typeof pegRecs==='string'){try{pegRecs=JSON.parse(pegRecs);}catch(e){return;}}
+      Object.keys(pegRecs||{}).forEach(function(k){
+        var r=pegRecs[k]; if(typeof r==='string'){try{r=JSON.parse(r);}catch(e){return;}}
+        if(!r||!r.id) return;
+        if(r.expireAt && now>r.expireAt) return;
+        recs.push(r);
+      });
+    });
+    recs.sort(function(a,b){return (b.ts||0)-(a.ts||0);});
+    cb(recs);
   });
+}
+
+function deleteGMRecord(id, cb){
+  if(!window.GS_READY || typeof rtWrite !== 'function'){ if(cb)cb(); return; }
+  rtWrite('vu_gm/'+CU.pid+'/'+id, null);
+  if(cb) cb();
 }
 
 // ── RENDER ───────────────────────────────────────
 function renderGM(){
   if(!CU) return;
-  // Check for pending clearance
-  setTimeout(function(){if(typeof checkGMClearance==='function')checkGMClearance();}, 500);
+  // Check for pending clearance (pegawai sahaja)
+  if(!isMLAdmin()) setTimeout(function(){if(typeof checkGMClearance==='function')checkGMClearance();}, 500);
   var yr  = parseInt(document.getElementById('gm-yr').value)||2026;
   var mo  = document.getElementById('gm-mo').value;
   var q   = (document.getElementById('gm-q').value||'').toLowerCase();
-  getAllGMRecords(CU.pid, function(recs){
+  // Admin nampak semua pegawai, pegawai nampak sendiri sahaja
+  var fetchFn = isMLAdmin() ? getAllGMRecordsAdmin : function(cb){ getAllGMRecords(CU.pid, cb); };
+  fetchFn(function(recs){
     var filtered = recs.filter(function(r){
       if(r.yr !== yr) return false;
       if(mo !== '' && r.mo !== parseInt(mo)) return false;
-      if(q && r.ringkasan.toLowerCase().indexOf(q)<0 && r.pegawai.toLowerCase().indexOf(q)<0) return false;
+      if(q && (r.ringkasan||'').toLowerCase().indexOf(q)<0 && (r.pegawai||'').toLowerCase().indexOf(q)<0 && (r.po||'').toLowerCase().indexOf(q)<0) return false;
       return true;
     });
     filtered.sort(function(a,b){ return b.ts - a.ts; });
