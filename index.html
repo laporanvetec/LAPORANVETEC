@@ -8529,10 +8529,11 @@ function renderLT(){
   var yr = parseInt(document.getElementById('lt-yr').value)||2026;
   var q  = (document.getElementById('lt-q').value||'').toLowerCase();
   var all = getLT().filter(function(r){
-    if(r.po !== CU.po) return false;
     if(r.tahun !== yr) return false;
-    if(q && r.nama.toLowerCase().indexOf(q)<0 && r.kursus.toLowerCase().indexOf(q)<0) return false;
-    return true;
+    if(q && (r.nama||'').toLowerCase().indexOf(q)<0 && (r.kursus||'').toLowerCase().indexOf(q)<0) return false;
+    // Admin: nampak semua ikut PO; pegawai: nampak rekod sendiri sahaja (ikut pid atau nama)
+    if(isMLAdmin()) return normPO(r.po)===normPO(CU.po)||true; // admin nampak semua
+    return r.pid===CU.pid || (r.nama||'').toUpperCase().trim()===(CU.nm||'').toUpperCase().trim();
   });
   document.getElementById('lt-cnt').textContent = all.length+' rekod';
 
@@ -8727,7 +8728,7 @@ function saveLT(){
 function exLT(){
   if(typeof XLSX==='undefined'){ alert('Excel belum dimuatkan.'); return; }
   var yr  = parseInt(document.getElementById('lt-yr').value)||2026;
-  var all = getLT().filter(function(r){ return r.po===CU.po&&r.tahun===yr; });
+  var all = getLT().filter(function(r){ return r.tahun===yr && (isMLAdmin() || r.pid===CU.pid || (r.nama||'').toUpperCase().trim()===(CU.nm||'').toUpperCase().trim()); });
   var wb  = XLSX.utils.book_new();
   var rows = [
     ['REKOD LATIHAN - TAHUN '+yr],
@@ -9116,14 +9117,14 @@ function renderTK(){
 
   var promosi = getTKP().filter(function(r){
     if(r.yr!==yr) return false;
-    if(!isMLAdmin() && r.po!==CU.po) return false;
-    if(q && r.pegawai.toLowerCase().indexOf(q)<0 && r.aktiviti.toLowerCase().indexOf(q)<0) return false;
+    if(!isMLAdmin() && r.pid!==CU.pid && (r.pegawai||'').toUpperCase().trim()!==(CU.nm||'').toUpperCase().trim()) return false;
+    if(q && (r.pegawai||'').toLowerCase().indexOf(q)<0 && (r.aktiviti||'').toLowerCase().indexOf(q)<0) return false;
     return true;
   });
   var pemindahan = getTKT().filter(function(r){
     if(r.yr!==yr) return false;
-    if(!isMLAdmin() && r.po!==CU.po) return false;
-    if(q && r.pegawai.toLowerCase().indexOf(q)<0 && r.teknologi.toLowerCase().indexOf(q)<0) return false;
+    if(!isMLAdmin() && r.pid!==CU.pid && (r.pegawai||'').toUpperCase().trim()!==(CU.nm||'').toUpperCase().trim()) return false;
+    if(q && (r.pegawai||'').toLowerCase().indexOf(q)<0 && r.teknologi.toLowerCase().indexOf(q)<0) return false;
     return true;
   });
 
@@ -9350,8 +9351,8 @@ function saveTKT(){
 function exTK(){
   if(typeof XLSX==='undefined'){alert('Excel belum dimuatkan.');return;}
   var yr=parseInt(document.getElementById('tk-yr').value)||2026;
-  var promosi=getTKP().filter(function(r){return r.po===CU.po&&r.yr===yr;});
-  var pemindahan=getTKT().filter(function(r){return r.po===CU.po&&r.yr===yr;});
+  var promosi=getTKP().filter(function(r){return r.yr===yr&&(isMLAdmin()||r.pid===CU.pid||(r.pegawai||'').toUpperCase().trim()===(CU.nm||'').toUpperCase().trim());});
+  var pemindahan=getTKT().filter(function(r){return r.yr===yr&&(isMLAdmin()||r.pid===CU.pid||(r.pegawai||'').toUpperCase().trim()===(CU.nm||'').toUpperCase().trim());});
   var wb=XLSX.utils.book_new();
   // Promosi sheet
   var rP=[['PROMOSI DAN PEMINDAHAN TEKNOLOGI - TAHUN '+yr],['PO: '+CU.po+' | VetEC UTARA'],[],
@@ -9427,14 +9428,14 @@ function renderIV(){
   var q=(document.getElementById('iv-q').value||'').toLowerCase();
   var inovasi=getIVI().filter(function(r){
     if(r.yr!==yr) return false;
-    if(!isMLAdmin() && r.po!==CU.po) return false;
-    if(q&&r.tajuk.toLowerCase().indexOf(q)<0&&r.pegawai.toLowerCase().indexOf(q)<0) return false;
+    if(!isMLAdmin() && r.pid!==CU.pid && (r.pegawai||'').toUpperCase().trim()!==(CU.nm||'').toUpperCase().trim()) return false;
+    if(q&&(r.tajuk||'').toLowerCase().indexOf(q)<0&&(r.pegawai||'').toLowerCase().indexOf(q)<0) return false;
     return true;
   });
   var penyelidikan=getIVP().filter(function(r){
     if(r.yr!==yr) return false;
-    if(!isMLAdmin() && r.po!==CU.po) return false;
-    if(q&&r.tajuk.toLowerCase().indexOf(q)<0&&r.pegawai.toLowerCase().indexOf(q)<0) return false;
+    if(!isMLAdmin() && r.pid!==CU.pid && (r.pegawai||'').toUpperCase().trim()!==(CU.nm||'').toUpperCase().trim()) return false;
+    if(q&&(r.tajuk||'').toLowerCase().indexOf(q)<0&&(r.pegawai||'').toLowerCase().indexOf(q)<0) return false;
     return true;
   });
   document.getElementById('iv-cnt').textContent=inovasi.length+' inovasi | '+penyelidikan.length+' penyelidikan';
@@ -9576,8 +9577,8 @@ function saveIVP(){
 function exIV(){
   if(typeof XLSX==='undefined'){alert('Excel belum dimuatkan.');return;}
   var yr=parseInt(document.getElementById('iv-yr').value)||2026;
-  var inovasi=getIVI().filter(function(r){return r.po===CU.po&&r.yr===yr;});
-  var penyelidikan=getIVP().filter(function(r){return r.po===CU.po&&r.yr===yr;});
+  var inovasi=getIVI().filter(function(r){return r.yr===yr&&(isMLAdmin()||r.pid===CU.pid||(r.pegawai||'').toUpperCase().trim()===(CU.nm||'').toUpperCase().trim());});
+  var penyelidikan=getIVP().filter(function(r){return r.yr===yr&&(isMLAdmin()||r.pid===CU.pid||(r.pegawai||'').toUpperCase().trim()===(CU.nm||'').toUpperCase().trim());});
   var wb=XLSX.utils.book_new();
   var rows=[['INOVASI DAN PENYELIDIKAN - TAHUN '+yr],['PO: '+CU.po+' | VetEC UTARA'],[],
     ['INOVASI'],['BIL','TAJUK INOVASI','PEGAWAI','PENCAPAIAN SEMASA','SASARAN TAHUNAN']];
