@@ -11136,7 +11136,7 @@ function migrateNoryatiToNorhayati(){
 }
 migrateNoryatiToNorhayati();
 
-function ltkKey(po,yr,mo,officer){ return po+'_'+yr+'_'+mo+(officer?('_'+officer):''); }
+function ltkKey(po,yr,mo,officer){ return normPO(po)+'_'+yr+'_'+mo+(officer?('_'+officer.toUpperCase().trim()):''); }
 
 // ── CALCULATE LOG TEKNIKAL FOR ONE MONTH ──────────
 // Freeze BIL..NAMA PENTERNAK (first 7 columns) in SP03 table for easier editing while scrolling
@@ -11283,11 +11283,12 @@ function applySP03Freeze(){
 
 function calcLTKMonth(po, yr, mo, officer){
   ld();
+  var normPo = normPO(po);
   var recs = getSP03().filter(function(r){
-    if(r.po!==po || r.yr!==yr || r.mo!==mo) return false;
+    if(normPO(r.po)!==normPo || r.yr!==yr || r.mo!==mo) return false;
     if(officer===undefined) return true; // backward-compat: no officer filter
     var ket = (r.ketuaAktiviti||'').toUpperCase().trim() || 'TIDAK DINYATAKAN';
-    return ket === officer;
+    return ket === officer.toUpperCase().trim();
   });
   if(!recs.length) return null;
 
@@ -11326,14 +11327,15 @@ function calcLTKMonth(po, yr, mo, officer){
   var VK_KEYS = ['FMD','RB51','PASTEURELLA','HS','ND/AI','LAIN-LAIN'];
   var vaksinasi = recs.reduce(function(sum,r){ return sum+VK_KEYS.reduce(function(s,k){ return s+((r.vaksin&&r.vaksin[k])?parseInt(r.vaksin[k])||0:0); },0); },0);
 
-  // I: UJIAN LAPANGAN
+  // I: UJIAN LAPANGAN — field sendiri (bukan dalam mpok)
   var UJ_KEYS = ['DELVO TEST','AB TEST/DRUGS RESIDUE','MBRT','CMT/RMT','PLATFORM T','LAIN-LAIN'];
-  var ujianLapangan = recs.reduce(function(sum,r){ return sum+UJ_KEYS.reduce(function(s,k){ return s+((r.mpok&&r.mpok[k])?parseInt(r.mpok[k])||0:0); },0); },0);
+  var ujianLapangan = recs.reduce(function(sum,r){ return sum+UJ_KEYS.reduce(function(s,k){ return s+((r.ujian&&r.ujian[k])?parseInt(r.ujian[k])||0:0); },0); },0);
 
-  // J: MESYUARAT - TIADA data SP03, wajib key-in manual oleh pegawai
+  // J: MESYUARAT - wajib key-in manual, override diapply di luar fungsi ini
   var mesyuarat = 0;
 
-  // JUMLAH AKTIVITI = A+B+C+D+E+F+G+H+I+J
+  // JUMLAH AKTIVITI = A + kgFarms(B) + rbFarms(C) + bkFarms(D) + E + F + G + H + I + J(mesyuarat override)
+  // NOTE: mesyuarat dari override ditambah dalam renderLTK/exportRptExcel selepas override diapply
   var jumlah = khidmatNasihat + kgFarms + rbFarms + bkFarms + lawatSiasat + audit + persampelan + vaksinasi + ujianLapangan + mesyuarat;
 
   return {
@@ -11510,6 +11512,11 @@ function renderLTK(){
 
   months.forEach(function(mo, i){
     var officers = getLTKOfficers(selectedLtkPO, yr, mo);
+    // Bukan admin: tunjuk data diri sendiri sahaja
+    if(!isMLAdmin()){
+      officers = officers.filter(function(o){ return o === CU.nm.toUpperCase().trim(); });
+      if(!officers.length) officers = [CU.nm.toUpperCase().trim()];
+    }
     officers.forEach(function(officerName){
     var auto = calcLTKMonth(selectedLtkPO, yr, mo, officerName) || {
       mo:mo, yr:yr, po:selectedLtkPO, bilPenternak:0, khidmatNasihat:0,
@@ -11525,6 +11532,11 @@ function renderLTK(){
     if(ovr.sokongan !== undefined) d.sokongan = ovr.sokongan || 0;
     if(ovr.nota !== undefined) d.nota = ovr.nota || '';
     d.alasan = ovr.alasan || '';
+    // Recalculate jumlah after override to include mesyuarat (manual) + all categories
+    d.jumlah = (parseInt(d.khidmatNasihat)||0) + (parseInt(d.kgFarms)||0) + (parseInt(d.rbFarms)||0) +
+               (parseInt(d.bkFarms)||0) + (parseInt(d.lawatSiasat)||0) + (parseInt(d.audit)||0) +
+               (parseInt(d.persampelan)||0) + (parseInt(d.vaksinasi)||0) + (parseInt(d.ujianLapangan)||0) +
+               (parseInt(d.mesyuarat)||0);
 
     // Accumulate totals
     ['bilPenternak','khidmatNasihat','kgFarms','kgTernakan','rbFarms','rbTernakan','bkFarms','bkTernakan','lawatSiasat','audit','persampelan','vaksinasi','ujianLapangan','mesyuarat','jumlah','sokongan'].forEach(function(k){ totals[k]=(totals[k]||0)+(parseInt(d[k])||0); });
@@ -11607,7 +11619,9 @@ function renderLTK(){
     var ov2 = getLTKOverride();
     var missingAlasanSet = {};
     months.forEach(function(mo){
-      getLTKOfficers(selectedLtkPO, yr, mo).forEach(function(off){
+      var offs2 = getLTKOfficers(selectedLtkPO, yr, mo);
+      if(!isMLAdmin()) offs2 = [CU.nm.toUpperCase().trim()];
+      offs2.forEach(function(off){
         var auto3 = calcLTKMonth(selectedLtkPO, yr, mo, off) || {bilPenternak:0, jumlah:0};
         var key3 = ltkKey(selectedLtkPO, yr, mo, off);
         var ovr3 = ov2[key3]||{};
@@ -11747,11 +11761,14 @@ function exLTK(){
   ];
   var bilCount=0;
   months.forEach(function(mo){
-    getLTKOfficers((window._ltkCurrentPO || CU.po), yr, mo).forEach(function(off){
+    var exOffs = getLTKOfficers((window._ltkCurrentPO || CU.po), yr, mo);
+    if(!isMLAdmin()) exOffs = [CU.nm.toUpperCase().trim()];
+    exOffs.forEach(function(off){
     var auto=calcLTKMonth((window._ltkCurrentPO || CU.po),yr,mo,off);if(!auto)return;
     var key=ltkKey((window._ltkCurrentPO || CU.po),yr,mo,off);var ovr=ov[key]||{};
     var d={};Object.keys(auto).forEach(function(k){d[k]=(ovr[k]!==undefined&&ovr[k]!=='')?ovr[k]:auto[k];});
     if(ovr.sokongan!==undefined)d.sokongan=ovr.sokongan||0;
+    d.jumlah=(parseInt(d.khidmatNasihat)||0)+(parseInt(d.kgFarms)||0)+(parseInt(d.rbFarms)||0)+(parseInt(d.bkFarms)||0)+(parseInt(d.lawatSiasat)||0)+(parseInt(d.audit)||0)+(parseInt(d.persampelan)||0)+(parseInt(d.vaksinasi)||0)+(parseInt(d.ujianLapangan)||0)+(parseInt(d.mesyuarat)||0);
     bilCount++;
     rows.push([bilCount,BLN_LTK[mo],'UTARA',off,(window._ltkCurrentPO || CU.po),d.bilPenternak,d.khidmatNasihat,d.kgFarms,d.kgTernakan,d.rbFarms,d.rbTernakan,d.bkFarms,d.bkTernakan,d.lawatSiasat,d.audit,d.persampelan,d.vaksinasi,d.ujianLapangan,d.mesyuarat,d.jumlah,d.sokongan||'',ovr.nota||'']);
     });
