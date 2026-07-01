@@ -35,6 +35,15 @@ body{font-family:'Segoe UI',sans-serif;background:#f0f4f8;font-size:13px}
   .sbse{padding:5px 12px 1px;font-size:8.5px}
   .sbu{padding:6px 12px}
   .sblo{padding:8px 12px}
+  /* TABLE SCROLL FIX untuk mobile */
+  .pg{overflow-x:hidden}
+  table{font-size:11px !important}
+  th,td{padding:5px 6px !important;font-size:10px !important}
+  div[style*="overflow"]{-webkit-overflow-scrolling:touch !important}
+  div[style*="overflow-x"]{overflow-x:auto !important;-webkit-overflow-scrolling:touch}
+  .pg > div[style*="overflow"]{overflow-x:auto !important;-webkit-overflow-scrolling:touch !important}
+  .fbar{flex-wrap:wrap;gap:6px}
+  .fbar select,.fbar input{font-size:11px;padding:5px 7px}
 }
 .sbg{background:#e8a900;padding:4px 14px;font-size:10px;font-weight:700;color:#0f2d5e}
 .sblo{padding:12px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.1)}
@@ -2651,7 +2660,7 @@ window.addEventListener('load',function(){
       </div>
     </div>
     <div id="sp-stats" class="sr"></div>
-    <div id="sp-content" style="padding:0 18px 18px;overflow:auto;flex:1"></div>
+    <div id="sp-content" style="padding:0 18px 18px;overflow:auto;-webkit-overflow-scrolling:touch;flex:1"></div>
   </div>
 
   <!-- PENGELUARAN RB -->
