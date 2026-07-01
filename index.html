@@ -7980,7 +7980,7 @@ var gmEditId = null;
 function initGMDB(cb){ if(cb) cb(); } // stub — tidak perlu IndexedDB lagi
 
 function saveGMRecord(rec, cb){
-  if(!window.GS_READY || typeof rtWrite !== 'function'){
+  if(!window.GS_READY){
     toast('Tiada sambungan Firebase. Gambar tidak dapat disimpan.','#c53030');
     if(cb) cb(false); return;
   }
@@ -7995,53 +7995,62 @@ function saveGMRecord(rec, cb){
   compressAll(rec.images||[], function(compressed){
     rec.images = compressed;
     rec.savedAt = Date.now();
-    rec.expireAt = Date.now() + (30*24*60*60*1000); // 30 hari
-    rtWrite('vu_gm/'+rec.pegawaiId+'/'+rec.id, JSON.stringify(rec));
-    if(cb) cb(true);
+    rec.expireAt = Date.now() + (30*24*60*60*1000);
+    // Guna path dengan slash — Firebase handle nested path terus
+    fetch(RTDB+'/vetec/vu_gm/'+rec.pegawaiId+'/'+rec.id+'.json',{
+      method:'PUT', body:JSON.stringify(rec)
+    }).then(function(){ if(cb) cb(true); })
+      .catch(function(){ toast('Gagal simpan gambar ke Firebase','#c53030'); if(cb) cb(false); });
   });
 }
 
 function getAllGMRecords(pegawaiId, cb){
-  if(!window.GS_READY || typeof rtRead !== 'function'){ cb([]); return; }
-  rtRead('vu_gm/'+pegawaiId, function(raw){
-    if(!raw){ cb([]); return; }
-    var obj; try{ obj=JSON.parse(raw); }catch(e){ obj=raw; }
-    var recs=[]; var now=Date.now();
-    Object.keys(obj||{}).forEach(function(k){
-      var r=obj[k]; if(typeof r==='string'){try{r=JSON.parse(r);}catch(e){return;}}
-      if(!r||!r.id) return;
-      if(r.expireAt && now>r.expireAt){ rtWrite('vu_gm/'+pegawaiId+'/'+r.id, null); return; }
-      recs.push(r);
-    });
-    recs.sort(function(a,b){return (b.ts||0)-(a.ts||0);});
-    cb(recs);
-  });
+  if(!window.GS_READY){ cb([]); return; }
+  fetch(RTDB+'/vetec/vu_gm/'+pegawaiId+'.json')
+    .then(function(r){ return r.json(); })
+    .then(function(obj){
+      if(!obj){ cb([]); return; }
+      var recs=[]; var now=Date.now();
+      Object.keys(obj).forEach(function(k){
+        var r=obj[k]; if(typeof r==='string'){try{r=JSON.parse(r);}catch(e){return;}}
+        if(!r||!r.id) return;
+        if(r.expireAt && now>r.expireAt){
+          fetch(RTDB+'/vetec/vu_gm/'+pegawaiId+'/'+r.id+'.json',{method:'DELETE'});
+          return;
+        }
+        recs.push(r);
+      });
+      recs.sort(function(a,b){return (b.ts||0)-(a.ts||0);});
+      cb(recs);
+    }).catch(function(){ cb([]); });
 }
 
 function getAllGMRecordsAdmin(cb){
-  if(!window.GS_READY || typeof rtRead !== 'function'){ cb([]); return; }
-  rtRead('vu_gm', function(raw){
-    if(!raw){ cb([]); return; }
-    var obj; try{ obj=JSON.parse(raw); }catch(e){ obj=raw; }
-    var recs=[]; var now=Date.now();
-    Object.keys(obj||{}).forEach(function(pegId){
-      var pegRecs=obj[pegId]; if(typeof pegRecs==='string'){try{pegRecs=JSON.parse(pegRecs);}catch(e){return;}}
-      Object.keys(pegRecs||{}).forEach(function(k){
-        var r=pegRecs[k]; if(typeof r==='string'){try{r=JSON.parse(r);}catch(e){return;}}
-        if(!r||!r.id) return;
-        if(r.expireAt && now>r.expireAt) return;
-        recs.push(r);
+  if(!window.GS_READY){ cb([]); return; }
+  fetch(RTDB+'/vetec/vu_gm.json')
+    .then(function(r){ return r.json(); })
+    .then(function(obj){
+      if(!obj){ cb([]); return; }
+      var recs=[]; var now=Date.now();
+      Object.keys(obj).forEach(function(pegId){
+        var pegRecs=obj[pegId]; if(!pegRecs) return;
+        Object.keys(pegRecs).forEach(function(k){
+          var r=pegRecs[k]; if(typeof r==='string'){try{r=JSON.parse(r);}catch(e){return;}}
+          if(!r||!r.id) return;
+          if(r.expireAt && now>r.expireAt) return;
+          recs.push(r);
+        });
       });
-    });
-    recs.sort(function(a,b){return (b.ts||0)-(a.ts||0);});
-    cb(recs);
-  });
+      recs.sort(function(a,b){return (b.ts||0)-(a.ts||0);});
+      cb(recs);
+    }).catch(function(){ cb([]); });
 }
 
 function deleteGMRecord(id, cb){
-  if(!window.GS_READY || typeof rtWrite !== 'function'){ if(cb)cb(); return; }
-  rtWrite('vu_gm/'+CU.pid+'/'+id, null);
-  if(cb) cb();
+  if(!window.GS_READY){ if(cb)cb(); return; }
+  fetch(RTDB+'/vetec/vu_gm/'+CU.pid+'/'+id+'.json',{method:'DELETE'})
+    .then(function(){ if(cb) cb(); })
+    .catch(function(){ if(cb) cb(); });
 }
 
 // ── RENDER ───────────────────────────────────────
