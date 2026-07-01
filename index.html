@@ -8062,6 +8062,7 @@ function renderGM(){
   var mo  = document.getElementById('gm-mo').value;
   var q   = (document.getElementById('gm-q').value||'').toLowerCase();
   // Admin nampak semua pegawai, pegawai nampak sendiri sahaja
+  document.getElementById('gm-wrap').innerHTML = '<div style="text-align:center;padding:30px;color:#718096">&#128247; Memuatkan gambar aktiviti...</div>';
   var fetchFn = isMLAdmin() ? getAllGMRecordsAdmin : function(cb){ getAllGMRecords(CU.pid, cb); };
   fetchFn(function(recs){
     var filtered = recs.filter(function(r){
