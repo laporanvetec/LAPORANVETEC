@@ -2039,7 +2039,7 @@ function approveMLReq(reqId){
       var ml = JSON.parse(localStorage.getItem('vu_ml')||'[]');
       var newEntry = {
         rid: r.rid||('ml_'+Date.now()),
-        nm: r.nm, id: r.id, al: r.al, j: r.j, ng: r.ng,
+        nm: (r.nm||'').toUpperCase().trim(), id: r.id, al: r.al, j: r.j, ng: r.ng,
         po: r.po, bn: r.bn, pv: r.pv, tl: r.tl,
         lat: r.lat, lng: r.lng, tr: r.tr
       };
@@ -3762,8 +3762,8 @@ window.addEventListener('load',function(){
   <div class="mh"><div><h2 id="mP-t">Tambah Penternak</h2><p id="mP-s"></p></div><button class="mc" id="mP-x">&#10005;</button></div>
   <div class="mb">
     <div style="background:#e8f5e9;border-radius:8px;padding:10px;margin-bottom:14px;font-size:11px;color:#276749"><b>PENTING:</b> Jenis ternakan menentukan halaman pengeluaran &mdash; Lembu/Kerbau &rarr; RB &nbsp;|&nbsp; Kambing/Bebiri &rarr; RK &nbsp;|&nbsp; Unggas &rarr; UG</div>
-    <div class="fg"><label>Nama Penternak *</label><input id="pNm" placeholder="Nama penuh"></div>
-    <div class="g2"><div class="fg"><label>ID Premis</label><input id="pId" placeholder="K01234"></div><div class="fg"><label>No. Tel</label><input id="pTl" placeholder="012-3456789"></div></div>
+    <div class="fg"><label>Nama Penternak *</label><input id="pNm" placeholder="NAMA PENUH" style="text-transform:uppercase"></div>
+    <div class="g2"><div class="fg"><label>ID Premis</label><input id="pId" placeholder="K01234" style="text-transform:uppercase"></div><div class="fg"><label>No. Tel</label><input id="pTl" placeholder="012-3456789"></div></div>
     <div class="fg">
       <label>Jenis Ternakan * <span id="pJtag"></span></label>
       <select id="pJn" onchange="jtag()">
@@ -3799,7 +3799,7 @@ window.addEventListener('load',function(){
     </div>
     <div class="g2">
       <div class="fg"><label>Negeri</label><select id="pNg"><option>Kedah</option><option>Perlis</option><option>Pulau Pinang</option><option>Perak</option></select></div>
-      <div class="fg"><label>Alamat</label><input id="pAl" placeholder="Alamat ringkas"></div>
+      <div class="fg"><label>Alamat</label><input id="pAl" placeholder="ALAMAT RINGKAS" style="text-transform:uppercase"></div>
     </div>
     <div class="mft"><button class="btn bgh" id="mP-c">Batal</button><button class="btn bn" onclick="saveP()">Simpan</button></div>
   </div>
@@ -4699,7 +4699,7 @@ function renderSP(){
       var newP = {
         pid: CU.pid, po: data.po||CU.po, pegawai: CU.nm,
         rid: 'p'+Date.now()+'_'+Math.random().toString(36).substr(2,4),
-        nm: data.nm, id: data.id||'', tl: data.tl||'',
+        nm: (data.nm||'').toUpperCase().trim(), id: data.id||'', tl: data.tl||'',
         j: data.j, bn: data.bn||'', pv: data.pv||'TIDAK',
         ng: data.ng||'Kedah', al: data.al||'', tr: ''
       };
@@ -5015,7 +5015,7 @@ function openEditP(i){
   document.getElementById('mP').classList.add('on');
 }
 function saveP(){
-  var nm=document.getElementById('pNm').value.trim();
+  var nm=document.getElementById('pNm').value.trim().toUpperCase(); // FORCE UPPERCASE
   if(!nm){alert('Nama diperlukan!');return;}
   var j=document.getElementById('pJn').value;
   var targetPO = CU.po;
@@ -5085,8 +5085,10 @@ function saveP(){
     pegawai: finalPegawai,
     po: targetPO,
     rid: existingP ? (existingP.rid || existingP.id || 'p'+Date.now()) : 'p'+Date.now(),
-    nm:nm, id:document.getElementById('pId').value,
-    tl:document.getElementById('pTl').value, j:j,
+    nm: nm, // already uppercased
+    id: (document.getElementById('pId').value||'').trim().toUpperCase(),
+    tl: (document.getElementById('pTl').value||'').trim(),
+    j: j,
     bn:(function(){
       var sel = document.getElementById('pBn').value;
       if(sel === 'LAIN-LAIN'){
@@ -5099,9 +5101,9 @@ function saveP(){
       }
       return sel;
     })(),
-    pv:document.getElementById('pPV').value,
-    ng:document.getElementById('pNg').value,
-    al:document.getElementById('pAl').value,
+    pv: document.getElementById('pPV').value,
+    ng: document.getElementById('pNg').value,
+    al: (document.getElementById('pAl').value||'').trim().toUpperCase(),
     tr: existingP ? (existingP.tr||'') : '',
     lat: existingP ? existingP.lat : '',
     lng: existingP ? existingP.lng : ''
@@ -5944,7 +5946,7 @@ function doImp(){
   var added=0;
   impR.forEach(function(r){
     if(exist.indexOf(r.nm.toLowerCase())>=0)return;
-    pt.push({pid:CU.pid,po:CU.po,rid:'p'+Date.now()+Math.random(),nm:r.nm,j:r.j,bn:r.bn,ng:r.ng,id:'',tl:'',pv:'TIDAK',tr:'',al:''});
+    pt.push({pid:CU.pid,po:CU.po,rid:'p'+Date.now()+Math.random(),nm:(r.nm||'').toUpperCase().trim(),j:r.j,bn:r.bn,ng:r.ng,id:'',tl:'',pv:'TIDAK',tr:'',al:''});
     exist.push(r.nm.toLowerCase());added++;
   });
   sv();closeM('mI');renderSP();
