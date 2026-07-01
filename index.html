@@ -3009,6 +3009,7 @@ window.addEventListener('load',function(){
       <input type="search" id="gm-q" placeholder="Cari ringkasan..." oninput="renderGM()" style="width:200px;padding:6px 9px;border:1px solid #d0d0d0;border-radius:5px;font-size:12px">
       <span id="gm-cnt" style="font-size:12px;color:#718096"></span>
       <div style="margin-left:auto;display:flex;gap:8px">
+        <button class="btn" onclick="migrateGMFromIndexedDB()" style="background:#744210;color:#fff;font-size:11px" title="Pindah gambar lama ke cloud">&#9729; Migrate Gambar Lama</button>
         <button class="btn bg" onclick="openAddGM()">+ Tambah Gambar</button>
         <button class="btn bgr" onclick="exGM()">&#8659; Export</button>
       </div>
@@ -7977,7 +7978,59 @@ var gmEditId = null;
 
 // ── GAMBAR AKTIVITI — Firebase RTDB ─────────────────────────────────
 // Compress ~150KB, sync semua pegawai, auto-padam 30 hari
-function initGMDB(cb){ if(cb) cb(); } // stub — tidak perlu IndexedDB lagi
+// ── MIGRATE GAMBAR LAMA (IndexedDB → Firebase) ──────────────────────
+function migrateGMFromIndexedDB(){
+  if(!window.GS_READY){
+    toast('Tiada sambungan Firebase. Cuba semula.','#c53030'); return;
+  }
+  toast('&#9729; Sedang cari gambar lama...','#744210');
+  var req = indexedDB.open('VetECGambar', 1);
+  req.onerror = function(){
+    toast('Tiada gambar lama dijumpai (IndexedDB kosong).','#718096'); return;
+  };
+  req.onsuccess = function(e){
+    var db = e.target.result;
+    var storeNames = Array.from(db.objectStoreNames);
+    if(!storeNames.length || !storeNames.includes('gambar')){
+      toast('Tiada gambar lama dijumpai.','#718096'); return;
+    }
+    var tx = db.transaction('gambar','readonly');
+    var store = tx.objectStore('gambar');
+    var getAllReq = store.index('pegawaiId').getAll(CU.pid);
+    getAllReq.onsuccess = function(ev){
+      var recs = ev.target.result||[];
+      if(!recs.length){
+        toast('Tiada gambar lama untuk akaun ini.','#718096'); return;
+      }
+      if(!confirm('Dijumpai '+recs.length+' gambar lama. Nak migrate ke cloud sekarang?\n\nGambar akan dicompress dan diupload ke Firebase.')){
+        return;
+      }
+      var done=0, failed=0;
+      toast('&#9729; Migrating '+recs.length+' gambar...','#744210');
+      recs.forEach(function(rec){
+        // Add expire date if not set
+        if(!rec.expireAt) rec.expireAt = Date.now()+(30*24*60*60*1000);
+        if(!rec.savedAt) rec.savedAt = rec.ts||Date.now();
+        saveGMRecord(rec, function(ok){
+          if(ok) done++; else failed++;
+          if(done+failed === recs.length){
+            toast('&#9989; Migrate selesai! '+done+' berjaya'+(failed?' | '+failed+' gagal':''),'#276749');
+            renderGM();
+          }
+        });
+      });
+    };
+    getAllReq.onerror = function(){
+      toast('Gagal baca gambar lama.','#c53030');
+    };
+  };
+  req.onupgradeneeded = function(){
+    // DB tak wujud — tiada gambar lama
+    toast('Tiada gambar lama dijumpai.','#718096');
+  };
+}
+
+function initGMDB(cb){ if(cb) cb(); } // stub
 
 function saveGMRecord(rec, cb){
   if(!window.GS_READY){
