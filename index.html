@@ -13941,24 +13941,106 @@ function exportCombined(mo,yr){
   ld();
   var wb=XLSX.utils.book_new();
   var moName=BLN_RPT[mo];
+  var C={navy:'0F2D5E',gold:'F9C000',green:'276749',red:'C53030',white:'FFFFFF',lb:'EBF4FF',lg:'F0FFF4',gray:'F7FAFC',teal:'0D9488',purple:'553C9A',orange:'DD6B20'};
+  function H(v,bg,fc){return {v:v||'',t:'s',s:{fill:{fgColor:{rgb:bg||C.navy}},font:{bold:true,color:{rgb:fc||C.white},sz:10},alignment:{horizontal:'center',vertical:'center',wrapText:true},border:{top:{style:'thin',color:{rgb:'000000'}},bottom:{style:'thin',color:{rgb:'000000'}},left:{style:'thin',color:{rgb:'000000'}},right:{style:'thin',color:{rgb:'000000'}}}}};}
+  function D(v,bg,bold,color,align){return {v:v===null||v===undefined?'':String(v),t:'s',s:{fill:{fgColor:{rgb:bg||C.white}},font:{bold:!!bold,color:{rgb:color||'1E293B'},sz:9},alignment:{horizontal:align||'center',vertical:'center'},border:{top:{style:'thin',color:{rgb:'CBD5E0'}},bottom:{style:'thin',color:{rgb:'CBD5E0'}},left:{style:'thin',color:{rgb:'CBD5E0'}},right:{style:'thin',color:{rgb:'CBD5E0'}}}}};}
+  function addSheet(rows,cols,name,freeze){
+    var ws=XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols']=cols||[];ws['!rows']=[{hpt:26}];
+    if(freeze)ws['!freeze']=freeze;
+    XLSX.utils.book_append_sheet(wb,ws,name.substring(0,28));
+  }
 
   // Cover sheet
-  var cover=[['LAPORAN GABUNGAN VetEC UTARA'],['Bulan: '+moName+' '+yr],['PO: '+selPOs.join(', ')],['Dijana oleh: '+CU.nm],['Tarikh Jana: '+new Date().toLocaleDateString('ms-MY')],[],['MODUL YANG DISERTAKAN:']].concat(selMods.map(function(m,i){var mod=RPT_MODULES.find(function(x){return x.id===m;});return [''+(i+1)+'.', mod?mod.label:m];}));
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(cover),'COVER');
+  var BLN_FULL=['Januari','Februari','Mac','April','Mei','Jun','Julai','Ogos','September','Oktober','November','Disember'];
+  var cov=[[H('LAPORAN GABUNGAN VetEC UTARA — '+moName+' '+yr,C.navy,C.gold)],[H('PO: '+selPOs.join(', '),C.teal)],[H('Dijana oleh: '+CU.nm+' | '+new Date().toLocaleDateString('ms-MY'),'276749')]];
+  selMods.forEach(function(m,i){var mod=RPT_MODULES.find(function(x){return x.id===m;});cov.push([D((i+1)+'. '+(mod?mod.label:m),i%2?C.lb:C.white,false,C.navy,'left')]);});
+  addSheet(cov,[{wch:60}],'COVER');
 
   selMods.forEach(function(modId){
     var mod=RPT_MODULES.find(function(x){return x.id===modId;});
-    var sheetName=(mod?mod.label:modId).substring(0,28);
-    var rows=buildModuleRows(modId,mo,yr,selPOs);
-    if(rows.length>1){
-      var ws=XLSX.utils.aoa_to_sheet(rows);
-      XLSX.utils.book_append_sheet(wb,ws,sheetName);
+    var sheetName=(mod?mod.label:modId);
+    var result=buildModuleRowsColored(modId,mo,yr,selPOs,moName,C,H,D,BLN_FULL);
+    if(result&&result.rows&&result.rows.length>1){
+      addSheet(result.rows,result.cols,sheetName,result.freeze);
     }
   });
 
   var d=new Date();
   XLSX.writeFile(wb,'LAPORAN_GABUNGAN_VetEC_UTARA_'+moName+'_'+yr+'_'+d.getDate()+'-'+(d.getMonth()+1)+'.xlsx');
-  toast('&#9989; Laporan Gabungan diekspot!','#276749');
+  toast('&#9989; Laporan Gabungan berwarna diekspot! ('+selMods.length+' modul)','#276749');
+}
+
+function buildModuleRowsColored(modId,mo,yr,pos,moName,C,H,D,BLN){
+  var rows=[],cols=[],freeze=null;
+  if(modId==='pt'){
+    rows=[[H('NO'),H('PO'),H('NAMA PENTERNAK'),H('ID PREMIS'),H('JENIS TERNAKAN'),H('NO. TEL'),H('BANTUAN'),H('NEGERI'),H('ALAMAT'),H('TARIKH LAWATAN',C.teal),H('STATUS',C.teal),H('PPV')]];
+    var i=0;
+    pos.forEach(function(po){
+      pt.filter(function(p){return normStr(p.po)===normStr(po);}).forEach(function(p){
+        i++;var bg=i%2?C.lb:C.white;var v=p.tr&&p.tr.trim()&&p.tr!=='0';
+        rows.push([D(i,bg,true),D(po,bg,false,C.navy),D(p.nm,bg,true,C.navy,'left'),D(p.id,bg),D(p.j,bg),D(p.tl,bg),D(p.bn,bg),D(p.ng,bg),D(p.al,bg,false,'475569','left'),D(p.tr||'-',bg,false,v?C.green:C.red),D(v?'DILAWAT':'BELUM',v?C.lg:C.white,true,v?C.green:C.red),D(p.pv,bg)]);
+      });
+    });
+    cols=[{wch:5},{wch:14},{wch:28},{wch:12},{wch:18},{wch:12},{wch:12},{wch:8},{wch:30},{wch:16},{wch:12},{wch:6}];freeze={xSplit:2,ySplit:1};
+  } else if(modId==='sp03'){
+    rows=[[H('NO'),H('PO'),H('TARIKH'),H('NAMA PENTERNAK'),H('ID PREMIS'),H('JENIS TERNAKAN'),H('KETUA AKTIVITI',C.teal),H('NEGERI'),H('DAERAH'),H('NO TEL'),H('BANTUAN'),H('PPV')]];
+    var sp03=getSP03().filter(function(r){return pos.some(function(p){return normStr(p)===normStr(r.po);})&&r.mo===mo&&r.yr===yr;});
+    sp03.forEach(function(r,i2){var bg=i2%2?C.lb:C.white;rows.push([D(i2+1,bg,true),D(r.po,bg,false,C.navy),D(r.tarikhAktiviti,bg,false,C.teal),D(r.namaPenternak,bg,true,C.navy,'left'),D(r.idPremis,bg),D(r.jenisTernakan,bg),D(r.ketuaAktiviti,bg,true,C.green),D(r.negeri,bg),D(r.daerah,bg),D(r.noTel,bg),D(r.bantuan,bg),D(r.ppv,bg)]);});
+    cols=[{wch:5},{wch:14},{wch:12},{wch:28},{wch:12},{wch:18},{wch:16},{wch:8},{wch:12},{wch:12},{wch:12},{wch:6}];freeze={xSplit:2,ySplit:1};
+  } else if(modId==='ltk'){
+    rows=[[H('BIL'),H('BULAN'),H('VETEC'),H('PO'),H('BIL PENTERNAK',C.teal),H('A-KHIDMAT NASIHAT','F4A07A','000000'),H('B-KG FARMS','8FD9A8','000000'),H('B-KG TERNAKAN','8FD9A8','000000'),H('C-RB KES','FFD580','000000'),H('C-RB TERNAKAN','FFD580','000000'),H('D-BK FARMS','A8D8E8','000000'),H('D-BK TERNAKAN','A8D8E8','000000'),H('E-LAWAT SIASAT','C8A2C8'),H('F-AUDIT','B0C4DE','000000'),H('G-PERSAMPELAN','F8BBD0','000000'),H('H-VAKSINASI','CD853F'),H('I-UJIAN','D2691E'),H('J-MESYUARAT','90EE90','000000'),H('JUMLAH',C.gold,'000000')]];
+    var bil=0;var ov=getLTKOverride();
+    pos.forEach(function(po){
+      getLTKOfficersPrimary(po,yr,mo).forEach(function(off){
+        if(off==='ADMIN')return;
+        var a=calcLTKMonth(po,yr,mo,off)||{bilPenternak:0,khidmatNasihat:0,kgFarms:0,kgTernakan:0,rbFarms:0,rbTernakan:0,bkFarms:0,bkTernakan:0,lawatSiasat:0,audit:0,persampelan:0,vaksinasi:0,ujianLapangan:0,mesyuarat:0,jumlah:0};
+        var k=ltkKey(po,yr,mo,off);var ov2=ov[k]||{};
+        function v(f){return (ov2[f]!==undefined?ov2[f]:a[f])||0;}
+        bil++;var bg=bil%2?C.lb:C.white;
+        var jml=(parseInt(v('khidmatNasihat'))||0)+(parseInt(v('kgFarms'))||0)+(parseInt(v('rbFarms'))||0)+(parseInt(v('bkFarms'))||0)+(parseInt(v('lawatSiasat'))||0)+(parseInt(v('audit'))||0)+(parseInt(v('persampelan'))||0)+(parseInt(v('vaksinasi'))||0)+(parseInt(v('ujianLapangan'))||0)+(parseInt(v('mesyuarat'))||0);
+        rows.push([D(bil,bg),D(moName,bg,false,C.navy,'left'),D('UTARA',bg),D(po,bg,false,'475569'),D(v('bilPenternak'),bg,true,C.teal),D(v('khidmatNasihat'),bg),D(v('kgFarms'),bg),D(v('kgTernakan'),bg),D(v('rbFarms'),bg),D(v('rbTernakan'),bg),D(v('bkFarms'),bg),D(v('bkTernakan'),bg),D(v('lawatSiasat'),bg),D(v('audit'),bg),D(v('persampelan'),bg),D(v('vaksinasi'),bg),D(v('ujianLapangan'),bg),D(v('mesyuarat'),bg),D(jml,bg,true,C.green)]);
+      });
+    });
+    cols=[{wch:5},{wch:12},{wch:7},{wch:16},{wch:10},{wch:10},{wch:8},{wch:10},{wch:8},{wch:10},{wch:8},{wch:10},{wch:10},{wch:7},{wch:10},{wch:10},{wch:8},{wch:10},{wch:10}];freeze={xSplit:3,ySplit:1};
+  } else if(modId==='lt'){
+    rows=[[H('NO'),H('PO'),H('NAMA PEGAWAI'),H('KURSUS/LATIHAN','553C9A','FFFFFF'),H('TEMPAT',C.teal),H('ANJURAN',C.teal),H('TARIKH MULA','553C9A'),H('TARIKH TAMAT','553C9A'),H('BIL HARI','553C9A'),H('TAHUN',C.gold,'000000')]];
+    var lt2=getLT().filter(function(r){return pos.some(function(p){return normStr(p)===normStr(r.po);})&&r.tahun===yr;});
+    lt2.forEach(function(r,i4){var bg=i4%2?'F3E8FF':'FAF5FF';rows.push([D(i4+1,bg,true),D(r.po,bg,false,C.navy),D(r.nama,bg,true,C.navy,'left'),D(r.kursus,bg,false,'553C9A','left'),D(r.tempat,bg,false,'475569','left'),D(r.anjuran,bg,false,'475569','left'),D(r.tMula||r.tarikh,bg),D(r.tTamat,bg),D(r.hari,bg,true,'553C9A'),D(r.tahun,bg)]);});
+    cols=[{wch:5},{wch:14},{wch:20},{wch:35},{wch:20},{wch:20},{wch:12},{wch:12},{wch:8},{wch:6}];freeze={xSplit:2,ySplit:1};
+  } else if(modId==='ltj'){
+    rows=[[H('NO'),H('PO'),H('NAMA PENTERNAK'),H('JENIS TERNAKAN'),H('SASARAN',C.teal),H('BIL LAWATAN',C.green),H('STATUS',C.gold,'000000'),H('TARIKH LAWATAN')]];
+    var ltj=getLTJ().filter(function(r){return pos.some(function(p){return normStr(p)===normStr(r.po);})&&r.yr===yr;});
+    ltj.forEach(function(r,i5){var p2=pt.find(function(x){return x.rid===r.farmRid;});if(!p2)return;var met=(r.visits||[]).length>=3;var bg=i5%2?C.lb:C.white;rows.push([D(i5+1,bg,true),D(r.po,bg,false,C.navy),D(p2.nm,bg,true,C.navy,'left'),D(p2.j,bg),D(r.sasaran||3,bg,false,C.teal),D((r.visits||[]).length,bg,true,met?C.green:C.red),D(met?'TERCAPAI':'BELUM',met?C.lg:C.white,true,met?C.green:C.red),(r.visits||[]).map(function(v){return v.tarikh||v;}).join(', ')]);});
+    cols=[{wch:5},{wch:14},{wch:28},{wch:18},{wch:8},{wch:10},{wch:12},{wch:40}];freeze={xSplit:2,ySplit:1};
+  } else if(modId==='tk'){
+    rows=[[H('NO'),H('PO'),H('PEGAWAI'),H('JENIS','DD6B20'),H('AKTIVITI','DD6B20'),H('TARIKH','DD6B20'),H('TEMPAT',C.teal),H('BIL PENTERNAK',C.teal),H('BIL HARI','553C9A')]];
+    var tkp2=getTKP().filter(function(r){return pos.some(function(p){return normStr(p)===normStr(r.po);})&&r.yr===yr;});
+    var tkt2=getTKT().filter(function(r){return pos.some(function(p){return normStr(p)===normStr(r.po);})&&r.yr===yr;});
+    var tkBil=0;
+    tkp2.forEach(function(r){tkBil++;var bg=tkBil%2?'FFF9C4':C.white;rows.push([D(tkBil,bg,true),D(r.po,bg,false,C.navy),D(r.pegawai,bg,true,C.navy,'left'),D('PROMOSI',bg,true,'DD6B20'),D(r.aktiviti,bg,false,'1E293B','left'),D(r.tarikh,bg),D(r.tempat,bg,false,'475569','left'),D(r.penternak||'',bg),D(r.hari||'',bg)]);});
+    tkt2.forEach(function(r){tkBil++;var bg=tkBil%2?'FFF0E4':C.white;rows.push([D(tkBil,bg,true),D(r.po,bg,false,C.navy),D(r.pegawai,bg,true,C.navy,'left'),D('PEMINDAHAN',bg,true,'744210'),D(r.aktiviti,bg,false,'1E293B','left'),D(r.tarikh,bg),D(r.tempat,bg,false,'475569','left'),D(r.penternak||'',bg),D(r.hari||'',bg)]);});
+    cols=[{wch:5},{wch:14},{wch:18},{wch:14},{wch:35},{wch:12},{wch:25},{wch:10},{wch:8}];freeze={xSplit:2,ySplit:1};
+  } else if(modId==='iv'){
+    rows=[[H('NO'),H('PO'),H('PEGAWAI'),H('JENIS',C.teal),H('TAJUK',C.teal),H('STATUS',C.green),H('TARIKH MULA',C.teal),H('TARIKH TAMAT',C.teal),H('TAHUN',C.gold,'000000')]];
+    var ivi=getIVI().filter(function(r){return pos.some(function(p){return normStr(p)===normStr(r.po);})&&r.yr===yr;});
+    var ivp=getIVP().filter(function(r){return pos.some(function(p){return normStr(p)===normStr(r.po);})&&r.yr===yr;});
+    var ivBil=0;
+    ivi.forEach(function(r){ivBil++;var bg=ivBil%2?C.lb:C.white;rows.push([D(ivBil,bg,true),D(r.po,bg,false,C.navy),D(r.pegawai,bg,true,C.navy,'left'),D('INOVASI',bg,true,C.teal),D(r.tajuk,bg,false,'1E293B','left'),D(r.status,bg,false,C.green,'left'),D(r.tMula,bg),D(r.tTamat,bg),D(r.yr,bg)]);});
+    ivp.forEach(function(r){ivBil++;var bg=ivBil%2?'F0FFF4':C.white;rows.push([D(ivBil,bg,true),D(r.po,bg,false,C.navy),D(r.pegawai,bg,true,C.navy,'left'),D('PENYELIDIKAN',bg,true,C.green),D(r.tajuk,bg,false,'1E293B','left'),D(r.status,bg,false,C.teal,'left'),D(r.tMula,bg),D(r.tTamat,bg),D(r.yr,bg)]);});
+    cols=[{wch:5},{wch:14},{wch:18},{wch:14},{wch:40},{wch:18},{wch:12},{wch:12},{wch:6}];freeze={xSplit:2,ySplit:1};
+  } else if(modId==='kw'){
+    rows=[[H('NO'),H('PO'),H('PTJ'),H('KOD','553C9A'),H('PERKARA','553C9A'),H('PERUNTUKAN ASAL',C.green),H('VT+',C.green),H('VK-',C.red),H('JML PERUNTUKAN',C.green),H('TANGGUNG',C.teal),H('SEBENAR',C.teal),H('JUMLAH BELANJA',C.teal),H('BAKI',C.gold,'000000'),H('%',C.gold,'000000')]];
+    var kw3=getKW().filter(function(r){return pos.some(function(p){return normStr(p)===normStr(r.po);})&&r.mo===mo&&r.yr===yr;});
+    kw3.forEach(function(r,i8){var bg=i8%2?'F3E8FF':'FAF5FF';var pts=(r.asal||0)+(r.vtambah||0)-(r.vkurang||0);var jb=(r.tanggung||0)+(r.sebenar||0);var baki=pts-jb;rows.push([D(i8+1,bg,true),D(r.po,bg,false,C.navy),D(r.ptj||'KEDAH',bg),D(r.kod,bg,false,'553C9A'),D(r.perkara,bg,false,'1E293B','left'),D((r.asal||0).toFixed(2),bg,false,C.green,'right'),D((r.vtambah||0).toFixed(2),bg),D((r.vkurang||0).toFixed(2),bg,false,C.red),D(pts.toFixed(2),bg,true,C.green,'right'),D((r.tanggung||0).toFixed(2),bg,false,C.teal,'right'),D((r.sebenar||0).toFixed(2),bg,false,C.teal,'right'),D(jb.toFixed(2),bg,true,C.teal,'right'),D(baki.toFixed(2),bg,true,baki<0?C.red:C.green,'right'),D(pts>0?parseFloat((jb/pts*100).toFixed(1))+'%':'-',bg,false,jb/pts>0.9?C.green:'744210')]);});
+    cols=[{wch:5},{wch:14},{wch:8},{wch:14},{wch:30},{wch:14},{wch:8},{wch:8},{wch:14},{wch:12},{wch:12},{wch:14},{wch:12},{wch:8}];freeze={xSplit:3,ySplit:1};
+  } else {
+    // Fallback plain
+    rows=buildModuleRows(modId,mo,yr,pos);
+    return {rows:rows,cols:[],freeze:null};
+  }
+  if(rows.length===1) rows.push([D('Tiada data untuk tempoh ini',C.lb,false,C.navy,'left')]);
+  return {rows:rows,cols:cols,freeze:freeze};
 }
 
 function buildModuleRows(modId,mo,yr,pos){
