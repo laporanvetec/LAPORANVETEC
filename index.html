@@ -4720,7 +4720,6 @@ function renderSP(){
       };
       pt.push(newP);
       sv();
-      logTambahPenternak(newP);
       toast('&#9989; '+data.nm+' ditambah ke LBL anda','#276749');
       renderSP();
     };
@@ -5130,10 +5129,8 @@ function saveP(){
   } else if(existingP){
     // Admin editing masterlist-only entry - add to pt
     pt.push(p);
-    logTambahPenternak(p,'ADMIN');
   } else {
     pt.push(p);
-    logTambahPenternak(p,(window.CU&&window.CU.nm)||'');
   }
   sv();
   
@@ -10776,7 +10773,7 @@ function saveS3Manual(addToSenarai){
         al:document.getElementById('s3add-al').value.trim(),
         bn:'',pv:'',tl:'',tr:tarikhStr,lat:'',lng:''
       };
-      pt.push(np); sv(); logTambahPenternak(np);
+      pt.push(np); sv();
       farmRid=newRid;
       // Sync tarikh
       if(tarikhStr) syncSebenarFromTr(pt.length-1, yr);
@@ -12330,16 +12327,17 @@ function saveML(){
     updatedAt:new Date().toISOString()
   };
   var d=getML();
+  var isNew = !mlEditId;
   if(mlEditId){
     var i=d.findIndex(function(r){return r.id===mlEditId||r.rid===mlEditId;});
     if(i>=0){
-      // Preserve rid and other existing fields
       rec.rid = d[i].rid || rec.id;
       rec.id = d[i].id || mlEditId;
-      // Merge to preserve any other fields
       d[i] = Object.assign({}, d[i], rec);
-    } else d.push(rec);
+    } else { d.push(rec); isNew=true; }
   } else d.push(rec);
+  // Log hanya bila TAMBAH BARU ke Masterlist (bukan edit)
+  if(isNew) logTambahPenternak({nm:rec.nm,po:rec.po,j:rec.j,al:rec.al}, (window.CU&&window.CU.nm)||'ADMIN');
   saveMLData(d);
   document.getElementById('mML').classList.remove('on');
   renderML(); toast('Masterlist dikemaskini: '+nm,'#553c9a');
@@ -12603,7 +12601,7 @@ function mergePoData(pkg){
     d.penternak.forEach(function(np){
       var ei=pt.findIndex(function(p){return p.rid===np.rid||(p.nm===np.nm&&p.po===np.po);});
       if(ei>=0){ pt[ei]=Object.assign(pt[ei],np); }
-      else { pt.push(np); logTambahPenternak(np,'Import'); counts.ptCount++; }
+      else { pt.push(np); counts.ptCount++; }
     });
     sv();
   }
@@ -15403,7 +15401,6 @@ function addFromML(){
       pegawaiId: CU.pid
     };
     pt.push(_np_ml);
-    logTambahPenternak(_np_ml);
     added++;
   });
 
