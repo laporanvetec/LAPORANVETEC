@@ -13980,6 +13980,9 @@ function exportCombined(mo,yr){
 
 function buildModuleRowsColored(modId,mo,yr,pos,moName,C,H,D,BLN){
   var rows=[],cols=[],freeze=null;
+  var BSHRT=['JAN','FEB','MAC','APR','MEI','JUN','JUL','OGO','SEP','OKT','NOV','DIS'];
+  // ld = Ladang Belum Dilawat, sama structure dengan pt
+  if(modId==='ld') modId='pt';
   if(modId==='pt'){
     rows=[[H('NO'),H('PO'),H('NAMA PENTERNAK'),H('ID PREMIS'),H('JENIS TERNAKAN'),H('NO. TEL'),H('BANTUAN'),H('NEGERI'),H('ALAMAT'),H('TARIKH LAWATAN',C.teal),H('STATUS',C.teal),H('PPV'),H('PEGAWAI',C.teal)]];
     var i=0;
