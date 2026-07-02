@@ -2047,6 +2047,14 @@ function approveMLReq(reqId){
         ltj.splice(ltjIdx, 1);
         localStorage.setItem('vu_ltj', JSON.stringify(ltj));
         if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ltj', JSON.stringify(ltj));
+        // Log keluarkan LTJ
+        try{
+          var ltjGLog=JSON.parse(localStorage.getItem('vu_ltj_gugur_log')||'[]');
+          var nowLTJ=new Date();
+          ltjGLog.push({nm:r.nm||'',po:r.requestedPO||r.po||'',j:r.j||'',sebab:r.sebabDrop||r.sebab||'',bulan:nowLTJ.getMonth(),tahun:nowLTJ.getFullYear(),tarikhGugur:nowLTJ.toLocaleDateString('ms-MY'),mohonOleh:r.requestedBy||'',lulusOleh:(CU&&CU.nm)||'ADMIN',ltjId:r.ltjId||''});
+          localStorage.setItem('vu_ltj_gugur_log',JSON.stringify(ltjGLog));
+          if(window.GS_READY&&typeof rtWrite==='function') rtWrite('vu_ltj_gugur_log',JSON.stringify(ltjGLog));
+        }catch(e){}
       }
     } else if(action==='add'){
       // Add to masterlist
@@ -2401,7 +2409,7 @@ function getOfficers(po){
 
 
 var RTDB='https://vetec-utara-default-rtdb.firebaseio.com';
-var GS_KEYS=['vu_g','vu_p','vu_rb','vu_rk','vu_ug','vu_ts','vu_ltj','vu_lt','vu_tkp','vu_tkt','vu_ivi','vu_ivp','vu_kw','vu_sp03','vu_ml','vu_ltk_ov','vu_submit_log','vu_import_hist','vu_officers','vu_ml_req','vu_notif','vu_clearance_log','vu_rpt_imported','vu_rpt_hist','vu_peng_keep','vu_gugur_log','vu_tambah_log'];
+var GS_KEYS=['vu_g','vu_p','vu_rb','vu_rk','vu_ug','vu_ts','vu_ltj','vu_lt','vu_tkp','vu_tkt','vu_ivi','vu_ivp','vu_kw','vu_sp03','vu_ml','vu_ltk_ov','vu_submit_log','vu_import_hist','vu_officers','vu_ml_req','vu_notif','vu_clearance_log','vu_rpt_imported','vu_rpt_hist','vu_peng_keep','vu_gugur_log','vu_tambah_log','vu_ltj_gugur_log'];
 var _lsOrig=localStorage.setItem.bind(localStorage);
 window.GS_READY=false;
 window.FB_READY=false;
@@ -14770,6 +14778,8 @@ function janaLaporanAkhir(){
     return h;
   }
 
+  var ltjGugurLog=[]; try{ ltjGugurLog=JSON.parse(localStorage.getItem('vu_ltj_gugur_log')||'[]').filter(function(g){return !g.tahun||g.tahun===yr;}); }catch(e){}
+
   S+='<div class="la-sec"><div class="la-sh">&#128221; LOG PERUBAHAN PENTERNAK — '+yr+'</div><div style="padding:14px">';
   S+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">';
   S+='<div>';
@@ -14781,7 +14791,31 @@ function janaLaporanAkhir(){
   S+=buildPerubahanTable(gugurLog2,'digugur');
   S+='</div>';
   S+='</div>';
-  S+='<div style="margin-top:10px;font-size:11px;color:#718096;background:#f7fafc;padding:8px 12px;border-radius:6px">&#9432; Log ini direkod secara automatik bermula dari sesi ini. Rekod sebelum tarikh ini tidak tercatat.</div>';
+
+  // LTJ Digugur
+  S+='<div style="margin-top:16px">';
+  S+='<div style="background:#744210;color:#fff;padding:8px 12px;border-radius:6px;font-weight:700;font-size:12px;margin-bottom:8px">&#9888; PENTERNAK DIKELUARKAN DARI LTJ ('+ltjGugurLog.length+')</div>';
+  if(!ltjGugurLog.length){
+    S+='<div style="color:#718096;font-size:12px;text-align:center;padding:16px;background:#fffbeb;border-radius:6px">Tiada rekod keluarkan LTJ untuk tahun '+yr+'</div>';
+  } else {
+    S+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+    S+='<thead><tr style="background:#744210;color:#fff"><th class="la-th">NO</th><th class="la-th">BULAN</th><th class="la-th">PO</th><th class="la-th">NAMA PENTERNAK</th><th class="la-th">SEBAB</th><th class="la-th">TARIKH</th><th class="la-th">DIMOHON OLEH</th><th class="la-th" style="background:#553c9a">DILULUSKAN OLEH</th></tr></thead><tbody>';
+    var BLN_FULL3=['Januari','Februari','Mac','April','Mei','Jun','Julai','Ogos','September','Oktober','November','Disember'];
+    ltjGugurLog.forEach(function(g,i){
+      var bg=i%2?'#FFFBEB':'#fff';
+      S+='<tr style="background:'+bg+'"><td class="la-td" style="text-align:center;font-weight:700;color:#744210">'+(i+1)+'</td>';
+      S+='<td class="la-td" style="text-align:center">'+(g.bulan>=0?BLN_FULL3[g.bulan]:'?')+'</td>';
+      S+='<td class="la-td"><span class="bj">'+(g.po||'-')+'</span></td>';
+      S+='<td class="la-td" style="font-weight:700">'+(g.nm||'-')+'</td>';
+      S+='<td class="la-td" style="font-style:italic;color:#718096">'+(g.sebab||'Tiada sebab dicatat')+'</td>';
+      S+='<td class="la-td" style="text-align:center;font-size:10px">'+(g.tarikhGugur||'-')+'</td>';
+      S+='<td class="la-td" style="text-align:center;font-weight:700;color:#744210">'+(g.mohonOleh||'-')+'</td>';
+      S+='<td class="la-td" style="text-align:center;color:#553c9a">'+(g.lulusOleh||'ADMIN')+'</td></tr>';
+    });
+    S+='</tbody></table></div>';
+  }
+  S+='</div>';
+  S+='<div style="margin-top:10px;font-size:11px;color:#718096;background:#f7fafc;padding:8px 12px;border-radius:6px">&#9432; Log ini direkod secara automatik bermula dari sesi ini.</div>';
   S+='</div></div>';
 
   // ── SECTION 2: PENTERNAK ────────────────────
