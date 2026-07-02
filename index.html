@@ -12850,6 +12850,9 @@ var RPT_MODULES=[
   {id:'ltj',label:'Lawatan LTJ', icon:'&#128203;'},
   {id:'sp03',label:'SP03 Rekod Lawatan', icon:'&#128203;'},
   {id:'ltk', label:'Log Teknikal', icon:'&#128202;'},
+  {id:'rb',  label:'Pengeluaran RB', icon:'&#128004;'},
+  {id:'rk',  label:'Pengeluaran RK', icon:'&#128016;'},
+  {id:'ug',  label:'Pengeluaran UG', icon:'&#128020;'},
   {id:'lt',  label:'Latihan', icon:'&#127979;'},
   {id:'tk',  label:'Teknologi', icon:'&#128161;'},
   {id:'iv',  label:'Inovasi & Penyelidikan', icon:'&#128161;'},
@@ -13984,18 +13987,31 @@ function buildModuleRowsColored(modId,mo,yr,pos,moName,C,H,D,BLN){
   // ld = Ladang Belum Dilawat, sama structure dengan pt
   if(modId==='ld') modId='pt';
   if(modId==='pt'){
-    rows=[[H('NO'),H('PO'),H('NAMA PENTERNAK'),H('ID PREMIS'),H('JENIS TERNAKAN'),H('NO. TEL'),H('BANTUAN'),H('NEGERI'),H('ALAMAT'),H('TARIKH LAWATAN',C.teal),H('STATUS',C.teal),H('PPV'),H('PEGAWAI',C.teal)]];
+    rows=[[H('BIL'),H('NEGERI'),H('ZON KTS'),H('DAERAH (PO)'),H('NAMA SYARIKAT/PENTERNAK'),H('ALAMAT'),H('BANTUAN'),H('JENIS TERNAKAN'),H('LAWATAN BULAN SEMASA (1/0)',C.teal),H('TARIKH LAWATAN',C.teal),H('STATUS DATA CLEANING '+yr+' (1/0)',C.gold,'000000')]];
     var i=0;
     pos.forEach(function(po){
       pt.filter(function(p){return normPO(p.po)===normPO(po);}).forEach(function(p){
-        i++;var bg=i%2?C.lb:C.white;var v=p.tr&&p.tr.trim()&&p.tr!=='0';
-        var pegNm=p.pegawai||'-';
-        try{if(!pegNm||pegNm==='-'){var gg=JSON.parse(localStorage.getItem('vu_g')||'[]').find(function(g){return g.id===p.pid;});if(gg)pegNm=gg.nm;}}catch(e){}
-        rows.push([D(i,bg,true),D(normPO(p.po),bg,false,C.navy),D(p.nm,bg,true,C.navy,'left'),D(p.id,bg),D(p.j,bg),D(p.tl||'',bg),D(p.bn||'',bg),D(p.ng||'',bg),D(p.al||'',bg,false,'475569','left'),D(p.tr||'-',bg,false,v?C.green:C.red),D(v?'DILAWAT':'BELUM DILAWAT',v?C.lg:C.white,true,v?C.green:C.red),D(p.pv||'',bg),D(pegNm,bg,false,C.teal,'left')]);
+        i++;var bg=i%2?C.lb:C.white;
+        var lbSemasa=vM(p.tr)?1:0;
+        var statusDC=vY(p.tr)?1:0;
+        rows.push([
+          D(i,bg,true),
+          D(p.ng||'KEDAH',bg,false,'475569'),
+          D(p.zon||'UTARA',bg,false,'718096'),
+          D(normPO(p.po),bg,false,C.navy),
+          D(p.nm,bg,true,C.navy,'left'),
+          D(p.al||'-',bg,false,'475569','left'),
+          D(p.bn||'-',bg),
+          D(p.j||'-',bg),
+          D(lbSemasa,bg,true,lbSemasa?C.green:C.red),
+          D(p.tr||'-',bg,false,statusDC?C.green:C.red,'left'),
+          D(statusDC,statusDC?C.lg:C.white,true,statusDC?C.green:C.red)
+        ]);
       });
     });
     if(!i) rows.push([D('Tiada penternak untuk PO yang dipilih',C.lb,false,C.navy,'left')]);
-    cols=[{wch:5},{wch:14},{wch:28},{wch:12},{wch:18},{wch:12},{wch:12},{wch:8},{wch:30},{wch:16},{wch:14},{wch:6},{wch:16}];freeze={xSplit:2,ySplit:1};
+    cols=[{wch:5},{wch:12},{wch:10},{wch:16},{wch:30},{wch:35},{wch:14},{wch:20},{wch:20},{wch:30},{wch:22}];
+    freeze={xSplit:1,ySplit:1};
   } else if(modId==='sp03'){
     rows=[[H('NO'),H('PO'),H('TARIKH'),H('NAMA PENTERNAK'),H('ID PREMIS'),H('JENIS TERNAKAN'),H('KETUA AKTIVITI',C.teal),H('NEGERI'),H('DAERAH'),H('NO TEL'),H('BANTUAN'),H('PPV')]];
     var sp03=getSP03().filter(function(r){return pos.some(function(p){return normStr(p)===normStr(r.po);})&&r.mo===mo&&r.yr===yr;});
@@ -14092,6 +14108,24 @@ function buildModuleRowsColored(modId,mo,yr,pos,moName,C,H,D,BLN){
     BSHRT.forEach(function(){tsC.push({wch:10});});
     tsC.push({wch:16},{wch:12});
     cols=tsC;freeze={xSplit:3,ySplit:1};
+  } else if(modId==='rb'){
+    rows=[[H('BIL'),H('BULAN',C.teal),H('TAHUN',C.teal),H('PO'),H('NAMA PENTERNAK'),H('ID PREMIS'),H('LEMBU JANTAN',C.green),H('LEMBU BETINA',C.green),H('<6 BULAN',C.green),H('KERBAU JANTAN','744210'),H('KERBAU BETINA','744210'),H('<6 BULAN','744210'),H('STOK AKHIR',C.navy),H('JUALAN',C.red),H('KEMATIAN',C.red),H('SUSU(L)',C.teal)]];
+    var rbData=rRB.filter(function(r){return pos.some(function(p){return normPO(p)===normPO(r.po||'');})&&r.thn===''+yr;});
+    rbData.forEach(function(r,i){var bg=i%2?C.lb:C.white;rows.push([D(i+1,bg,true),D(r.bln,bg,false,C.teal),D(r.thn,bg),D(normPO(r.po||''),bg,false,C.navy),D(r.nm,bg,true,C.navy,'left'),D(r.id,bg),D(r.lj,bg,false,C.green),D(r.lb,bg,false,C.green),D(r.lk,bg,false,C.green),D(r.kj,bg),D(r.kb,bg),D(r.kk,bg),D(r.sa,bg,true,C.navy),D(r.jl,bg,true,C.red),D(r.km,bg,false,C.red),D(r.sus,bg,false,C.teal)]);});
+    if(!rbData.length) rows.push([D('Tiada rekod RB untuk '+yr,C.lb,false,C.navy,'left')]);
+    cols=[{wch:5},{wch:8},{wch:6},{wch:14},{wch:26},{wch:12},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:8},{wch:8},{wch:8}];freeze={xSplit:4,ySplit:1};
+  } else if(modId==='rk'){
+    rows=[[H('BIL'),H('BULAN',C.teal),H('TAHUN',C.teal),H('PO'),H('NAMA PENTERNAK'),H('ID PREMIS'),H('KAMBING BAKA',C.green),H('KAMBING PEDAGING',C.green),H('BEBIRI',C.green),H('STOK AKHIR',C.navy),H('JUALAN',C.red),H('KEMATIAN',C.red),H('SUSU(L)',C.teal)]];
+    var rkData=rRK.filter(function(r){return pos.some(function(p){return normPO(p)===normPO(r.po||'');})&&r.thn===''+yr;});
+    rkData.forEach(function(r,i){var bg=i%2?'FFF9C4':C.white;rows.push([D(i+1,bg,true),D(r.bln,bg,false,C.teal),D(r.thn,bg),D(normPO(r.po||''),bg,false,C.navy),D(r.nm,bg,true,C.navy,'left'),D(r.id,bg),D(r.kb,bg,false,C.green),D(r.kp,bg,false,C.green),D(r.bb,bg,false,C.green),D(r.sa,bg,true,C.navy),D(r.jl,bg,true,C.red),D(r.km,bg,false,C.red),D(r.sus,bg,false,C.teal)]);});
+    if(!rkData.length) rows.push([D('Tiada rekod RK untuk '+yr,'FFF9C4',false,C.navy,'left')]);
+    cols=[{wch:5},{wch:8},{wch:6},{wch:14},{wch:26},{wch:12},{wch:12},{wch:14},{wch:10},{wch:10},{wch:8},{wch:8},{wch:8}];freeze={xSplit:4,ySplit:1};
+  } else if(modId==='ug'){
+    rows=[[H('BIL'),H('BULAN',C.teal),H('TAHUN',C.teal),H('PO'),H('NAMA PENTERNAK'),H('ID PREMIS'),H('AYAM KAMPUNG',C.green),H('AYAM PEDAGING',C.green),H('ITIK DAGING',C.green),H('ITIK TELUR',C.green),H('ANGSA',C.green),H('STOK AKHIR',C.navy),H('JUALAN',C.red),H('KEMATIAN',C.red),H('TELUR',C.teal)]];
+    var ugData=rUG.filter(function(r){return pos.some(function(p){return normPO(p)===normPO(r.po||'');})&&r.thn===''+yr;});
+    ugData.forEach(function(r,i){var bg=i%2?'F0FFF4':C.white;rows.push([D(i+1,bg,true),D(r.bln,bg,false,C.teal),D(r.thn,bg),D(normPO(r.po||''),bg,false,C.navy),D(r.nm,bg,true,C.navy,'left'),D(r.id,bg),D(r.ak||'',bg,false,C.green),D(r.ap||'',bg,false,C.green),D(r.id2||r.id_||'',bg,false,C.green),D(r.it||'',bg,false,C.green),D(r.ag||'',bg,false,C.green),D(r.sa||'',bg,true,C.navy),D(r.jl||'',bg,true,C.red),D(r.km||'',bg,false,C.red),D(r.tel||'',bg,false,C.teal)]);});
+    if(!ugData.length) rows.push([D('Tiada rekod UG untuk '+yr,'F0FFF4',false,C.navy,'left')]);
+    cols=[{wch:5},{wch:8},{wch:6},{wch:14},{wch:26},{wch:12},{wch:10},{wch:12},{wch:10},{wch:10},{wch:8},{wch:10},{wch:8},{wch:8},{wch:8}];freeze={xSplit:4,ySplit:1};
   } else {
     rows=buildModuleRows(modId,mo,yr,pos);
     return {rows:rows,cols:[],freeze:null};
