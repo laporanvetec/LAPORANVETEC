@@ -7621,8 +7621,9 @@ function openAddLTJ(){
   var existRids = ltj.filter(function(r){ return r.pegawaiId===CU.pid&&r.yr===yr; }).map(function(r){ return r.farmRid; });
   var sel = document.getElementById('ltj-farm-sel');
   sel.innerHTML = '<option value="">-- Pilih penternak --</option>';
-  // Only show penternak from officer's OWN LBL (LTJ must be from LBL)
-  var lblList = (typeof myLBL==='function') ? myLBL(null) : myPt(null);
+  // Only show penternak from officer's OWN LBL — strict pid match
+  var lblList = pt.filter(function(p){ return p.pid===CU.pid; });
+  if(isMLAdmin()) lblList = myPt(null);
   lblList.forEach(function(p){
     var already = existRids.indexOf(p.rid) >= 0;
     sel.innerHTML += '<option value="'+p.rid+'"'+(already?' disabled style="color:#a0aec0"':'')+'>'+p.nm+' — '+p.j+(already?' (sudah ada)':'')+'</option>';
