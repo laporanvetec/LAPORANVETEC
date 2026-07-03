@@ -7303,6 +7303,8 @@ function autoCleanLTJ(){
       console.log('[autoCleanLTJ] Buang '+(before-cleaned.length)+' rekod salah');
       _lsOrig('vu_ltj',JSON.stringify(cleaned));
       fetch(RTDB+'/vetec/vu_ltj.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(cleaned)}).catch(function(){});
+      // Re-render LTJ page kalau sedang ditunjuk
+      if(typeof renderLTJ==='function') try{renderLTJ();}catch(e){}
     }
   }catch(e){}
 }
