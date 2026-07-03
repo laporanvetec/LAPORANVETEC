@@ -7290,38 +7290,34 @@ var ltjAlasanCB = null;
 function getLTJ(){ return JSON.parse(localStorage.getItem('vu_ltj')||'[]'); }
 function autoCleanLTJ(){
   try{
-    if(!window.pt||!pt.length) return;
+    if(!window.pt||!pt.length||!window.GS_READY) return;
     var ltj=JSON.parse(localStorage.getItem('vu_ltj')||'[]');
     var before=ltj.length;
     var cleaned=ltj.filter(function(r){
       if(!r.farmRid||!r.pegawaiId) return false;
       var p=pt.find(function(x){return x.rid===r.farmRid;});
       if(!p) return false;
-      return p.pid===r.pegawaiId;
+      // Kekal kalau pid match
+      if(p.pid===r.pegawaiId) return true;
+      // Kekal kalau penternak dalam PO yang sama (mungkin baru ditransfer)
+      // tapi BUANG kalau PO berbeza (jelas salah pegawai lain)
+      var ltjPeg=peg.find(function(g){return g.id===r.pegawaiId;});
+      var ptPeg=peg.find(function(g){return g.id===p.pid;});
+      if(ltjPeg&&ptPeg&&ltjPeg.po!==ptPeg.po) return false; // PO berbeza — buang
+      return true; // PO sama — mungkin transfer, kekal
     });
     if(cleaned.length<before){
       console.log('[autoCleanLTJ] Buang '+(before-cleaned.length)+' rekod salah');
       _lsOrig('vu_ltj',JSON.stringify(cleaned));
       fetch(RTDB+'/vetec/vu_ltj.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(cleaned)}).catch(function(){});
-      // Re-render LTJ page kalau sedang ditunjuk
       if(typeof renderLTJ==='function') try{renderLTJ();}catch(e){}
     }
   }catch(e){}
 }
 
 function saveLTJData(d){
-  var cleaned=d;
-  try{
-    if(window.pt&&pt.length){
-      cleaned=d.filter(function(r){
-        if(!r.farmRid||!r.pegawaiId) return false;
-        var p=pt.find(function(x){return x.rid===r.farmRid;});
-        if(!p) return false;
-        return p.pid===r.pegawaiId;
-      });
-      if(cleaned.length<d.length) console.log('[saveLTJData] Filtered '+(d.length-cleaned.length)+' wrong records');
-    }
-  }catch(e){ cleaned=d; }
+  // Hanya buang rekod yang farmRid atau pegawaiId kosong
+  var cleaned=d.filter(function(r){ return r.farmRid&&r.pegawaiId; });
   localStorage.setItem('vu_ltj', JSON.stringify(cleaned));
   if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ltj', JSON.stringify(cleaned));
 }
