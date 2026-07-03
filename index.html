@@ -2416,9 +2416,10 @@ window.GS_READY=false;
 window.FB_READY=false;
 
 function rtWrite(k,v){
+  var body = (typeof v === 'string') ? v : JSON.stringify(v);
   fetch(RTDB+'/vetec/'+encodeURIComponent(k)+'.json',{
     method:'PUT',
-    body:JSON.stringify(v)
+    body:body
   }).catch(function(){});
 }
 
@@ -2511,10 +2512,12 @@ window.fbLoadAll=function(cb){
       if(v&&v!=='null'&&v!==null){
         var l=localStorage.getItem(k);
         if(ALWAYS_SYNC.indexOf(k)>=0){
-          // Always overwrite for global lists
-          _lsOrig(k,v);gotData=true;
+          // Always overwrite for global lists — ensure proper JSON string
+          var vStr = (typeof v === 'string') ? v : JSON.stringify(v);
+          _lsOrig(k,vStr);gotData=true;
         } else if(!l||l==='[]'||l==='{}'){
-          _lsOrig(k,v);gotData=true;
+          var vStr2 = (typeof v === 'string') ? v : JSON.stringify(v);
+          _lsOrig(k,vStr2);gotData=true;
         }
       }
       if(done>=total){
