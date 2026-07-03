@@ -1164,8 +1164,9 @@ function checkPengeluaranUpdate(typeCode){
   var curMo = now.getMonth();
   var curYr = now.getFullYear();
   
-  // Get visited farms this month for this type
+  // Get visited farms this month for this type — pegawai sendiri sahaja
   var visited = pt.filter(function(p){
+    if(p.pid !== CU.pid) return false; // Penternak pegawai sendiri sahaja
     if(!p.tr) return false;
     if(typeCode==='rb' && !isT(p.j,'rb')) return false;
     if(typeCode==='rk' && !isT(p.j,'rk')) return false;
@@ -5786,6 +5787,10 @@ function svR(){
 }
 
 // RENDER RB - shows penternak list + records
+function hasRecentVisit(p){
+  return !!(p.tr&&p.tr.trim());
+}
+
 function renderRB(){
   setTimeout(function(){if(typeof checkPengeluaranUpdate==='function')checkPengeluaranUpdate('rb');},500);
   ld();
@@ -5809,19 +5814,6 @@ function renderRB(){
   ['#','Nama','Jenis','Tarikh Lawatan','Status Bulan Ini','Rekod Cepat'].forEach(function(c){ph+='<th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900;text-align:left">'+c+'</th>';});
   ph+='</tr></thead><tbody>';
 
-  // Helper: semak sama ada penternak ada lawatan dalam bulan laporan semasa
-  function hasRecentVisit(p){
-    if(!p.tr) return false;
-    var now2=new Date();
-    var repMo=now2.getDate()<=8?(now2.getMonth()===0?11:now2.getMonth()-1):now2.getMonth();
-    var repYr=now2.getDate()<=8&&now2.getMonth()===0?now2.getFullYear()-1:now2.getFullYear();
-    return p.tr.split(',').some(function(d){
-      d=d.trim(); var pts=d.split('/');
-      if(pts.length!==3) return false;
-      var mo=parseInt(pts[1])-1; var yr=parseInt(pts[2]);
-      return (mo===repMo&&yr===repYr)||(mo===now2.getMonth()&&yr===now2.getFullYear());
-    });
-  }
   mp.forEach(function(p,i){
     var pi=pt.indexOf(p);
     var hR=rRB.some(function(r){return r.pid===CU.pid&&r.nm===p.nm&&r.bln===BLN[CM]&&r.thn===''+CY;});
@@ -5896,7 +5888,7 @@ function renderRK(){
     var hR=rRK.some(function(r){return r.pid===CU.pid&&r.nm===p.nm&&r.bln===BLN[CM]&&r.thn===''+CY;});
     var showStatus=hasRecentVisit(p);
     h+='<tr style="background:'+(i%2?'#fafafa':'#fff')+';border-bottom:1px solid #f0f0f0"><td style="padding:8px 12px;color:#a0aec0">'+(i+1)+'</td><td style="padding:8px 12px;font-weight:700">'+p.nm+'</td><td style="padding:8px 12px"><span class="bj">'+p.j+'</span></td><td style="padding:8px 12px;font-size:11px;color:'+(p.tr?'#276749':'#c53030')+'">'+(p.tr||'Belum ada')+'</td>';
-    h+='<td style="padding:8px 12px;text-align:center"><span class="'+(hR?'s1':'s0')+'">'+(hR?'Sudah diisi':'Belum diisi')+'</span></td>';
+    h+='<td style="padding:8px 12px;text-align:center">'+(hR?'<span class="s1">Sudah diisi</span>':(showStatus?'<span class="s0">Belum diisi</span>':''))+'</td>';
     h+='<td style="padding:8px 12px;text-align:center"><button class="btn bg" style="padding:4px 12px;font-size:11px" data-pi="'+pi+'" id="qrk-'+i+'">+ Rekod</button></td></tr>';
   });
   h+='</tbody></table></div>';
@@ -5944,7 +5936,7 @@ function renderUG(){
     var hR=rUG.some(function(r){return r.pid===CU.pid&&r.nm===p.nm&&r.bln===BLN[CM]&&r.thn===''+CY;});
     var showStatus=hasRecentVisit(p);
     h+='<tr style="background:'+(i%2?'#fafafa':'#fff')+';border-bottom:1px solid #f0f0f0"><td style="padding:8px 12px;color:#a0aec0">'+(i+1)+'</td><td style="padding:8px 12px;font-weight:700">'+p.nm+'</td><td style="padding:8px 12px"><span class="bj">'+p.j+'</span></td><td style="padding:8px 12px;font-size:11px;color:'+(p.tr?'#276749':'#c53030')+'">'+(p.tr||'Belum ada')+'</td>';
-    h+='<td style="padding:8px 12px;text-align:center"><span class="'+(hR?'s1':'s0')+'">'+(hR?'Sudah diisi':'Belum diisi')+'</span></td>';
+    h+='<td style="padding:8px 12px;text-align:center">'+(hR?'<span class="s1">Sudah diisi</span>':(showStatus?'<span class="s0">Belum diisi</span>':''))+'</td>';
     h+='<td style="padding:8px 12px;text-align:center"><button class="btn bg" style="padding:4px 12px;font-size:11px" data-pi="'+pi+'" id="qug-'+i+'">+ Rekod</button></td></tr>';
   });
   h+='</tbody></table></div>';
