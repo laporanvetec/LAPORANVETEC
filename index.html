@@ -3873,23 +3873,14 @@ function loginNow(){
   if(!nm){alert('Sila masukkan nama anda!');return;}
   var peg=JSON.parse(localStorage.getItem('vu_g')||'[]');
   var nmLow=nm.toLowerCase().trim();
-  // Try exact match first
+  // Exact match first
   var g=peg.find(function(x){return x.po===po&&x.nm.toLowerCase()===nmLow;});
-  // Fuzzy match: existing contains typed OR vice versa
+  // Contains match (e.g. "NURSHUHADA" contains "NURSHUHAD")
   if(!g){
     g=peg.find(function(x){
       if(x.po!==po)return false;
       var existLow=x.nm.toLowerCase();
-      return existLow.indexOf(nmLow)>=0||nmLow.indexOf(existLow)>=0;
-    });
-  }
-  // Aggressive fuzzy: match first 5 chars (handles "NURSHUHAD" vs "NURSHUHADA")
-  if(!g&&nmLow.length>=5){
-    var typedPrefix=nmLow.substring(0,5);
-    g=peg.find(function(x){
-      if(x.po!==po)return false;
-      var existPrefix=x.nm.toLowerCase().substring(0,5);
-      return existPrefix===typedPrefix;
+      return existLow===nmLow||existLow.indexOf(nmLow)>=0||nmLow.indexOf(existLow)>=0;
     });
   }
   if(!g){g={id:'g'+Date.now(),po:po,nm:nm};peg.push(g);localStorage.setItem('vu_g',JSON.stringify(peg));}
