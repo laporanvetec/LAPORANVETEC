@@ -5066,14 +5066,20 @@ function saveP(){
     var apegEl = document.getElementById('p-admin-pegawai');
     if(apegEl && apegEl.value){
       targetPegawai = apegEl.value;
-      // Find pid for this pegawai
+      // Cari pid dari vu_g (lebih reliable dari vu_pid_map)
       try{
-        var pm = JSON.parse(localStorage.getItem('vu_pid_map')||'{}');
-        Object.keys(pm).forEach(function(pid){
-          if(pm[pid] && pm[pid].nm === targetPegawai && pm[pid].po === targetPO){
-            targetPid = pid;
-          }
+        var pegList = JSON.parse(localStorage.getItem('vu_g')||'[]');
+        var pegMatch = pegList.find(function(g){
+          return g.nm.toUpperCase().trim()===targetPegawai.toUpperCase().trim() && g.po===targetPO;
         });
+        if(pegMatch) targetPid = pegMatch.id;
+        else{
+          // Fallback: cari tanpa PO filter
+          var pegMatch2 = pegList.find(function(g){
+            return g.nm.toUpperCase().trim()===targetPegawai.toUpperCase().trim();
+          });
+          if(pegMatch2) targetPid = pegMatch2.id;
+        }
       }catch(e){}
     }
   }
