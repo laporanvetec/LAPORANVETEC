@@ -7290,28 +7290,27 @@ var ltjAlasanCB = null;
 function getLTJ(){ return JSON.parse(localStorage.getItem('vu_ltj')||'[]'); }
 function autoCleanLTJ(){
   try{
-    if(!window.pt||!pt.length||!window.GS_READY) return;
-    var ltj=JSON.parse(localStorage.getItem('vu_ltj')||'[]');
-    var before=ltj.length;
-    var cleaned=ltj.filter(function(r){
-      if(!r.farmRid||!r.pegawaiId) return false;
-      var p=pt.find(function(x){return x.rid===r.farmRid;});
-      if(!p) return false;
-      // Kekal kalau pid match
-      if(p.pid===r.pegawaiId) return true;
-      // Kekal kalau penternak dalam PO yang sama (mungkin baru ditransfer)
-      // tapi BUANG kalau PO berbeza (jelas salah pegawai lain)
-      var ltjPeg=peg.find(function(g){return g.id===r.pegawaiId;});
-      var ptPeg=peg.find(function(g){return g.id===p.pid;});
-      if(ltjPeg&&ptPeg&&ltjPeg.po!==ptPeg.po) return false; // PO berbeza — buang
-      return true; // PO sama — mungkin transfer, kekal
-    });
-    if(cleaned.length<before){
-      console.log('[autoCleanLTJ] Buang '+(before-cleaned.length)+' rekod salah');
-      _lsOrig('vu_ltj',JSON.stringify(cleaned));
-      fetch(RTDB+'/vetec/vu_ltj.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(cleaned)}).catch(function(){});
-      if(typeof renderLTJ==='function') try{renderLTJ();}catch(e){}
-    }
+    if(!window.GS_READY) return;
+    // Fetch pt terkini dari Firebase sebelum clean
+    fetch(RTDB+'/vetec/vu_p.json')
+      .then(function(r){return r.json();})
+      .then(function(d){
+        var freshPt=d?(Array.isArray(d)?d:(typeof d==='string'?JSON.parse(d):pt)):pt;
+        var ltj=JSON.parse(localStorage.getItem('vu_ltj')||'[]');
+        var before=ltj.length;
+        var cleaned=ltj.filter(function(r){
+          if(!r.farmRid||!r.pegawaiId) return false;
+          var p=freshPt.find(function(x){return x.rid===r.farmRid;});
+          if(!p) return false;
+          return p.pid===r.pegawaiId; // strict pid match dengan data fresh
+        });
+        if(cleaned.length<before){
+          console.log('[autoCleanLTJ] Buang '+(before-cleaned.length)+' rekod salah');
+          _lsOrig('vu_ltj',JSON.stringify(cleaned));
+          fetch(RTDB+'/vetec/vu_ltj.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(cleaned)}).catch(function(){});
+          if(typeof renderLTJ==='function') try{renderLTJ();}catch(e){}
+        }
+      }).catch(function(){});
   }catch(e){}
 }
 
@@ -7639,7 +7638,22 @@ function renderLTJ(){
 
 // ── ADD LTJ ─────────────────────────────────────
 function openAddLTJ(){
-  ld();
+  ld(); // Refresh pt data dulu
+  // Sync vu_p dari Firebase untuk pastikan transfer terkini
+  if(window.GS_READY){
+    fetch(RTDB+'/vetec/vu_p.json')
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d){
+          var v=(typeof d==='string')?d:JSON.stringify(d);
+          _lsOrig('vu_p',v);
+          pt=JSON.parse(v);
+        }
+        _openAddLTJModal();
+      }).catch(function(){ _openAddLTJModal(); });
+  } else { _openAddLTJModal(); }
+}
+function _openAddLTJModal(){
   var ltj = getLTJ();
   var mo = parseInt(document.getElementById('ltj-mo').value);
   var yr = parseInt(document.getElementById('ltj-yr').value);
