@@ -12654,7 +12654,13 @@ function mergePoData(pkg){
     var sp=getSP03();
     d.sp03.forEach(function(nr){
       var ei=sp.findIndex(function(r){return r.id===nr.id;});
-      if(ei>=0) sp[ei]=nr; else{sp.push(nr);counts.sp03Count++;}
+      if(ei>=0){ sp[ei]=nr; return; }
+      // Cek duplikat berdasarkan farmRid+mo+yr+ketua (walaupun id berbeza)
+      var dupKey=(nr.farmRid||nr.namaPenternak)+'_'+(nr.mo)+'_'+(nr.yr)+'_'+(nr.ketuaAktiviti||'');
+      var dup=sp.findIndex(function(r){
+        return ((r.farmRid||r.namaPenternak)+'_'+(r.mo)+'_'+(r.yr)+'_'+(r.ketuaAktiviti||''))===dupKey;
+      });
+      if(dup>=0){ sp[dup]=nr; } else { sp.push(nr); counts.sp03Count++; }
     });
     saveSP03Data(sp);
   }
