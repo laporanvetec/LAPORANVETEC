@@ -4337,6 +4337,8 @@ function ld(){
   if(!rRB) rRB=[];
   if(!rRK) rRK=[];
   if(!rUG) rUG=[];
+  // Auto-clean LTJ rekod yang salah pegawaiId
+  if(typeof autoCleanLTJ==='function') setTimeout(autoCleanLTJ, 500);
 }
 function sv(){
   localStorage.setItem('vu_g',JSON.stringify(peg));
@@ -7286,9 +7288,40 @@ function syncTrFromSebenar(pi, yr, mo, sebenarStr){
 var ltjAlasanCB = null;
 
 function getLTJ(){ return JSON.parse(localStorage.getItem('vu_ltj')||'[]'); }
-function saveLTJData(d){ 
-  localStorage.setItem('vu_ltj', JSON.stringify(d));
-  if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ltj', JSON.stringify(d));
+function autoCleanLTJ(){
+  try{
+    if(!window.pt||!pt.length) return;
+    var ltj=JSON.parse(localStorage.getItem('vu_ltj')||'[]');
+    var before=ltj.length;
+    var cleaned=ltj.filter(function(r){
+      if(!r.farmRid||!r.pegawaiId) return false;
+      var p=pt.find(function(x){return x.rid===r.farmRid;});
+      if(!p) return false;
+      return p.pid===r.pegawaiId;
+    });
+    if(cleaned.length<before){
+      console.log('[autoCleanLTJ] Buang '+(before-cleaned.length)+' rekod salah');
+      _lsOrig('vu_ltj',JSON.stringify(cleaned));
+      fetch(RTDB+'/vetec/vu_ltj.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(cleaned)}).catch(function(){});
+    }
+  }catch(e){}
+}
+
+function saveLTJData(d){
+  var cleaned=d;
+  try{
+    if(window.pt&&pt.length){
+      cleaned=d.filter(function(r){
+        if(!r.farmRid||!r.pegawaiId) return false;
+        var p=pt.find(function(x){return x.rid===r.farmRid;});
+        if(!p) return false;
+        return p.pid===r.pegawaiId;
+      });
+      if(cleaned.length<d.length) console.log('[saveLTJData] Filtered '+(d.length-cleaned.length)+' wrong records');
+    }
+  }catch(e){ cleaned=d; }
+  localStorage.setItem('vu_ltj', JSON.stringify(cleaned));
+  if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ltj', JSON.stringify(cleaned));
 }
 
 function getQuarterTarget(mo){
