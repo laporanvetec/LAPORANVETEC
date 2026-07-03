@@ -5808,15 +5808,30 @@ function renderRB(){
   ph+='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#fffbeb">';
   ['#','Nama','Jenis','Tarikh Lawatan','Status Bulan Ini','Rekod Cepat'].forEach(function(c){ph+='<th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900;text-align:left">'+c+'</th>';});
   ph+='</tr></thead><tbody>';
+
+  // Helper: semak sama ada penternak ada lawatan dalam bulan laporan semasa
+  function hasRecentVisit(p){
+    if(!p.tr) return false;
+    var now2=new Date();
+    var repMo=now2.getDate()<=8?(now2.getMonth()===0?11:now2.getMonth()-1):now2.getMonth();
+    var repYr=now2.getDate()<=8&&now2.getMonth()===0?now2.getFullYear()-1:now2.getFullYear();
+    return p.tr.split(',').some(function(d){
+      d=d.trim(); var pts=d.split('/');
+      if(pts.length!==3) return false;
+      var mo=parseInt(pts[1])-1; var yr=parseInt(pts[2]);
+      return (mo===repMo&&yr===repYr)||(mo===now2.getMonth()&&yr===now2.getFullYear());
+    });
+  }
   mp.forEach(function(p,i){
     var pi=pt.indexOf(p);
     var hR=rRB.some(function(r){return r.pid===CU.pid&&r.nm===p.nm&&r.bln===BLN[CM]&&r.thn===''+CY;});
+    var showStatus=hasRecentVisit(p);
     ph+='<tr style="background:'+(i%2?'#fafafa':'#fff')+';border-bottom:1px solid #f0f0f0">';
     ph+='<td style="padding:8px 12px;color:#a0aec0">'+(i+1)+'</td>';
     ph+='<td style="padding:8px 12px;font-weight:700">'+p.nm+'</td>';
     ph+='<td style="padding:8px 12px"><span class="bj">'+p.j+'</span></td>';
     ph+='<td style="padding:8px 12px;font-size:11px;color:'+(p.tr?'#276749':'#c53030')+'">'+(p.tr||'Belum ada')+'</td>';
-    ph+='<td style="padding:8px 12px;text-align:center"><span class="'+(hR?'s1':'s0')+'">'+(hR?'Sudah diisi':'Belum diisi')+'</span></td>';
+    ph+='<td style="padding:8px 12px;text-align:center">'+(hR?'<span class="s1">Sudah diisi</span>':(showStatus?'<span class="s0">Belum diisi</span>':''))+'</td>';
     ph+='<td style="padding:8px 12px;text-align:center"><button class="btn bg" style="padding:4px 12px;font-size:11px" data-pi="'+pi+'" id="qrb-'+i+'">+ Rekod</button></td>';
     ph+='</tr>';
   });
@@ -5879,6 +5894,7 @@ function renderRK(){
   h+='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#fffbeb"><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">#</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Nama</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Jenis</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Tarikh Lawatan</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Status Bulan Ini</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Tindakan</th></tr></thead><tbody>';
   mp.forEach(function(p,i){var pi=pt.indexOf(p);
     var hR=rRK.some(function(r){return r.pid===CU.pid&&r.nm===p.nm&&r.bln===BLN[CM]&&r.thn===''+CY;});
+    var showStatus=hasRecentVisit(p);
     h+='<tr style="background:'+(i%2?'#fafafa':'#fff')+';border-bottom:1px solid #f0f0f0"><td style="padding:8px 12px;color:#a0aec0">'+(i+1)+'</td><td style="padding:8px 12px;font-weight:700">'+p.nm+'</td><td style="padding:8px 12px"><span class="bj">'+p.j+'</span></td><td style="padding:8px 12px;font-size:11px;color:'+(p.tr?'#276749':'#c53030')+'">'+(p.tr||'Belum ada')+'</td>';
     h+='<td style="padding:8px 12px;text-align:center"><span class="'+(hR?'s1':'s0')+'">'+(hR?'Sudah diisi':'Belum diisi')+'</span></td>';
     h+='<td style="padding:8px 12px;text-align:center"><button class="btn bg" style="padding:4px 12px;font-size:11px" data-pi="'+pi+'" id="qrk-'+i+'">+ Rekod</button></td></tr>';
@@ -5926,6 +5942,7 @@ function renderUG(){
   h+='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#fffbeb"><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">#</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Nama</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Jenis</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Tarikh Lawatan</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Tindakan</th></tr></thead><tbody>';
   mp.forEach(function(p,i){var pi=pt.indexOf(p);
     var hR=rUG.some(function(r){return r.pid===CU.pid&&r.nm===p.nm&&r.bln===BLN[CM]&&r.thn===''+CY;});
+    var showStatus=hasRecentVisit(p);
     h+='<tr style="background:'+(i%2?'#fafafa':'#fff')+';border-bottom:1px solid #f0f0f0"><td style="padding:8px 12px;color:#a0aec0">'+(i+1)+'</td><td style="padding:8px 12px;font-weight:700">'+p.nm+'</td><td style="padding:8px 12px"><span class="bj">'+p.j+'</span></td><td style="padding:8px 12px;font-size:11px;color:'+(p.tr?'#276749':'#c53030')+'">'+(p.tr||'Belum ada')+'</td>';
     h+='<td style="padding:8px 12px;text-align:center"><span class="'+(hR?'s1':'s0')+'">'+(hR?'Sudah diisi':'Belum diisi')+'</span></td>';
     h+='<td style="padding:8px 12px;text-align:center"><button class="btn bg" style="padding:4px 12px;font-size:11px" data-pi="'+pi+'" id="qug-'+i+'">+ Rekod</button></td></tr>';
