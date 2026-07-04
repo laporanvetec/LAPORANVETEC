@@ -297,7 +297,7 @@ function mergeDuplicateOfficers(){
       pt.forEach(function(p){
         if(pidMap[p.pid])p.pid=pidMap[p.pid];
       });
-      _lsOrig('vu_g','vu_pid_map','vu_jenis_komoditi',JSON.stringify(newPeg));
+      _lsOrig('vu_g',JSON.stringify(newPeg));
       _lsOrig('vu_p',JSON.stringify(pt));
       console.log('Merged officers, mapped pids:',pidMap);
     }
