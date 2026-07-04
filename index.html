@@ -3876,12 +3876,12 @@ function loginNow(){
   if(!nm){alert('Sila masukkan nama anda!');return;}
   var peg=JSON.parse(localStorage.getItem('vu_g')||'[]');
   var nmLow=nm.toLowerCase().trim();
-  // Exact match first
-  var g=peg.find(function(x){return x.po===po&&x.nm.toLowerCase()===nmLow;});
-  // Contains match (e.g. "NURSHUHADA" contains "NURSHUHAD")
+  // Exact match first — guna normPO untuk handle KANGAR/PERLIS vs KANGAR
+  var g=peg.find(function(x){return normPO(x.po)===normPO(po)&&x.nm.toLowerCase()===nmLow;});
+  // Contains match
   if(!g){
     g=peg.find(function(x){
-      if(x.po!==po)return false;
+      if(normPO(x.po)!==normPO(po))return false;
       var existLow=x.nm.toLowerCase();
       return existLow===nmLow||existLow.indexOf(nmLow)>=0||nmLow.indexOf(existLow)>=0;
     });
@@ -9699,6 +9699,21 @@ function getSP03(){ return JSON.parse(localStorage.getItem('vu_sp03')||'[]'); }
 function saveSP03Data(d){ 
   localStorage.setItem('vu_sp03', JSON.stringify(d));
   if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_sp03', JSON.stringify(d));
+  // Auto-sync no tel dan ID premis dari SP03 → LBL (pt)
+  try{
+    var ptChanged=false;
+    d.forEach(function(r){
+      if(!r.farmRid) return;
+      var p=pt.find(function(x){return x.rid===r.farmRid||x.id===r.farmRid;});
+      if(!p) return;
+      if(r.noTel&&!p.tl){p.tl=r.noTel;ptChanged=true;}
+      if(r.idPremis&&(!p.id||p.id==='-')){p.id=r.idPremis;ptChanged=true;}
+    });
+    if(ptChanged){
+      localStorage.setItem('vu_p',JSON.stringify(pt));
+      if(window.GS_READY&&typeof rtWrite==='function') rtWrite('vu_p',JSON.stringify(pt));
+    }
+  }catch(e){}
 }
 
 // Get last stok akhir for a penternak from records
