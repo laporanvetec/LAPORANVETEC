@@ -949,7 +949,7 @@ function checkSP03Clearance(){
   // Get all SP03 records for current user (officer's records based on filter)
   var allSP03 = JSON.parse(localStorage.getItem('vu_sp03')||'[]');
   var myRecs = allSP03.filter(function(r){
-    if(isMLAdmin()) return r.po===CU.po; // admin: their PO
+    if(isMLAdmin()) return normPO(r.po)===normPO(CU.po); // admin: their PO
     // Officer: where they are Ketua or Pegawai Lain
     var cuNm = (CU.nm||'').toUpperCase().trim();
     if((r.ketuaAktiviti||'').toUpperCase().trim() === cuNm) return true;
@@ -1037,7 +1037,7 @@ function downloadSP03Pending(){
     var sp03Key = 'sp03_'+CU.pid+'_'+r.yr+'_'+r.mo;
     if(getClearanceLog()[sp03Key]) return false;
     // Filter for this officer
-    if(isMLAdmin()) return r.po===CU.po;
+    if(isMLAdmin()) return normPO(r.po)===normPO(CU.po);
     if((r.ketuaAktiviti||'').toUpperCase().trim() === cuNm) return true;
     var pegList = r.pegawaiLain ? r.pegawaiLain.split(',').map(function(x){return x.trim().toUpperCase();}) : [r.pegawai1,r.pegawai2,r.pegawai3].filter(Boolean).map(function(x){return x.toUpperCase().trim();});
     return pegList.indexOf(cuNm) >= 0;
@@ -1093,7 +1093,7 @@ function approveSP03Clearance(){
     // Check if this is officer's record
     var isMine = false;
     if(isMLAdmin()){
-      isMine = (r.po===CU.po);
+      isMine = (normPO(r.po)===normPO(CU.po));
     } else {
       if((r.ketuaAktiviti||'').toUpperCase().trim() === cuNm) isMine = true;
       else {
@@ -1184,7 +1184,7 @@ function checkPengeluaranUpdate(typeCode){
   var allPeng = [];
   try{ allPeng = JSON.parse(localStorage.getItem(keyMap[typeCode])||'[]'); }catch(e){}
   var thisMonth = allPeng.filter(function(r){
-    return r.mo===curMo && r.yr===curYr && r.po===CU.po;
+    return r.mo===curMo && r.yr===curYr && normPO(r.po)===normPO(CU.po);
   });
   var existRids = thisMonth.map(function(r){return r.rid;});
   
@@ -1260,7 +1260,7 @@ function claimLegacySP03(){
   var sp = JSON.parse(localStorage.getItem('vu_sp03')||'[]');
   var changed = 0;
   sp.forEach(function(r){
-    if(r.po===CU.po && !r.ketuaAktiviti){
+    if(normPO(r.po)===normPO(CU.po) && !r.ketuaAktiviti){
       r.ketuaAktiviti = CU.nm;
       changed++;
     }
@@ -4279,7 +4279,7 @@ function myPt(t){
     var ptByKey = {};
     pt.forEach(function(p){
       if(!p.nm) return;
-      if(p.po !== CU.po) return; // only this officer's PO
+      if(normPO(p.po) !== normPO(CU.po)) return; // only this officer's PO
       var key = p.nm.toUpperCase().trim()+'|'+(p.po||'')+'|'+(p.j||'').toUpperCase().trim();
       // Keep one with most data
       if(!ptByKey[key] || p.tr || p.lat){
@@ -4289,7 +4289,7 @@ function myPt(t){
     
     // Get masterlist entries for this PO
     var mlPO = ml.filter(function(m){
-      return m.po===myPO && (!t||isT(m.j,t));
+      return normPO(m.po)===normPO(myPO) && (!t||isT(m.j,t));
     });
     
     // Merge - prefer pt version (officer's edits) over masterlist
@@ -4315,7 +4315,7 @@ function myPt(t){
     });
     return Object.values(resultMap);
   }catch(e){
-    return pt.filter(function(p){return (p.pid===CU.pid||(!p.pid&&p.po===CU.po))&&(!t||isT(p.j,t));});
+    return pt.filter(function(p){return (p.pid===CU.pid||(!p.pid&&normPO(p.po)===normPO(CU.po)))&&(!t||isT(p.j,t));});
   }
 }
 function nv(v){return(v&&v!==0)?v:'';}
@@ -8899,7 +8899,7 @@ function renderKW(){
   var waran = (document.getElementById('kw-waran').value||'').trim();
   var moNames = ['JANUARI','FEBRUARI','MAC','APRIL','MEI','JUN','JULAI','OGOS','SEPTEMBER','OKTOBER','NOVEMBER','DISEMBER'];
   var ptj = document.getElementById('kw-ptj') ? document.getElementById('kw-ptj').value : 'KEDAH';
-  var all = getKW().filter(function(r){ return r.mo===mo&&r.yr===yr&&(r.ptj||'KEDAH')===ptj && (isMLAdmin() || r.po===CU.po); });
+  var all = getKW().filter(function(r){ return r.mo===mo&&r.yr===yr&&(r.ptj||'KEDAH')===ptj && (isMLAdmin() || normPO(r.po)===normPO(CU.po)); });
 
   // Sort by KOD_ORDER
   all.sort(function(a,b){
@@ -9107,7 +9107,7 @@ function saveKW(){
     if(idx>=0) kw[idx]=rec; else kw.push(rec);
   } else {
     // Check duplicate kod for same mo/yr/po
-    var dup = kw.findIndex(function(r){ return r.po===CU.po&&r.mo===mo&&r.yr===yr&&r.kod===kod&&r.id!==kwEditId; });
+    var dup = kw.findIndex(function(r){ return normPO(r.po)===normPO(CU.po)&&r.mo===mo&&r.yr===yr&&r.kod===kod&&r.id!==kwEditId; });
     if(dup>=0){
       if(!confirm('Kod Objek "'+kod+'" sudah ada untuk bulan ini. Gantikan?')) return;
       kw[dup] = rec;
@@ -9129,7 +9129,7 @@ function exKW(){
   var waran = document.getElementById('kw-waran').value||'';
   var moNames=['JANUARI','FEBRUARI','MAC','APRIL','MEI','JUN','JULAI','OGOS','SEPTEMBER','OKTOBER','NOVEMBER','DISEMBER'];
   var ptj = document.getElementById('kw-ptj') ? document.getElementById('kw-ptj').value : 'KEDAH';
-  var all = getKW().filter(function(r){ return r.mo===mo&&r.yr===yr&&(r.ptj||'KEDAH')===ptj && (isMLAdmin() || r.po===CU.po); });
+  var all = getKW().filter(function(r){ return r.mo===mo&&r.yr===yr&&(r.ptj||'KEDAH')===ptj && (isMLAdmin() || normPO(r.po)===normPO(CU.po)); });
   all.sort(function(a,b){ var ia=KW_KODORDER.indexOf(a.kod);var ib=KW_KODORDER.indexOf(b.kod);if(ia<0)ia=999;if(ib<0)ib=999;return ia-ib; });
   var wb  = XLSX.utils.book_new();
   var ptjEx=document.getElementById('kw-ptj')?document.getElementById('kw-ptj').value:'KEDAH';
@@ -9819,7 +9819,7 @@ function genSP03(){
   ld();
   var mo = parseInt(document.getElementById('s3-mo').value);
   var yr = parseInt(document.getElementById('s3-yr').value)||2026;
-  var existing = getSP03().filter(function(r){ return r.po===CU.po&&r.mo===mo&&r.yr===yr; });
+  var existing = getSP03().filter(function(r){ return normPO(r.po)===normPO(CU.po)&&r.mo===mo&&r.yr===yr; });
   var existRids = existing.map(function(r){ return r.farmRid; });
 
   // Get farms visited this month
@@ -10691,7 +10691,7 @@ function exSP03(){
   if(typeof XLSX==='undefined'){alert('Excel belum dimuatkan.');return;}
   var mo=parseInt(document.getElementById('s3-mo').value);
   var yr=parseInt(document.getElementById('s3-yr').value)||2026;
-  var recs=getSP03().filter(function(r){return r.po===CU.po&&r.mo===mo&&r.yr===yr;});
+  var recs=getSP03().filter(function(r){return normPO(r.po)===normPO(CU.po)&&r.mo===mo&&r.yr===yr;});
   if(!recs.length){alert('Tiada data SP03.');return;}
   var wb=XLSX.utils.book_new();
   var KK=['LEMBU PEDAGING','LEMBU TENUSU','KERBAU PEDAGING','KERBAU TENUSU','KAMBING PEDAGING','KAMBING TENUSU','BEBIRI','RUSA','BABI','AYAM PEDAGING','AYAM PENELUR','AYAM KAMPUNG','PUYUH DAGING','PUYUH PENELUR','ITIK DAGING','ITIK PENELUR','ANEKA HAIWAN','ANJING','KUCING','LAIN-LAIN'];
@@ -10826,7 +10826,7 @@ function saveS3Manual(addToSenarai){
   var existing=pt.find(function(p){
     if(!p.nm) return false;
     var pn = p.nm.replace(/\s+/g,' ').trim().toUpperCase();
-    return pn===nmClean && p.po===CU.po;
+    return pn===nmClean && normPO(p.po)===normPO(CU.po);
   });
   
   // Check if in masterlist (other POs)
@@ -11014,7 +11014,7 @@ document.getElementById('mS3Sh-x').onclick=function(){document.getElementById('m
 function openShareSP03(){
   var mo=parseInt(document.getElementById('s3-mo').value);
   var yr=parseInt(document.getElementById('s3-yr').value)||2026;
-  var recs=getSP03().filter(function(r){return r.po===CU.po&&r.mo===mo&&r.yr===yr;});
+  var recs=getSP03().filter(function(r){return normPO(r.po)===normPO(CU.po)&&r.mo===mo&&r.yr===yr;});
   document.getElementById('mS3Sh-sub').textContent=BLN_SP[mo]+' '+yr+' | PO: '+CU.po+' | '+recs.length+' rekod';
   document.getElementById('s3-copy-result').style.display='none';
   // Build checklist
@@ -11656,7 +11656,7 @@ function renderLTK(){
 
   // Find months with SP03 data OR manual override data (historical months entered manually)
   window._ltkCurrentPO = selectedLtkPO;
-  var sp03 = getSP03().filter(function(r){ return r.yr===yr && (isMLAdmin() ? normPO(r.po)===normPO(selectedLtkPO) : r.po===CU.po); });
+  var sp03 = getSP03().filter(function(r){ return r.yr===yr && (isMLAdmin() ? normPO(r.po)===normPO(selectedLtkPO) : normPO(r.po)===normPO(CU.po)); });
   var months = [];
   var ovAll = getLTKOverride();
   for(var mo=0; mo<12; mo++){
@@ -12630,7 +12630,7 @@ function renderRptHistory(){
 // ── EXPORT DATA SAYA (for regular pegawai) ────────
 function exportMyData(){
   ld();
-  var myPt2 = pt.filter(function(p){ return p.po===CU.po||p.pegawaiId===CU.pid; });
+  var myPt2 = pt.filter(function(p){ return normPO(p.po)===normPO(CU.po)||p.pegawaiId===CU.pid; });
   var payload = {
     exported:   new Date().toISOString(),
     exportedBy: CU.nm,
@@ -12639,13 +12639,13 @@ function exportMyData(){
     version:    '1.0',
     data:{
       penternak: myPt2,
-      sp03:  getSP03().filter(function(r){return r.po===CU.po||r.pegawaiId===CU.pid;}),
-      ltj:   getLTJ().filter(function(r){return r.po===CU.po||r.pegawaiId===CU.pid;}),
-      lt:    getLT().filter(function(r){return r.po===CU.po||r.pegawaiId===CU.pid;}),
-      tkp:   getTKP().filter(function(r){return r.po===CU.po||r.pegawaiId===CU.pid;}),
-      tkt:   getTKT().filter(function(r){return r.po===CU.po||r.pegawaiId===CU.pid;}),
-      ivi:   getIVI().filter(function(r){return r.po===CU.po||r.pegawaiId===CU.pid;}),
-      ivp:   getIVP().filter(function(r){return r.po===CU.po||r.pegawaiId===CU.pid;}),
+      sp03:  getSP03().filter(function(r){return normPO(r.po)===normPO(CU.po)||r.pegawaiId===CU.pid;}),
+      ltj:   getLTJ().filter(function(r){return normPO(r.po)===normPO(CU.po)||r.pegawaiId===CU.pid;}),
+      lt:    getLT().filter(function(r){return normPO(r.po)===normPO(CU.po)||r.pegawaiId===CU.pid;}),
+      tkp:   getTKP().filter(function(r){return normPO(r.po)===normPO(CU.po)||r.pegawaiId===CU.pid;}),
+      tkt:   getTKT().filter(function(r){return normPO(r.po)===normPO(CU.po)||r.pegawaiId===CU.pid;}),
+      ivi:   getIVI().filter(function(r){return normPO(r.po)===normPO(CU.po)||r.pegawaiId===CU.pid;}),
+      ivp:   getIVP().filter(function(r){return normPO(r.po)===normPO(CU.po)||r.pegawaiId===CU.pid;}),
       ts:    (function(){
         var tsd=getTSD(); var out={};
         myPt2.forEach(function(p){
@@ -13007,7 +13007,7 @@ function renderStaffRPT(mo,yr){
   // Check data completeness
   ld();
   var moName2 = BLN_RPT[mo];
-  var myPts = pt.filter(function(p){ return p.po===CU.po; });
+  var myPts = pt.filter(function(p){ return normPO(p.po)===normPO(CU.po); });
 
   // Check 1: Ladang Belum Dilawat - any visit recorded this month
   var ldCheck = myPts.some(function(p){
@@ -13016,10 +13016,10 @@ function renderStaffRPT(mo,yr){
   });
 
   // Check 2: SP03 - has records for this month
-  var sp03Check = getSP03().some(function(r){ return r.po===CU.po&&r.mo===mo&&r.yr===yr; });
+  var sp03Check = getSP03().some(function(r){ return normPO(r.po)===normPO(CU.po)&&r.mo===mo&&r.yr===yr; });
 
   // Check 3: Pengeluaran - has any RB/RK/UG records
-  var penCheck = rRB.some(function(r){ return r.po===CU.po; }) || rRK.some(function(r){ return r.po===CU.po; }) || rUG.some(function(r){ return r.po===CU.po; });
+  var penCheck = rRB.some(function(r){ return normPO(r.po)===normPO(CU.po)&&r.pid===CU.pid; }) || rRK.some(function(r){ return normPO(r.po)===normPO(CU.po)&&r.pid===CU.pid; }) || rUG.some(function(r){ return normPO(r.po)===normPO(CU.po)&&r.pid===CU.pid; });
 
   var allChecked = ldCheck && sp03Check && penCheck;
 
@@ -13810,7 +13810,7 @@ function exportMyDataExcel(){
   }
 
   // ── SHEET 1: SENARAI PENTERNAK LBL ──
-  var myPt = pt.filter(function(p){return p.pid===CU.pid||((!p.pid)&&p.po===CU.po);});
+  var myPt = pt.filter(function(p){return p.pid===CU.pid||((!p.pid)&&normPO(p.po)===normPO(CU.po));});
   var rLBL=[[H('NO'),H('NAMA PENTERNAK'),H('JENIS TERNAKAN'),H('ID PREMIS'),H('NO. TEL'),H('BANTUAN'),H('NEGERI'),H('ALAMAT',C.navy,C.white,9),H('TARIKH LAWATAN',C.teal),H('STATUS LAWATAN',C.teal),H('PPV')]];
   myPt.forEach(function(p,i){
     var bg=i%2?C.lb:C.white;
@@ -13886,7 +13886,7 @@ function exportMyDataExcel(){
   sheet(rLTs,[{wch:5},{wch:20},{wch:35},{wch:14},{wch:14},{wch:8},{wch:20},{wch:20},{wch:12},{wch:6}],{xSplit:1,ySplit:1},'LATIHAN');
 
   // ── SHEET 8: KEWANGAN ──
-  var myKW=getKW().filter(function(r){return r.yr===yr&&(isMLAdmin()||r.po===CU.po);});
+  var myKW=getKW().filter(function(r){return r.yr===yr&&(isMLAdmin()||normPO(r.po)===normPO(CU.po));});
   var rKWs=[[H('NO'),H('BULAN',C.purple),H('TAHUN',C.purple),H('KOD WARAN',C.purple),H('PERKARA','553C9A'),H('PERUNTUKAN ASAL',C.green),H('VIREMENT +','276749'),H('VIREMENT -',C.red),H('JUMLAH PERUNTUKAN',C.green),H('TANGGUNGAN',C.teal),H('BELANJA SEBENAR',C.teal),H('BAKI',C.gold,'000000'),H('PTJ')]];
   myKW.forEach(function(r,i){
     var bg=i%2?'F3E8FF':C.white;
@@ -13957,16 +13957,16 @@ function exportMyData(){
     version:'1.0', exported:new Date().toISOString(),
     exportedBy:CU.nm, po:CU.po, mo:mo, yr:yr,
     data:{
-      pt: pt.filter(function(p){return p.po===CU.po;}),
+      pt: pt.filter(function(p){return normPO(p.po)===normPO(CU.po);}),
       tsd: (function(){var d=getTSD();var out={};Object.keys(d).forEach(function(k){if(k.indexOf(CU.po)>=0)out[k]=d[k];});return out;})(),
-      sp03: getSP03().filter(function(r){return r.po===CU.po;}),
-      ltj: getLTJ().filter(function(r){return r.po===CU.po;}),
-      lt: getLT().filter(function(r){return r.po===CU.po;}),
-      tkp: getTKP().filter(function(r){return r.po===CU.po;}),
-      tkt: getTKT().filter(function(r){return r.po===CU.po;}),
-      ivi: getIVI().filter(function(r){return r.po===CU.po;}),
-      ivp: getIVP().filter(function(r){return r.po===CU.po;}),
-      kw:  getKW().filter(function(r){return r.po===CU.po;}),
+      sp03: getSP03().filter(function(r){return normPO(r.po)===normPO(CU.po);}),
+      ltj: getLTJ().filter(function(r){return normPO(r.po)===normPO(CU.po);}),
+      lt: getLT().filter(function(r){return normPO(r.po)===normPO(CU.po);}),
+      tkp: getTKP().filter(function(r){return normPO(r.po)===normPO(CU.po);}),
+      tkt: getTKT().filter(function(r){return normPO(r.po)===normPO(CU.po);}),
+      ivi: getIVI().filter(function(r){return normPO(r.po)===normPO(CU.po);}),
+      ivp: getIVP().filter(function(r){return normPO(r.po)===normPO(CU.po);}),
+      kw:  getKW().filter(function(r){return normPO(r.po)===normPO(CU.po);}),
       ltkOv:(function(){var d=getLTKOverride();var out={};Object.keys(d).forEach(function(k){if(k.indexOf(CU.po)>=0)out[k]=d[k];});return out;})()
     }
   };
@@ -15708,13 +15708,13 @@ function openLaporanAkhir(){
 function sahkanData(key, mo, yr){
   ld();
   // Re-verify all checks
-  var myPts = pt.filter(function(p){ return p.po===CU.po; });
+  var myPts = pt.filter(function(p){ return normPO(p.po)===normPO(CU.po); });
   var ldOk = myPts.some(function(p){
     if(!p.tr) return false;
     return p.tr.split(',').some(function(d){ var dt=pd(d.trim()); return dt&&dt.getMonth()===mo&&dt.getFullYear()===yr; });
   });
-  var sp03Ok = getSP03().some(function(r){ return r.po===CU.po&&r.mo===mo&&r.yr===yr; });
-  var penOk  = rRB.some(function(r){ return r.po===CU.po; })||rRK.some(function(r){ return r.po===CU.po; })||rUG.some(function(r){ return r.po===CU.po; });
+  var sp03Ok = getSP03().some(function(r){ return normPO(r.po)===normPO(CU.po)&&r.mo===mo&&r.yr===yr; });
+  var penOk  = rRB.some(function(r){ return normPO(r.po)===normPO(CU.po); })||rRK.some(function(r){ return normPO(r.po)===normPO(CU.po); })||rUG.some(function(r){ return normPO(r.po)===normPO(CU.po); });
 
   if(!ldOk||!sp03Ok||!penOk){
     var missing=[];
@@ -15733,8 +15733,8 @@ function sahkanData(key, mo, yr){
     mo: mo,
     yr: yr,
     checks: {ld:true, sp03:true, pen:true},
-    ptCount: pt.filter(function(p){return p.po===CU.po;}).length,
-    sp03Count: getSP03().filter(function(r){return r.po===CU.po&&r.mo===mo&&r.yr===yr;}).length
+    ptCount: pt.filter(function(p){return normPO(p.po)===normPO(CU.po);}).length,
+    sp03Count: getSP03().filter(function(r){return normPO(r.po)===normPO(CU.po)&&r.mo===mo&&r.yr===yr;}).length
   };
   localStorage.setItem('vu_submit_log', JSON.stringify(log));
 
