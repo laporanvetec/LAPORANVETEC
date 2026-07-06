@@ -197,7 +197,7 @@ function resetWronglyAssigned(){
 // Fix orphan pids - penternak whose pid doesn't exist in vu_g
 function fixOrphanPids(){
   try{
-    var peg=JSON.parse(localStorage.getItem('vu_g')||'[]');
+    var peg=safeParseArr('vu_g');
     var pt=JSON.parse(localStorage.getItem('vu_p')||'[]');
     var validPids={};
     peg.forEach(function(g){validPids[g.id]=g;});
@@ -225,7 +225,7 @@ function fixOrphanPids(){
 
 function mergeDuplicateOfficers(){
   try{
-    var peg=JSON.parse(localStorage.getItem('vu_g')||'[]');
+    var peg=safeParseArr('vu_g');
     var pt=JSON.parse(localStorage.getItem('vu_p')||'[]');
     var byPO={};
     peg.forEach(function(g){
@@ -3764,7 +3764,7 @@ function loginNow(){
   var nm=(document.getElementById('lg-nm').value||'').trim();
   if(!po){alert('Sila pilih Pusat Operasi!');return;}
   if(!nm){alert('Sila masukkan nama anda!');return;}
-  var peg=JSON.parse(localStorage.getItem('vu_g')||'[]');
+  var peg=safeParseArr('vu_g');
   var nmLow=nm.toLowerCase().trim();
   // Try exact match first
   var g=peg.find(function(x){return x.po===po&&x.nm.toLowerCase()===nmLow;});
@@ -4205,7 +4205,7 @@ function safeParseArr(key){
 }
 
 function ld(){
-  peg=JSON.parse(localStorage.getItem('vu_g')||'[]');
+  peg=safeParseArr('vu_g');
   pt =JSON.parse(localStorage.getItem('vu_p')||'[]');
   rRB=JSON.parse(localStorage.getItem('vu_rb')||'[]');
   rRK=JSON.parse(localStorage.getItem('vu_rk')||'[]');
@@ -4376,6 +4376,39 @@ function refreshKomoditiDropdowns(){
 }
 
 // ── Render Urus Komoditi page ─────────
+
+// Audit tool: find pt entries where pegawai doesn't match their registered PO
+function auditPOPegawaiMismatch(){
+  if(!isMLAdmin()){ alert('Hanya admin boleh guna alat ini'); return; }
+  var officersMap = JSON.parse(localStorage.getItem('vu_officers')||'{}');
+  var issues = [];
+  pt.forEach(function(p){
+    if(!p.pegawai || p.pegawai==='ADMIN') return;
+    var validList = (officersMap[p.po]||[]).map(function(o){
+      return (typeof o==='string'?o:o.nm||'').toUpperCase();
+    });
+    if(typeof DEFAULT_OFFICERS!=='undefined' && DEFAULT_OFFICERS[p.po]){
+      DEFAULT_OFFICERS[p.po].forEach(function(nm){validList.push(nm.toUpperCase());});
+    }
+    if(validList.length && validList.indexOf(p.pegawai.toUpperCase())<0){
+      issues.push(p);
+    }
+  });
+  
+  if(!issues.length){
+    alert('✅ Tiada isu dijumpai! Semua penternak mempunyai PO/Pegawai yang sepadan.');
+    return;
+  }
+  
+  var msg = '⚠️ Dijumpai '+issues.length+' penternak dengan PO/Pegawai tidak sepadan:\n\n';
+  issues.slice(0,20).forEach(function(p){
+    msg += '• '+p.nm+' — PO: '+p.po+', Pegawai: '+p.pegawai+'\n';
+  });
+  if(issues.length>20) msg += '\n...dan '+(issues.length-20)+' lagi';
+  alert(msg);
+  console.log('Full list of PO/Pegawai mismatches:', issues);
+}
+
 function renderKomoditiPage(){
   if(!isMLAdmin()){
     alert('Hanya admin boleh akses halaman ini');
@@ -4390,7 +4423,8 @@ function renderKomoditiPage(){
   h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">';
   h += '<div><div style="font-size:17px;font-weight:800;color:#0f2d5e">&#129516; Urus Jenis Komoditi</div>';
   h += '<div style="font-size:12px;color:#718096">Tambah / Padam jenis ternakan. Akan auto-sync ke semua dropdown.</div></div>';
-  h += '<button onclick="resetKomoditiDefault()" style="background:#fff5f5;border:1px solid #c53030;color:#c53030;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700">&#8635; Reset Default</button>';
+  h += '<button onclick="resetKomoditiDefault()" style="background:#fff5f5;border:1px solid #c53030;color:#c53030;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-right:6px">&#8635; Reset Default</button>';
+  h += '<button onclick="auditPOPegawaiMismatch()" style="background:#fffaf0;border:1px solid #dd6b20;color:#dd6b20;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700">&#128269; Semak PO/Pegawai Tidak Sepadan</button>';
   h += '</div>';
   
   Object.keys(k).forEach(function(grp){
@@ -4991,6 +5025,26 @@ function saveP(){
   }
   
   // For admin assignment, force override even if existing  
+  // VALIDATION: Check if pegawai actually belongs to selected PO (prevent PO/pegawai mismatch)
+  if(targetPegawai && targetPegawai !== 'ADMIN'){
+    try{
+      var officersCheck = JSON.parse(localStorage.getItem('vu_officers')||'{}');
+      var validOfficersForPO = (officersCheck[targetPO]||[]).map(function(o){
+        return (typeof o==='string'?o:o.nm||'').toUpperCase();
+      });
+      if(typeof DEFAULT_OFFICERS!=='undefined' && DEFAULT_OFFICERS[targetPO]){
+        DEFAULT_OFFICERS[targetPO].forEach(function(nm){validOfficersForPO.push(nm.toUpperCase());});
+      }
+      if(validOfficersForPO.length && validOfficersForPO.indexOf(targetPegawai.toUpperCase())<0){
+        if(!confirm('⚠️ AMARAN: Pegawai "'+targetPegawai+'" bukan berdaftar di PO "'+targetPO+'".\n\nAdakah anda PASTI nak simpan? (Semak semula PO/Pegawai jika ini silap)')){
+          throw new Error('Disahkan batal oleh pengguna - PO/Pegawai tidak sepadan');
+        }
+      }
+    }catch(valErr){
+      if(valErr.message && valErr.message.indexOf('Disahkan batal')>=0) throw valErr;
+    }
+  }
+  
   var finalPid = targetPid;
   var finalPegawai = targetPegawai;
   if(isMLAdmin()){
