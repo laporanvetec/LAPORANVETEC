@@ -4216,6 +4216,39 @@ function dmy(s){if(!s)return '';if(s.indexOf('-')>=0&&s.length===10){var p=s.spl
 function tbadge(j){if(isT(j,'rb'))return '<span class="brb">RB</span>';if(isT(j,'rk'))return '<span class="brk">RK</span>';if(isT(j,'ug'))return '<span class="bug">UG</span>';return '';}
 function toast(msg,c){var t=document.getElementById('toast');t.textContent=msg;t.style.background=c||'#38a169';t.style.display='block';setTimeout(function(){t.style.display='none';},2800);}
 
+// Safe JSON parse - detects corruption like "[object Object],[object Object]"
+function safeParseArr(key){
+  var raw = localStorage.getItem(key);
+  if(!raw) return [];
+  try{
+    var parsed = JSON.parse(raw);
+    if(Array.isArray(parsed)) return parsed;
+    return [];
+  }catch(e){
+    // Corrupted - likely "[object Object],[object Object]..." string
+    console.error('CORRUPT DATA detected in '+key+' - attempting recovery');
+    // Can't recover the actual objects from this corrupted string (data lost)
+    // But prevent crash - return empty array so app doesn't break
+    // Try to pull from Firebase as recovery
+    if(window.GS_READY && typeof rtRead === 'function'){
+      rtRead(key).then(function(v){
+        if(v && typeof v === 'string'){
+          try{
+            var vParsed = JSON.parse(v);
+            if(Array.isArray(vParsed)){
+              localStorage.setItem(key, v);
+              console.log('Recovered '+key+' from Firebase ('+vParsed.length+' records)');
+              if(typeof ld === 'function') ld();
+              if(typeof renderSP === 'function' && curPg==='sp') renderSP();
+            }
+          }catch(e2){}
+        }
+      });
+    }
+    return [];
+  }
+}
+
 function ld(){
   peg=JSON.parse(localStorage.getItem('vu_g')||'[]');
   pt =JSON.parse(localStorage.getItem('vu_p')||'[]');
@@ -13770,3 +13803,4 @@ if(su){
 </script>
 </body>
 </html>
+        
