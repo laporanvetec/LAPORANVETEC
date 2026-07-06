@@ -3841,52 +3841,7 @@ try{var ltjMoEl=document.getElementById('ltj-mo');if(ltjMoEl)ltjMoEl.value=new D
 
 <script>
 // LOGIN FUNCTION - defined first so it always works
-function loginNow(){
-  var po = (document.getElementById('lg-po').value||'').trim();
-  var nm = (document.getElementById('lg-nm').value||'').trim();
-  if(!po){alert('Sila pilih Pusat Operasi!');return;}
-  if(!nm){alert('Sila masukkan nama anda!');return;}
-  try{
-    var peg2=JSON.parse(localStorage.getItem('vu_g')||'[]');
-    var g=peg2.find(function(x){return x.po===po&&x.nm.toLowerCase()===nm.toLowerCase();});
-    if(!g){g={id:'g'+Date.now(),po:po,nm:nm};peg2.push(g);localStorage.setItem('vu_g',JSON.stringify(peg2));}
-    var cu={pid:g.id,nm:g.nm,po:po};
-    sessionStorage.setItem('vu_u',JSON.stringify(cu));
-    document.getElementById('lg').style.display='none';
-    document.getElementById('app').style.display='flex';
-    document.getElementById('sb-nm').textContent=cu.nm;
-    document.getElementById('sb-po').textContent='PO '+cu.po;
-    CU=cu;
-    // ── Tunjuk/Sembunyi nav mengikut nama & PO ──
-    var mlEl=document.getElementById('n-ml');
-    var isAdm = (nm||'').toUpperCase()==='ADMIN';
-    if(mlEl) mlEl.style.cssText = isAdm ? 'display:flex!important' : 'display:none!important';
-    var upEl=document.getElementById('n-up');
-    if(upEl) upEl.style.cssText = isAdm ? 'display:flex!important' : 'display:none!important';
-    var ukEl=document.getElementById('n-uk');
-    if(ukEl) ukEl.style.cssText = isAdm ? 'display:flex!important' : 'display:none!important';
-    var mlrEl=document.getElementById('n-mlr');
-    if(mlrEl) mlrEl.style.cssText = isAdm ? 'display:flex!important' : 'display:none!important';
-    if(isAdm){ setTimeout(function(){if(typeof updateMLReqBadge==='function')updateMLReqBadge();}, 500); setTimeout(function(){if(typeof notifyAdminPendingReqs==='function')notifyAdminPendingReqs();}, 1000); }
-    if(!isAdm) setTimeout(function(){if(typeof showMyPendingNotifs==='function')showMyPendingNotifs();}, 1500);
-    // Show Laporan Akhir button for admin
-    var laBtn=document.getElementById('btn-laporan-akhir');
-    if(laBtn) laBtn.style.display=isAdm?'flex':'none';
-    var kompExcel=document.getElementById('btn-komp-excel');
-    if(kompExcel) kompExcel.style.display=isAdm?'inline-block':'none';
-    var kompPdf=document.getElementById('btn-komp-pdf');
-    if(kompPdf) kompPdf.style.display=isAdm?'inline-block':'none';
-    var kompPpt=document.getElementById('btn-komp-ppt');
-    if(kompPpt) kompPpt.style.display=isAdm?'inline-block':'none';
-    var laPanel=document.getElementById('rpt-la-panel');
-    if(laPanel) laPanel.style.display=isAdm?'block':'none';
-    var kwEl=document.getElementById('n-kw');
-    var kwPos=['GURUN','KANGAR/PERLIS','SG BAKAP'];
-    if(kwEl) kwEl.style.display=kwPos.indexOf(po)>=0?'flex':'none';
-    if(typeof showPg==='function') showPg('sp');
-    else location.reload();
-  }catch(err){alert('Ralat: '+err.message);}
-}
+// (Old duplicate loginNow removed - using primary definition above)
 
 // VetEC Utara - Sistem Pengurusan
 var D=new Date(), CM=D.getMonth(), CY=D.getFullYear();
@@ -12920,8 +12875,7 @@ function exModule(modId,mo,yr){
 }
 
 // Missing helper functions
-function saveLTJData(d){localStorage.setItem('vu_ltj',JSON.stringify(d));}
-function saveLTData(d){localStorage.setItem('vu_lt',JSON.stringify(d));}
+// (Old duplicate saveLTJData/saveLTData removed - using Firebase-synced versions above)
 
 // ═══════════════════════════════════════════════════
 // LAPORAN AKHIR KOMPREHENSIF VetEC UTARA
@@ -13803,4 +13757,3 @@ if(su){
 </script>
 </body>
 </html>
-        
