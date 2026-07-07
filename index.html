@@ -4463,6 +4463,31 @@ function auditPOPegawaiMismatch(){
 
 // Semak penternak yang MUNGKIN DUPLICATE — nama + jenis ternakan sama, tapi disenaraikan di bawah PO berbeza.
 // Guna myPt(null) (gabungan Masterlist+pt) supaya semakan meliputi SEMUA 670 rekod.
+// Padam SATU rekod (dipanggil dari tab popup "Semak Duplicate Penternak" — window.opener.deleteSingleRecordFromAudit(...))
+// rid diberi -> padam dari vu_p. rid kosong/'masterlist' -> padam dari vu_ml ikut padanan po+idPremis.
+function deleteSingleRecordFromAudit(rid, po, id){
+  if(!isMLAdmin()) return {ok:false, msg:'Hanya admin boleh guna alat ini'};
+  try{
+    if(rid && rid!=='masterlist'){
+      var ptArr = JSON.parse(localStorage.getItem('vu_p')||'[]');
+      var before = ptArr.length;
+      ptArr = ptArr.filter(function(p){ return p.rid!==rid; });
+      if(ptArr.length===before) return {ok:false, msg:'Rekod tidak dijumpai (rid: '+rid+')'};
+      localStorage.setItem('vu_p', JSON.stringify(ptArr));
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_p', JSON.stringify(ptArr));
+    } else {
+      var mlArr = JSON.parse(localStorage.getItem('vu_ml')||'[]');
+      var beforeMl = mlArr.length;
+      mlArr = mlArr.filter(function(m){ return !(m.po===po && (m.idPremis||'')===id); });
+      if(mlArr.length===beforeMl) return {ok:false, msg:'Rekod masterlist tidak dijumpai (PO: '+po+', ID: '+id+')'};
+      localStorage.setItem('vu_ml', JSON.stringify(mlArr));
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ml', JSON.stringify(mlArr));
+    }
+    if(typeof ld==='function') ld();
+    return {ok:true};
+  }catch(e){ return {ok:false, msg:e.message}; }
+}
+
 function auditDuplicateFarmers(){
   if(!isMLAdmin()){ alert('Hanya admin boleh guna alat ini'); return; }
   var allPt = (typeof myPt==='function') ? myPt(null) : pt;
@@ -4490,18 +4515,29 @@ function auditDuplicateFarmers(){
   h += 'th{background:#0F2D5E;color:#fff;padding:8px;border:1px solid #ccc;text-align:left}';
   h += 'td{padding:7px 8px;border:1px solid #ddd}';
   h += '.grp{font-weight:800;color:#0F2D5E;margin:14px 0 4px;font-size:14px}';
-  h += '.hl{background:#fff5f5}</style></head><body>';
+  h += '.hl{background:#fff5f5}';
+  h += '.delbtn{background:#fee2e2;border:1px solid #991b1b;color:#991b1b;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700}';
+  h += '.delbtn:disabled{opacity:.4;cursor:not-allowed}</style></head><body>';
   h += '<h2 style="color:#0F2D5E">⚠️ Penternak Duplicate — Nama + Jenis Sama, PO Berbeza (' + dupes.length + ' kumpulan)</h2>';
-  h += '<p style="color:#718096;font-size:13px">Semak setiap kumpulan di bawah. Baris yang mungkin salah/patut dibuang ditanda merah jantina tiada tarikh lawatan. Padam terus di halaman Senarai Penternak / Masterlist.</p>';
+  h += '<p style="color:#718096;font-size:13px">Semak setiap kumpulan di bawah. Baris latar merah muda = tiada tarikh lawatan (biasanya boleh dibuang). Klik <b>Padam</b> untuk buang rekod terus — perlu tab ni dibuka dari app (window.opener aktif).</p>';
   dupes.forEach(function(list, gi){
     h += '<div class="grp">' + (gi+1) + '. ' + list[0].nm + ' — ' + (list[0].j||'-') + '</div>';
-    h += '<table><tr><th>PO</th><th>ID Premis</th><th>No. Tel</th><th>Bantuan</th><th>Tarikh Lawatan</th><th>Sumber (rid)</th></tr>';
-    list.forEach(function(p){
+    h += '<table><tr><th>PO</th><th>ID Premis</th><th>No. Tel</th><th>Bantuan</th><th>Tarikh Lawatan</th><th>Sumber (rid)</th><th>Tindakan</th></tr>';
+    list.forEach(function(p, ri){
       var noTarikh = !p.tr;
-      h += '<tr class="' + (noTarikh?'hl':'') + '"><td><b>' + p.po + '</b></td><td>' + (p.id||'-') + '</td><td>' + (p.tl||'-') + '</td><td>' + (p.bn||'-') + '</td><td>' + (p.tr||'-') + '</td><td style="font-size:10px;color:#718096">' + (p.rid||'masterlist') + '</td></tr>';
+      var rid = p.rid || '';
+      var rowId = 'row_'+gi+'_'+ri;
+      h += '<tr id="'+rowId+'" class="' + (noTarikh?'hl':'') + '"><td><b>' + p.po + '</b></td><td>' + (p.id||'-') + '</td><td>' + (p.tl||'-') + '</td><td>' + (p.bn||'-') + '</td><td>' + (p.tr||'-') + '</td><td style="font-size:10px;color:#718096">' + (rid||'masterlist') + '</td>';
+      h += '<td><button class="delbtn" onclick="doDelete(\''+rowId+'\',\''+rid+'\',\''+p.po+'\',\''+(p.id||'').replace(/'/g,"")+'\')">Padam</button></td></tr>';
     });
     h += '</table>';
   });
+  h += '<script>function doDelete(rowId, rid, po, id){';
+  h += 'if(!confirm("Padam rekod ni? (PO: "+po+", ID: "+(id||"-")+")")) return;';
+  h += 'if(!window.opener || window.opener.closed){ alert("Tab utama app tak dijumpai. Sila buka semula laporan ni dari app."); return; }';
+  h += 'var res = window.opener.deleteSingleRecordFromAudit(rid, po, id);';
+  h += 'if(res && res.ok){ document.getElementById(rowId).style.display="none"; } else { alert("Ralat: "+(res?res.msg:"tidak diketahui")); }';
+  h += '}</'+'script>';
   h += '</body></html>';
   var w = window.open('', '_blank');
   if(w){ w.document.write(h); w.document.close(); }
@@ -4511,6 +4547,61 @@ function auditDuplicateFarmers(){
 // Gabung PO 'KANGAR' -> 'KANGAR/PERLIS' (ejaan rasmi) DAN buang rekod duplicate
 // (nama+jenis ternakan sama) dengan KEKALKAN rekod PALING LENGKAP (ada tarikh lawatan, ID premis, dll).
 // Ini tindakan MEMADAM data — minta konfirmasi dulu.
+// Semak SEMUA rekod (pt + masterlist) yang masih guna PO 'KANGAR' (bukan 'KANGAR/PERLIS').
+// Papar senarai dulu dalam tab baru, dengan butang untuk tukar terus.
+function auditKangarRecords(){
+  if(!isMLAdmin()){ alert('Hanya admin boleh guna alat ini'); return; }
+  var found = [];
+  ['vu_p','vu_ml'].forEach(function(key){
+    try{
+      var arr = JSON.parse(localStorage.getItem(key)||'[]');
+      arr.forEach(function(r, idx){
+        if(r && (r.po==='KANGAR'||r.po==='KANGAR PERLIS'||r.po==='PERLIS')){
+          found.push({ src:key, idx:idx, nm:r.nm||'-', j:r.j||'-', id:r.idPremis||r.id||'-', po:r.po, rid:r.rid||'' });
+        }
+      });
+    }catch(e){}
+  });
+  if(!found.length){
+    alert('✅ Tiada rekod dengan PO "KANGAR" dijumpai — semua sudah "KANGAR/PERLIS".');
+    return;
+  }
+  var h = '<html><head><meta charset="utf-8"><title>Semakan PO KANGAR</title>';
+  h += '<style>body{font-family:Arial,sans-serif;padding:20px;background:#f7fafc}';
+  h += 'table{width:100%;border-collapse:collapse;font-size:12px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.1)}';
+  h += 'th{background:#0F2D5E;color:#fff;padding:8px;border:1px solid #ccc;text-align:left}';
+  h += 'td{padding:7px 8px;border:1px solid #ddd}';
+  h += '.btnfix{background:#0F2D5E;color:#fff;border:none;padding:10px 18px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:700;margin:14px 0}</style></head><body>';
+  h += '<h2 style="color:#0F2D5E">🔍 Rekod dengan PO "KANGAR" (bukan KANGAR/PERLIS) — ' + found.length + ' rekod</h2>';
+  h += '<button class="btnfix" onclick="if(confirm(\'Tukar SEMUA '+found.length+' rekod ni ke PO KANGAR/PERLIS?\')){var r=window.opener.fixKangarToKangarPerlis();alert(\'Selesai: \'+r+\' rekod ditukar.\');location.reload();}">🔄 Tukar Semua ke KANGAR/PERLIS</button>';
+  h += '<table><tr><th>Sumber</th><th>Nama</th><th>Jenis</th><th>ID Premis</th><th>PO Sekarang</th></tr>';
+  found.forEach(function(r){
+    h += '<tr><td>'+(r.src==='vu_p'?'Penternak':'Masterlist')+'</td><td>'+r.nm+'</td><td>'+r.j+'</td><td>'+r.id+'</td><td><b style="color:#c53030">'+r.po+'</b></td></tr>';
+  });
+  h += '</table></body></html>';
+  var w = window.open('', '_blank');
+  if(w){ w.document.write(h); w.document.close(); }
+  else alert('Sila benarkan pop-up untuk lihat laporan ni.');
+}
+
+// Tukar terus semua rekod PO 'KANGAR'/'KANGAR PERLIS'/'PERLIS' -> 'KANGAR/PERLIS' (rename sahaja, TANPA buang duplicate)
+function fixKangarToKangarPerlis(){
+  if(!isMLAdmin()) return 0;
+  var changed = 0;
+  ['vu_p','vu_ml'].forEach(function(key){
+    try{
+      var arr = JSON.parse(localStorage.getItem(key)||'[]');
+      arr.forEach(function(r){
+        if(r && (r.po==='KANGAR'||r.po==='KANGAR PERLIS'||r.po==='PERLIS')){ r.po='KANGAR/PERLIS'; changed++; }
+      });
+      localStorage.setItem(key, JSON.stringify(arr));
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite(key, JSON.stringify(arr));
+    }catch(e){console.error(e);}
+  });
+  if(typeof ld==='function') ld();
+  return changed;
+}
+
 function mergeKangarPerlisDuplicates(){
   if(!isMLAdmin()){ alert('Hanya admin boleh guna alat ini'); return; }
   if(!confirm('⚠️ Tindakan ni akan:\n1) Tukar semua PO "KANGAR" -> "KANGAR/PERLIS"\n2) BUANG rekod duplicate (nama+jenis sama), kekalkan yang PALING LENGKAP sahaja\n\nIni akan PADAM data & segerak ke Firebase. Teruskan?')) return;
@@ -4634,6 +4725,7 @@ function renderKomoditiPage(){
   h += '<button onclick="auditPOPegawaiMismatch()" style="background:#fffaf0;border:1px solid #dd6b20;color:#dd6b20;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700">&#128269; Semak PO/Pegawai Tidak Sepadan</button>';
   h += '<button onclick="auditDuplicateFarmers()" style="background:#fff5f5;border:1px solid #c53030;color:#c53030;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak Duplicate Penternak</button>';
   h += '<button onclick="mergeKangarPerlisDuplicates()" style="background:#fef3c7;border:1px solid #b45309;color:#b45309;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128260; Gabung KANGAR/PERLIS + Buang Duplicate</button>';
+  h += '<button onclick="auditKangarRecords()" style="background:#e0f2fe;border:1px solid #0369a1;color:#0369a1;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak Rekod PO KANGAR</button>';
   h += '<button onclick="if(confirm(\'Padam 6 rekod duplicate yang dah dikenal pasti (kekalkan rid p1783065125230 sahaja)?\'))cleanupSpecificDuplicates2026()" style="background:#fee2e2;border:1px solid #991b1b;color:#991b1b;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128465;&#65039; Padam Duplicate Yang Dikenal Pasti</button>';
   h += '</div>';
   
