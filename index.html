@@ -4553,6 +4553,10 @@ function auditDuplicateFarmers(){
 // Padanan ikut NAMA+PO (nama sepatutnya wujud dalam senarai penternak PO yang sama).
 function auditPengeluaranNotInLBL(){
   if(!isMLAdmin()){ alert('Hanya admin boleh guna alat ini'); return; }
+  if(typeof fixMlEmbIdPollution==='function') fixMlEmbIdPollution();
+  if(typeof fixMlEmbIdPollutionV2==='function') fixMlEmbIdPollutionV2();
+  if(typeof fixMohamadAsyrafPO==='function') fixMohamadAsyrafPO();
+  if(typeof fixAlorSetarSpelling==='function') fixAlorSetarSpelling();
   var allPt = (typeof myPt==='function') ? myPt(null) : pt;
   var lblSet = {};
   allPt.forEach(function(p){
@@ -4823,6 +4827,13 @@ function renderKomoditiPage(){
     alert('Hanya admin boleh akses halaman ini');
     return;
   }
+  if(typeof migratePtPegawai==='function') migratePtPegawai();
+  if(typeof migrateBnLainLain==='function') migrateBnLainLain();
+  if(typeof fixAzielaAzilaTypo==='function') fixAzielaAzilaTypo();
+  if(typeof fixAlorSetarSpelling==='function') fixAlorSetarSpelling();
+  if(typeof fixMlEmbIdPollution==='function') fixMlEmbIdPollution();
+  if(typeof fixMlEmbIdPollutionV2==='function') fixMlEmbIdPollutionV2();
+  if(typeof fixMohamadAsyrafPO==='function') fixMohamadAsyrafPO();
   var k = getKomoditi();
   var c = document.getElementById('cKomoditi');
   if(!c) return;
@@ -4839,6 +4850,7 @@ function renderKomoditiPage(){
   h += '<button onclick="auditKangarRecords()" style="background:#e0f2fe;border:1px solid #0369a1;color:#0369a1;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak Rekod PO KANGAR</button>';
   h += '<button onclick="auditPengeluaranNotInLBL()" style="background:#f0fff4;border:1px solid #276749;color:#276749;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak Pengeluaran Tiada di LBL</button>';
   h += '<button onclick="addSpecificMissingFarmers2026()" style="background:#e6fffa;border:1px solid #0d9488;color:#0d9488;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#10133; Tambah Penternak Hilang ke Masterlist</button>';
+  h += '<button onclick="if(confirm(\'Betulkan ejaan jenis ternakan (typo diketahui) merentasi Senarai Penternak, Masterlist, Pengeluaran RB/RK?\'))fixJenisTernakanTypos()" style="background:#eef2ff;border:1px solid #4338ca;color:#4338ca;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128221; Betulkan Ejaan Jenis Ternakan</button>';
   h += '<button onclick="if(confirm(\'Padam 6 rekod duplicate yang dah dikenal pasti (kekalkan rid p1783065125230 sahaja)?\'))cleanupSpecificDuplicates2026()" style="background:#fee2e2;border:1px solid #991b1b;color:#991b1b;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128465;&#65039; Padam Duplicate Yang Dikenal Pasti</button>';
   h += '</div>';
   
@@ -5044,12 +5056,17 @@ function fixMlEmbIdPollutionV2(){
 // Betulkan PO khusus untuk MOHAMAD ASYRAF BIN SAAD: rekod Pengeluaran UG tersalah PO (GURUN patutnya ALOR SETAR)
 function fixMohamadAsyrafPO(){
   try{
-    if(localStorage.getItem('vu_asyraf_fixed')==='1') return;
+    if(localStorage.getItem('vu_asyraf_fixed2')==='1') return;
     var arr = JSON.parse(localStorage.getItem('vu_ug')||'[]');
     var changed = 0;
     arr.forEach(function(r){
-      if(r && (r.nm||'').toUpperCase().trim()==='MOHAMAD ASYRAF BIN SAAD' && r.po==='GURUN'){
+      if(r && (r.nm||'').toUpperCase().trim()==='MOHAMAD ASYRAF BIN SAAD' && (r.po||'').toUpperCase().trim()==='GURUN'){
         r.po = 'ALOR SETAR';
+        changed++;
+      }
+      // bersihkan juga id premis tercemar khusus untuk rekod ni
+      if(r && (r.nm||'').toUpperCase().trim()==='MOHAMAD ASYRAF BIN SAAD' && /^ml_emb_/i.test(r.idpremis||'')){
+        r.idpremis = '';
         changed++;
       }
     });
@@ -5057,10 +5074,80 @@ function fixMohamadAsyrafPO(){
       localStorage.setItem('vu_ug', JSON.stringify(arr));
       if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ug', JSON.stringify(arr));
       if(typeof ld==='function') ld();
-      console.log('fixMohamadAsyrafPO: '+changed+' rekod dibetulkan ke ALOR SETAR');
+      console.log('fixMohamadAsyrafPO: '+changed+' rekod dibetulkan');
     }
-    localStorage.setItem('vu_asyraf_fixed','1');
+    localStorage.setItem('vu_asyraf_fixed2','1');
   }catch(e){console.error('fixMohamadAsyrafPO error', e);}
+}
+
+// Senarai jenis ternakan RASMI/BETUL (ikut arahan admin)
+var JENIS_TERNAKAN_VALID = ['LEMBU PEDAGING','KERBAU TENUSU','LEMBU TENUSU','KERBAU PEDAGING','BEBIRI','KAMBING PEDAGING','KAMBING TENUSU'];
+// Peta ejaan salah/variasi -> ejaan betul (typo jelas sahaja; bukan kategori berbeza macam PEMBIAK)
+var JENIS_TYPO_MAP = {
+  'LRMBU PEDAGING':'LEMBU PEDAGING',
+  'LEMBU PEGAGING':'LEMBU PEDAGING',
+  'LEMBU PEDAGING/ LEMBU BAKA':'LEMBU PEDAGING',
+  'LEMBU PEDAGING/BAKA':'LEMBU PEDAGING',
+  'LEMBU BAKA':'LEMBU PEDAGING',
+  'LEMBU SADO':'LEMBU PEDAGING',
+  'LEMBU PEMBIAK':'LEMBU PEDAGING',
+  'LEMBU':'LEMBU PEDAGING',
+  'KERBAU':'KERBAU PEDAGING',
+  'KAMBING PEMBIAK':'KAMBING PEDAGING',
+  'KAMBING':'KAMBING PEDAGING',
+  'BEBIRI PEDAGING':'BEBIRI',
+  'BEBIRI TENUSU':'BEBIRI'
+};
+function normalizeJenisTernakan(j){
+  if(!j) return j;
+  // hapus double-space & trim dulu
+  var clean = j.toString().trim().replace(/\s+/g,' ').toUpperCase();
+  if(JENIS_TERNAKAN_VALID.indexOf(clean)>=0) return clean; // dah betul
+  if(JENIS_TYPO_MAP[clean]) return JENIS_TYPO_MAP[clean]; // typo diketahui
+  return null; // tak dikenali - biar admin semak
+}
+
+// Betulkan terus ejaan jenis ternakan (typo diketahui sahaja) merentasi pt, masterlist, RB, RK.
+// Nilai yang TAK dikenali (cth LEMBU PEMBIAK) TIDAK diubah — disenaraikan berasingan utk semakan admin.
+function fixJenisTernakanTypos(){
+  if(!isMLAdmin()){ alert('Hanya admin boleh guna alat ini'); return; }
+  var totalFixed = 0;
+  var unknownFound = {};
+  ['vu_p','vu_ml','vu_rb','vu_rk'].forEach(function(key){
+    try{
+      var arr = JSON.parse(localStorage.getItem(key)||'[]');
+      if(!Array.isArray(arr)) return;
+      var changed = 0;
+      arr.forEach(function(r){
+        if(!r || !r.j) return;
+        var clean = r.j.toString().trim().replace(/\s+/g,' ').toUpperCase();
+        if(JENIS_TERNAKAN_VALID.indexOf(clean)>=0){
+          if(r.j!==clean){ r.j = clean; changed++; } // betulkan whitespace/case sahaja
+          return;
+        }
+        if(JENIS_TYPO_MAP[clean]){
+          r.j = JENIS_TYPO_MAP[clean];
+          changed++;
+        } else {
+          unknownFound[clean] = (unknownFound[clean]||0)+1;
+        }
+      });
+      if(changed){
+        localStorage.setItem(key, JSON.stringify(arr));
+        if(window.GS_READY && typeof rtWrite === 'function') rtWrite(key, JSON.stringify(arr));
+        totalFixed += changed;
+      }
+    }catch(e){console.error(e);}
+  });
+  if(typeof ld==='function') ld();
+  var msg = '✅ Selesai!\nJenis ternakan dibetulkan: '+totalFixed+' rekod (typo diketahui + format ruang/besar-kecil)';
+  var unknownKeys = Object.keys(unknownFound);
+  if(unknownKeys.length){
+    msg += '\n\n⚠️ Nilai jenis ternakan LAIN yang TAK dikenali (TIDAK diubah, perlu semak admin):\n';
+    unknownKeys.forEach(function(k){ msg += '• "'+k+'" — '+unknownFound[k]+' rekod\n'; });
+  }
+  alert(msg);
+  console.log('fixJenisTernakanTypos - unknown values:', unknownFound);
 }
 
 
