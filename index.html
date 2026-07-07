@@ -5011,6 +5011,59 @@ function fixMlEmbIdPollution(){
   }catch(e){console.error('fixMlEmbIdPollution error', e);}
 }
 
+// Lanjutan: bersihkan medan 'idpremis' dalam rekod Pengeluaran RB/RK/UG yang tercemar id dalaman.
+function fixMlEmbIdPollutionV2(){
+  try{
+    if(localStorage.getItem('vu_mlembid_v2_fixed')==='1') return;
+    var POLLUTED = /^(ml_emb_|imp_\d+_\d+)/i;
+    var totalChanged = 0;
+    ['vu_rb','vu_rk','vu_ug'].forEach(function(key){
+      try{
+        var arr = JSON.parse(localStorage.getItem(key)||'[]');
+        if(!Array.isArray(arr)) return;
+        var changed = 0;
+        arr.forEach(function(r){
+          if(r && r.idpremis && POLLUTED.test(r.idpremis)){ r.idpremis = ''; changed++; }
+        });
+        if(changed){
+          localStorage.setItem(key, JSON.stringify(arr));
+          if(window.GS_READY && typeof rtWrite === 'function') rtWrite(key, JSON.stringify(arr));
+          totalChanged += changed;
+          console.log('fixMlEmbIdPollutionV2: '+changed+' rekod dibersihkan dalam '+key);
+        }
+      }catch(e){}
+    });
+    localStorage.setItem('vu_mlembid_v2_fixed','1');
+    if(totalChanged>0){
+      if(typeof ld==='function') ld();
+      console.log('fixMlEmbIdPollutionV2: SELESAI, jumlah '+totalChanged+' rekod dibersihkan');
+    }
+  }catch(e){console.error('fixMlEmbIdPollutionV2 error', e);}
+}
+
+// Betulkan PO khusus untuk MOHAMAD ASYRAF BIN SAAD: rekod Pengeluaran UG tersalah PO (GURUN patutnya ALOR SETAR)
+function fixMohamadAsyrafPO(){
+  try{
+    if(localStorage.getItem('vu_asyraf_fixed')==='1') return;
+    var arr = JSON.parse(localStorage.getItem('vu_ug')||'[]');
+    var changed = 0;
+    arr.forEach(function(r){
+      if(r && (r.nm||'').toUpperCase().trim()==='MOHAMAD ASYRAF BIN SAAD' && r.po==='GURUN'){
+        r.po = 'ALOR SETAR';
+        changed++;
+      }
+    });
+    if(changed){
+      localStorage.setItem('vu_ug', JSON.stringify(arr));
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ug', JSON.stringify(arr));
+      if(typeof ld==='function') ld();
+      console.log('fixMohamadAsyrafPO: '+changed+' rekod dibetulkan ke ALOR SETAR');
+    }
+    localStorage.setItem('vu_asyraf_fixed','1');
+  }catch(e){console.error('fixMohamadAsyrafPO error', e);}
+}
+
+
 function migrateBnLainLain(){
   try{
     var ptAll = JSON.parse(localStorage.getItem('vu_p')||'[]');
@@ -5043,6 +5096,8 @@ function renderSP(){
   if(typeof fixAzielaAzilaTypo==='function') fixAzielaAzilaTypo();
   if(typeof fixAlorSetarSpelling==='function') fixAlorSetarSpelling();
   if(typeof fixMlEmbIdPollution==='function') fixMlEmbIdPollution();
+  if(typeof fixMlEmbIdPollutionV2==='function') fixMlEmbIdPollutionV2();
+  if(typeof fixMohamadAsyrafPO==='function') fixMohamadAsyrafPO();
   var jf=document.getElementById('sp-jenis').value;
   var q=(document.getElementById('sp-q').value||'').toLowerCase();
   var list=myPt(jf||null).filter(function(p){return !q||p.nm.toLowerCase().indexOf(q)>=0;});
