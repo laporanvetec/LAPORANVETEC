@@ -1944,6 +1944,9 @@ function approveDeleteAs(reqId, mode){
       if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_sp03', JSON.stringify(sp03New));
     }
     
+    // Log the delete action
+    logGugurPenternak({nm:r.nm, po:r.requestedPO, j:r.j, al:r.al||'', rid:r.rid}, mode, r.sebab||'', CU.nm);
+    
     // Mark request as approved
     reqs[idx].status = 'approved';
     reqs[idx].approvedBy = CU.nm;
@@ -3420,6 +3423,13 @@ window.addEventListener('load',function(){
   </div>
 
   <!-- MASTERLIST PAGE -->
+  <div id="pg-ltg" class="pg">
+    <div class="fbar">
+      <span style="font-size:12px;font-weight:700;color:#0f2d5e">&#128220; Log Tambah/Gugur Penternak</span>
+    </div>
+    <div style="flex:1;overflow:auto" id="ltg-wrap"></div>
+  </div>
+
   <div id="pg-ml" class="pg">
     <div class="fbar">
       <select id="ml-po-filter" onchange="renderML()" style="padding:6px 9px;border:1px solid #d0d0d0;border-radius:5px;font-size:12px;font-family:inherit">
@@ -4276,12 +4286,12 @@ var curPg='sp';
 function showPg(pg){
   ld();
   curPg=pg;
-  ['sp','rb','rk','ug','ld','ts','ltj','gm','lt','kw','tk','iv','sp03','ltk','ml','rpt','up','uk','mlr'].forEach(function(p){
+  ['sp','rb','rk','ug','ld','ts','ltj','gm','lt','kw','tk','iv','sp03','ltk','ltg','ml','rpt','up','uk','mlr'].forEach(function(p){
     var el2=document.getElementById('pg-'+p);if(el2)el2.classList.toggle('on',p===pg);
     var ni=document.getElementById('n-'+(p==='ld'?'ld':p==='ts'?'ts':p));
     if(ni) ni.classList.toggle('on',p===pg);
   });
-  var ti={sp:'Senarai Penternak Saya',ts:'Tarikh Sasaran Lawatan Ladang',ltj:'Lawatan Terancang dan Berjadual (LTJ)',gm:'Gambar Aktiviti',lt:'Latihan',kw:'Kewangan - Rumusan Perbelanjaan Duit Mengurus',tk:'Promosi dan Pemindahan Teknologi',iv:'Inovasi dan Penyelidikan',sp03:'SP03 - Rekod Aktiviti Lawatan Ladang',ltk:'Log Teknikal',ml:'Masterlist',up:'Urus Pegawai',uk:'Urus Jenis Komoditi',mlr:'Approval Permohonan Masterlist',rpt:'Pelaporan',rpt:'Pelaporan',rb:'Pengeluaran RB - Ruminan Besar',rk:'Pengeluaran RK - Ruminan Kecil',ug:'Pengeluaran UG - Unggas',ld:'Ladang Belum Dilawat'};
+  var ti={sp:'Senarai Penternak Saya',ts:'Tarikh Sasaran Lawatan Ladang',ltj:'Lawatan Terancang dan Berjadual (LTJ)',gm:'Gambar Aktiviti',lt:'Latihan',kw:'Kewangan - Rumusan Perbelanjaan Duit Mengurus',tk:'Promosi dan Pemindahan Teknologi',iv:'Inovasi dan Penyelidikan',sp03:'SP03 - Rekod Aktiviti Lawatan Ladang',ltk:'Log Teknikal',ltg:'Log Tambah/Gugur Penternak',ml:'Masterlist',up:'Urus Pegawai',uk:'Urus Jenis Komoditi',mlr:'Approval Permohonan Masterlist',rpt:'Pelaporan',rpt:'Pelaporan',rb:'Pengeluaran RB - Ruminan Besar',rk:'Pengeluaran RK - Ruminan Kecil',ug:'Pengeluaran UG - Unggas',ld:'Ladang Belum Dilawat'};
   document.getElementById('p-ttl').textContent=ti[pg]||pg;
   document.getElementById('p-sub').textContent=CU.po+' | '+CU.nm;
   if(pg==='ts'){renderTS();checkNotifications();return;}
@@ -4289,6 +4299,7 @@ function showPg(pg){
   if(pg==='lt'){renderLT();return;}
   if(pg==='tk'){renderTK();return;}
   if(pg==='iv'){renderIV();return;}
+  if(pg==='ltg'){if(typeof renderLogTG==='function')renderLogTG();return;}
   if(pg==='ltk'){renderLTK();return;}
   if(pg==='rpt'){if(!isMLAdmin()){showPg('sp');toast('Akses terhad','#c53030');return;}renderRPT();return;}
   if(pg==='rpt'){try{document.getElementById('rpt-mo').value=new Date().getMonth();document.getElementById('rpt-yr').value=new Date().getFullYear();}catch(e){} renderRPT();if(!isMLAdmin()){var m2=new Date().getMonth();var y2=new Date().getFullYear();renderStaffRPT(m2,y2);}return;}
@@ -5100,6 +5111,7 @@ function saveP(){
     pt.push(p);
   }
   sv();
+  if(isNew && typeof logTambahPenternak==='function') logTambahPenternak(p);
   
   // For ADMIN: also update masterlist
   if(isMLAdmin()){
@@ -5196,6 +5208,44 @@ function showDeletePenternakChoice(p, isAdmin){
 }
 
 // Officer: padam dari LBL sendiri sahaja (no approval)
+
+// ─── LOG TAMBAH/GUGUR PENTERNAK ────────
+function getTambahLog(){ try{ return JSON.parse(localStorage.getItem('vu_tambah_log')||'[]'); }catch(e){ return []; } }
+function getGugurLog(){ try{ return JSON.parse(localStorage.getItem('vu_gugur_log')||'[]'); }catch(e){ return []; } }
+
+function logTambahPenternak(p){
+  try{
+    var log = getTambahLog();
+    var now = new Date();
+    log.push({
+      nm: p.nm||'', po: p.po||'', j: p.j||'', al: p.al||'',
+      bulan: now.getMonth(), tahun: now.getFullYear(),
+      tarikhTambah: now.getDate()+'/'+(now.getMonth()+1)+'/'+now.getFullYear(),
+      tambahOleh: (CU?CU.nm:'')||''
+    });
+    localStorage.setItem('vu_tambah_log', JSON.stringify(log));
+    if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_tambah_log', JSON.stringify(log));
+  }catch(e){console.error('logTambahPenternak error:',e);}
+}
+
+function logGugurPenternak(p, mode, sebab, lulusOleh){
+  try{
+    var log = getGugurLog();
+    var now = new Date();
+    log.push({
+      nm: p.nm||'', po: p.po||'', j: p.j||'', al: p.al||'', rid: p.rid||p.id||'',
+      bulan: now.getMonth(), tahun: now.getFullYear(),
+      tarikhGugur: now.getDate()+'/'+(now.getMonth()+1)+'/'+now.getFullYear(),
+      gugurOleh: (CU?CU.nm:'')||'',
+      lulusOleh: lulusOleh||'',
+      mode: mode||'full',
+      sebab: sebab||''
+    });
+    localStorage.setItem('vu_gugur_log', JSON.stringify(log));
+    if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_gugur_log', JSON.stringify(log));
+  }catch(e){console.error('logGugurPenternak error:',e);}
+}
+
 function officerDeleteOwn(targetRid){
   document.getElementById('mDelChoice').remove();
   if(!targetRid){alert('Target rid tidak dijumpai');return;}
@@ -5216,6 +5266,7 @@ function officerDeleteOwn(targetRid){
   localStorage.setItem('vu_p', JSON.stringify(ptNew));
   pt = ptNew;
   if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_p', JSON.stringify(ptNew));
+  logGugurPenternak(p, 'lbl_only', '', '');
   
   toast('&#9888; '+p.nm+' dibuang dari LBL anda','#e8a900');
   renderSP();
@@ -10743,6 +10794,67 @@ function calcLTKMonth(po, yr, mo){
 }
 
 // ── RENDER ───────────────────────────────────────
+
+function renderLogTG(){
+  if(!CU) return;
+  var tambah = getTambahLog().filter(function(r){ return isMLAdmin() || r.po===CU.po; });
+  var gugur = getGugurLog().filter(function(r){ return isMLAdmin() || r.po===CU.po; });
+  // Sort newest first
+  tambah.sort(function(a,b){ return (b.tarikhTambah||'').localeCompare(a.tarikhTambah||''); });
+  gugur.sort(function(a,b){ return (b.tarikhGugur||'').localeCompare(a.tarikhGugur||''); });
+  
+  var h = '<div style="padding:16px">';
+  h += '<div style="display:flex;gap:16px;margin-bottom:16px">';
+  h += '<div style="flex:1;background:#f0fff4;border:1px solid #9ae6b4;border-radius:8px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:800;color:#276749">'+tambah.length+'</div><div style="font-size:11px;color:#276749">Rekod Tambah</div></div>';
+  h += '<div style="flex:1;background:#fff5f5;border:1px solid #feb2b2;border-radius:8px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:800;color:#c53030">'+gugur.length+'</div><div style="font-size:11px;color:#c53030">Rekod Gugur/Padam</div></div>';
+  h += '</div>';
+  
+  h += '<div style="font-weight:800;color:#276749;font-size:13px;margin-bottom:8px">&#10133; LOG TAMBAH PENTERNAK</div>';
+  h += '<div style="overflow-x:auto;margin-bottom:20px"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+  h += '<thead><tr style="background:#276749;color:#fff">';
+  ['Nama','PO','Jenis','Alamat','Tarikh','Tambah Oleh'].forEach(function(c){ h+='<th style="padding:6px 8px;text-align:left;border:1px solid #ddd">'+c+'</th>'; });
+  h += '</tr></thead><tbody>';
+  if(!tambah.length){ h += '<tr><td colspan="6" style="padding:12px;text-align:center;color:#a0aec0">Tiada rekod</td></tr>'; }
+  tambah.slice(0,200).forEach(function(r,i){
+    var bg = i%2?'#f7fafc':'#fff';
+    h += '<tr style="background:'+bg+'">';
+    h += '<td style="padding:5px 8px;border:1px solid #eee">'+(r.nm||'')+'</td>';
+    h += '<td style="padding:5px 8px;border:1px solid #eee">'+(r.po||'')+'</td>';
+    h += '<td style="padding:5px 8px;border:1px solid #eee">'+(r.j||'')+'</td>';
+    h += '<td style="padding:5px 8px;border:1px solid #eee">'+(r.al||'')+'</td>';
+    h += '<td style="padding:5px 8px;border:1px solid #eee">'+(r.tarikhTambah||'')+'</td>';
+    h += '<td style="padding:5px 8px;border:1px solid #eee;font-weight:700;color:#276749">'+(r.tambahOleh||'')+'</td>';
+    h += '</tr>';
+  });
+  h += '</tbody></table></div>';
+  
+  h += '<div style="font-weight:800;color:#c53030;font-size:13px;margin-bottom:8px">&#10060; LOG GUGUR/PADAM PENTERNAK</div>';
+  h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">';
+  h += '<thead><tr style="background:#c53030;color:#fff">';
+  ['Nama','PO','Jenis','Mod','Tarikh','Gugur Oleh','Lulus Oleh','Sebab'].forEach(function(c){ h+='<th style="padding:6px 8px;text-align:left;border:1px solid #ddd">'+c+'</th>'; });
+  h += '</tr></thead><tbody>';
+  if(!gugur.length){ h += '<tr><td colspan="8" style="padding:12px;text-align:center;color:#a0aec0">Tiada rekod</td></tr>'; }
+  var modeLabel = {'full':'SEPENUHNYA','lbl_only':'LBL Sahaja','po_keep_ml':'PO (kekal ML)','pt_only':'Senarai Sahaja'};
+  gugur.slice(0,200).forEach(function(r,i){
+    var bg = i%2?'#fff5f5':'#fff';
+    h += '<tr style="background:'+bg+'">';
+    h += '<td style="padding:5px 8px;border:1px solid #eee">'+(r.nm||'')+'</td>';
+    h += '<td style="padding:5px 8px;border:1px solid #eee">'+(r.po||'')+'</td>';
+    h += '<td style="padding:5px 8px;border:1px solid #eee">'+(r.j||'')+'</td>';
+    h += '<td style="padding:5px 8px;border:1px solid #eee">'+(modeLabel[r.mode]||r.mode||'')+'</td>';
+    h += '<td style="padding:5px 8px;border:1px solid #eee">'+(r.tarikhGugur||'')+'</td>';
+    h += '<td style="padding:5px 8px;border:1px solid #eee;font-weight:700;color:#c53030">'+(r.gugurOleh||'')+'</td>';
+    h += '<td style="padding:5px 8px;border:1px solid #eee">'+(r.lulusOleh||'-')+'</td>';
+    h += '<td style="padding:5px 8px;border:1px solid #eee">'+(r.sebab||'-')+'</td>';
+    h += '</tr>';
+  });
+  h += '</tbody></table></div>';
+  h += '</div>';
+  
+  var container = document.getElementById('ltg-wrap');
+  if(container) container.innerHTML = h;
+}
+
 function renderLTK(){
   if(!CU) return;
   ld();
@@ -12104,7 +12216,10 @@ function gatherKomprehensiveData(mo, yr){
     ltj: [],       // LTJ details
     kewangan: [],  // financial details
     sp03: [],      // SP03 visit records
-    pegawai: []    // officer activity rankings
+    pegawai: [],   // officer activity rankings
+    latihan: [],   // training records
+    teknologi: [], // technology promo/transfer
+    inovasi: []    // innovation/research
   };
   
   // Get all data
@@ -12113,11 +12228,20 @@ function gatherKomprehensiveData(mo, yr){
   var allKW = JSON.parse(localStorage.getItem('vu_kw')||'[]').filter(function(r){return r.yr===yr&&r.mo===mo;});
   var allSP03 = JSON.parse(localStorage.getItem('vu_sp03')||'[]').filter(function(r){return r.yr===yr&&r.mo===mo;});
   var allLT = JSON.parse(localStorage.getItem('vu_lt')||'[]').filter(function(r){return r.yr===yr;});
+  var allTKP = JSON.parse(localStorage.getItem('vu_tkp')||'[]').filter(function(r){return r.yr===yr;});
+  var allTKT = JSON.parse(localStorage.getItem('vu_tkt')||'[]').filter(function(r){return r.yr===yr;});
+  var allIVI = JSON.parse(localStorage.getItem('vu_ivi')||'[]').filter(function(r){return r.yr===yr;});
+  var allIVP = JSON.parse(localStorage.getItem('vu_ivp')||'[]').filter(function(r){return r.yr===yr;});
   
   POS.forEach(function(po){
     var ptPO = allPt.filter(function(p){return p.po===po;});
     var ltjPO = allLTJ.filter(function(r){return r.po===po;});
     var kwPO = allKW.filter(function(r){return r.po===po;});
+    var ltPO = allLT.filter(function(r){return r.po===po;});
+    var tkpPO = allTKP.filter(function(r){return r.po===po;});
+    var tktPO = allTKT.filter(function(r){return r.po===po;});
+    var iviPO = allIVI.filter(function(r){return r.po===po;});
+    var ivpPO = allIVP.filter(function(r){return r.po===po;});
     var sp03PO = allSP03.filter(function(r){return r.po===po;});
     
     // Visited this month count
@@ -12160,6 +12284,26 @@ function gatherKomprehensiveData(mo, yr){
       });
     });
     
+    // Latihan detail
+    ltPO.forEach(function(l){
+      data.latihan.push({po:po, nama:l.nama||'', kursus:l.kursus||'', hari:l.hari||0, anjuran:l.anjuran||'', tarikh:l.tarikh||''});
+    });
+    // Teknologi Promosi
+    tkpPO.forEach(function(t){
+      data.teknologi.push({po:po, jenis:'Promosi', pegawai:t.pegawai||'', aktiviti:t.aktiviti||'', tarikh:t.tarikh||''});
+    });
+    // Teknologi Pemindahan
+    tktPO.forEach(function(t){
+      data.teknologi.push({po:po, jenis:'Pemindahan', pegawai:t.pegawai||'', aktiviti:t.teknologi||'', tarikh:t.tarikh||''});
+    });
+    // Inovasi
+    iviPO.forEach(function(v){
+      data.inovasi.push({po:po, jenis:'Inovasi', tajuk:v.tajuk||'', pegawai:v.pegawai||'', status:v.status||''});
+    });
+    // Penyelidikan
+    ivpPO.forEach(function(v){
+      data.inovasi.push({po:po, jenis:'Penyelidikan', tajuk:v.tajuk||'', pegawai:v.pegawai||'', status:v.status||''});
+    });
     // LTJ detail
     ltjPO.forEach(function(l){
       var p = allPt.find(function(x){return x.rid===l.farmRid;});
@@ -12323,6 +12467,39 @@ function exportKompExcel(data, mo, yr, bln){
   styleHeader(ws5, 4);
   styleData(ws5, 1, pg2.length-1, 4);
   XLSX.utils.book_append_sheet(wb, ws5, 'Ranking Pegawai');
+  
+  // SHEET 6: Latihan
+  var lt2 = [['Bil','PO','Nama Pegawai','Kursus','Hari','Anjuran','Tarikh']];
+  data.latihan.forEach(function(l, i){
+    lt2.push([i+1, l.po, l.nama, l.kursus, l.hari, l.anjuran, l.tarikh]);
+  });
+  var ws6 = XLSX.utils.aoa_to_sheet(lt2);
+  ws6['!cols'] = [{wch:4},{wch:14},{wch:25},{wch:30},{wch:8},{wch:20},{wch:14}];
+  styleHeader(ws6, 7);
+  styleData(ws6, 1, Math.max(1,lt2.length-1), 7);
+  XLSX.utils.book_append_sheet(wb, ws6, 'Latihan');
+  
+  // SHEET 7: Teknologi
+  var tk2 = [['Bil','PO','Jenis','Pegawai','Aktiviti/Teknologi','Tarikh']];
+  data.teknologi.forEach(function(t, i){
+    tk2.push([i+1, t.po, t.jenis, t.pegawai, t.aktiviti, t.tarikh]);
+  });
+  var ws7 = XLSX.utils.aoa_to_sheet(tk2);
+  ws7['!cols'] = [{wch:4},{wch:14},{wch:14},{wch:25},{wch:35},{wch:14}];
+  styleHeader(ws7, 6);
+  styleData(ws7, 1, Math.max(1,tk2.length-1), 6);
+  XLSX.utils.book_append_sheet(wb, ws7, 'Teknologi');
+  
+  // SHEET 8: Inovasi
+  var iv2 = [['Bil','PO','Jenis','Tajuk','Pegawai','Status']];
+  data.inovasi.forEach(function(v, i){
+    iv2.push([i+1, v.po, v.jenis, v.tajuk, v.pegawai, v.status]);
+  });
+  var ws8 = XLSX.utils.aoa_to_sheet(iv2);
+  ws8['!cols'] = [{wch:4},{wch:14},{wch:14},{wch:35},{wch:25},{wch:14}];
+  styleHeader(ws8, 6);
+  styleData(ws8, 1, Math.max(1,iv2.length-1), 6);
+  XLSX.utils.book_append_sheet(wb, ws8, 'Inovasi');
   
   var fname = 'Laporan_VetEC_'+bln+'_'+yr+'.xlsx';
   XLSX.writeFile(wb, fname);
