@@ -152,7 +152,7 @@ var DEFAULT_OFFICERS={
   'ALOR SETAR':['SUHAI'],
   'JITRA':['AFIQ'],
   'KANGAR/PERLIS':['HARNANI','ZAKIAH'],
-  'SG BAKAP':['AZIELA']
+  'SG BAKAP':['AZILA']
 };
 
 
@@ -2257,6 +2257,30 @@ function getOfficerNameForPt(p){
   return '-';
 }
 
+// Tetapkan pegawai yang SEDANG LOG MASUK sebagai pegawai rasmi bagi penternak (rid) ini.
+// Guna medan teks 'pegawai' (stabil, tak bergantung pid sesi) supaya paparan & penapisan LTJ terus tepat.
+function claimFarmerAsOfficer(rid){
+  if(!CU || isMLAdmin()) return;
+  if(!confirm('Tetapkan diri anda ('+CU.nm+') sebagai pegawai teknikal untuk penternak ini?')) return;
+  try{
+    var ptAll = JSON.parse(localStorage.getItem('vu_p')||'[]');
+    var found = false;
+    ptAll.forEach(function(p){
+      if(p.rid===rid){
+        p.pegawai = CU.nm;
+        p.pegawaiId = CU.pid;
+        found = true;
+      }
+    });
+    if(!found){ alert('Rekod penternak tidak dijumpai.'); return; }
+    localStorage.setItem('vu_p', JSON.stringify(ptAll));
+    pt = ptAll;
+    if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_p', JSON.stringify(ptAll));
+    toast('✅ Ditetapkan sebagai pegawai anda','#276749');
+    if(typeof renderLTJ==='function') renderLTJ();
+  }catch(e){ alert('Ralat: '+e.message); }
+}
+
 
 var RTDB='https://vetec-utara-default-rtdb.firebaseio.com';
 var GS_KEYS=['vu_g','vu_p','vu_rb','vu_rk','vu_ug','vu_ts','vu_ltj','vu_lt','vu_tkp','vu_tkt','vu_ivi','vu_ivp','vu_kw','vu_sp03','vu_ml','vu_ltk_ov','vu_submit_log','vu_import_hist','vu_officers','vu_ml_req','vu_notif','vu_clearance_log','vu_rpt_imported','vu_rpt_hist','vu_peng_keep'];
@@ -4350,12 +4374,22 @@ function showPg(pg){
   if(pg==='mlr'){if(!isMLAdmin()){toast('&#128274; Akses Ditolak — Modul ini hanya untuk pentadbir','#c53030');showPg('sp');return;}renderMLReq();return;}
   if(pg==='sp03'){try{document.getElementById('s3-mo').value=CM;}catch(e){}renderSP03();return;}
   if(pg==='kw'){try{document.getElementById('kw-mo').value=CM;}catch(e){}renderKW();return;}
-  if(pg==='ltj'){syncPPVtoLTJ();
-    ld();
-    // Set to current reporting month if not set
-    var lmo=document.getElementById('ltj-mo');
-    if(lmo&&!lmo.dataset.userSet)lmo.value=CM;
-    renderLTJ();return;
+  if(pg==='ltj'){
+    function proceedLTJ(){
+      if(typeof fixDuplicateLTJRecords==='function') fixDuplicateLTJRecords();
+      syncPPVtoLTJ();
+      ld();
+      // Set to current reporting month if not set
+      var lmo=document.getElementById('ltj-mo');
+      if(lmo&&!lmo.dataset.userSet)lmo.value=CM;
+      renderLTJ();
+    }
+    if(window.GS_READY && typeof window.fbLoadAll==='function'){
+      window.fbLoadAll(function(){ proceedLTJ(); });
+    } else {
+      proceedLTJ();
+    }
+    return;
   }
   var bt='';
   if(pg==='rb')bt='<button class="btn bg" onclick="addRB()">+ Rekod RB</button><button class="btn bgr" onclick="exRB()">Export</button>';
@@ -4551,11 +4585,202 @@ function auditDuplicateFarmers(){
 // Papar senarai dulu dalam tab baru, dengan butang untuk tukar terus.
 // Semak nama dalam Pengeluaran RB/RK/UG yang TIADA di LBL/Senarai Penternak (allPt).
 // Padanan ikut NAMA+PO (nama sepatutnya wujud dalam senarai penternak PO yang sama).
+// Semak rekod LTJ yang DUPLICATE bagi penternak yang sama (biasanya sebab pt.rid berganda dari isu PO KANGAR/KANGAR-PERLIS dll).
+// Peraturan: LTJ = PPV. Penternak dalam LTJ MESTI ada PPV='YA' di LBL. Kalau tidak, rekod LTJ tu tersalah wujud.
+// Cari penternak (myPt) yang jenis ternakan TAK sepadan mana-mana kategori RB/RK/UG
+// (sebab isT() check LEMBU/KERBAU/KAMBING/BEBIRI/AYAM dll — kalau j kosong/tak match, penternak tu 'hilang' dari kaunter RB/RK/UG)
+function auditJenisNotClassified(){
+  if(!isMLAdmin()){ alert('Hanya admin boleh guna alat ini'); return; }
+  var allPt = (typeof myPt==='function') ? myPt(null) : pt;
+  var issues = [];
+  allPt.forEach(function(p){
+    var isRb = isT(p.j,'rb'), isRk = isT(p.j,'rk'), isUg = isT(p.j,'ug');
+    if(!isRb && !isRk && !isUg){
+      issues.push({ nm:p.nm||'-', po:p.po||'-', j:p.j||'(KOSONG)', id:p.id||'-' });
+    }
+  });
+  if(!issues.length){
+    alert('✅ Semua penternak jenis ternakan sepadan kategori RB/RK/UG. Tiada isu.');
+    return;
+  }
+  var h = '<html><head><meta charset="utf-8"><title>Jenis Ternakan Tak Sepadan</title>';
+  h += '<style>body{font-family:Arial,sans-serif;padding:20px;background:#f7fafc}';
+  h += 'table{width:100%;border-collapse:collapse;font-size:12px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.1)}';
+  h += 'th{background:#0F2D5E;color:#fff;padding:8px;border:1px solid #ccc;text-align:left}';
+  h += 'td{padding:7px 8px;border:1px solid #ddd}</style></head><body>';
+  h += '<h2 style="color:#0F2D5E">⚠️ Penternak Jenis Ternakan TAK Sepadan RB/RK/UG (' + issues.length + ' rekod)</h2>';
+  h += '<p style="color:#718096;font-size:13px">Penternak ni ADA dalam Jumlah LBL tapi TAK dikira dalam mana-mana kaunter RB/RK/UG — sebab tu jumlah LBL vs (RB+RK+UG) tak sepadan. Sila pergi Senarai Penternak, Edit rekod ni, dan tetapkan Jenis Ternakan yang betul (salah satu dari 7 jenis rasmi).</p>';
+  h += '<table><tr><th>Nama</th><th>PO</th><th>Jenis Ternakan (Semasa)</th><th>ID Premis</th></tr>';
+  issues.forEach(function(it){
+    h += '<tr><td><b>'+it.nm+'</b></td><td>'+it.po+'</td><td style="color:#c53030;font-weight:700">'+it.j+'</td><td>'+it.id+'</td></tr>';
+  });
+  h += '</table></body></html>';
+  var w = window.open('', '_blank');
+  if(w){ w.document.write(h); w.document.close(); }
+  else alert('Sila benarkan pop-up untuk lihat laporan ni.');
+}
+
+// Diagnostik PENUH: tunjuk data mentah (pegawai, pegawaiId, pid, ada/tiada LTJ) untuk SEMUA
+// penternak PPV=YA, ikut PO — supaya boleh kenal pasti punca sebenar isu LTJ/pegawai.
+function diagnosticLTJFull(){
+  if(!isMLAdmin()){ alert('Hanya admin boleh guna alat ini'); return; }
+  var allPt = (typeof myPt==='function') ? myPt(null) : pt;
+  var ltjAll = getLTJ();
+  var yr = new Date().getFullYear();
+  var rows = [];
+  allPt.forEach(function(p){
+    if(p.pv !== 'YA') return;
+    var ltjRec = ltjAll.find(function(r){ return r.farmRid===p.rid && r.yr===yr; });
+    rows.push({
+      po: p.po||'-', nm: p.nm||'-', j: p.j||'-',
+      pegawai: p.pegawai||'(kosong)', pegawaiId: p.pegawaiId||'(kosong)', pid: p.pid||'(kosong)',
+      adaLTJ: ltjRec ? 'YA' : 'TIADA',
+      ltjPegawaiId: ltjRec ? (ltjRec.pegawaiId||'-') : '-',
+      displayNm: (typeof getOfficerNameForPt==='function') ? getOfficerNameForPt(p) : '-'
+    });
+  });
+  rows.sort(function(a,b){ return (a.po+a.nm).localeCompare(b.po+b.nm); });
+  var h = '<html><head><meta charset="utf-8"><title>Diagnostik LTJ Penuh</title>';
+  h += '<style>body{font-family:Arial,sans-serif;padding:16px;background:#f7fafc;font-size:11px}';
+  h += 'table{width:100%;border-collapse:collapse;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.1)}';
+  h += 'th{background:#0F2D5E;color:#fff;padding:6px;border:1px solid #ccc;text-align:left;position:sticky;top:0}';
+  h += 'td{padding:5px 6px;border:1px solid #ddd}';
+  h += '.tiada{background:#fff5f5;color:#c53030;font-weight:700}';
+  h += '.kosong{color:#c53030;font-style:italic}</style></head><body>';
+  h += '<h2 style="color:#0F2D5E">🔬 Diagnostik LTJ Penuh — ' + rows.length + ' penternak PPV=YA</h2>';
+  h += '<table><tr><th>PO</th><th>Nama Penternak</th><th>Jenis</th><th>p.pegawai</th><th>p.pegawaiId</th><th>p.pid</th><th>Ada LTJ '+yr+'?</th><th>LTJ.pegawaiId</th><th>Nama Dipaparkan</th></tr>';
+  rows.forEach(function(r){
+    h += '<tr class="'+(r.adaLTJ==='TIADA'?'tiada':'')+'">';
+    h += '<td><b>'+r.po+'</b></td><td>'+r.nm+'</td><td>'+r.j+'</td>';
+    h += '<td class="'+(r.pegawai==='(kosong)'?'kosong':'')+'">'+r.pegawai+'</td>';
+    h += '<td class="'+(r.pegawaiId==='(kosong)'?'kosong':'')+'" style="font-size:9px">'+r.pegawaiId+'</td>';
+    h += '<td class="'+(r.pid==='(kosong)'?'kosong':'')+'" style="font-size:9px">'+r.pid+'</td>';
+    h += '<td><b>'+r.adaLTJ+'</b></td><td style="font-size:9px">'+r.ltjPegawaiId+'</td>';
+    h += '<td>'+r.displayNm+'</td></tr>';
+  });
+  h += '</table></body></html>';
+  var w = window.open('', '_blank');
+  if(w){ w.document.write(h); w.document.close(); }
+  else alert('Sila benarkan pop-up untuk lihat laporan ni.');
+}
+
+function auditLTJBukanPPV(){
+  if(!isMLAdmin()){ alert('Hanya admin boleh guna alat ini'); return; }
+  var ltjAll = getLTJ();
+  var issues = [];
+  ltjAll.forEach(function(r, idx){
+    var p = pt.find(function(x){ return x.rid===r.farmRid; });
+    if(!p){
+      issues.push({ idx:idx, nm:r.nm||'(tidak dijumpai)', po:r.po||'-', j:'-', pv:'(pt tiada)' });
+      return;
+    }
+    if((p.pv||'').toUpperCase()!=='YA'){
+      issues.push({ idx:idx, nm:p.nm, po:p.po, j:p.j||'-', pv:p.pv||'(kosong)' });
+    }
+  });
+  if(!issues.length){
+    alert('✅ Semua rekod LTJ ada penternak dengan PPV=YA. Tiada isu.');
+    return;
+  }
+  var h = '<html><head><meta charset="utf-8"><title>LTJ Bukan PPV</title>';
+  h += '<style>body{font-family:Arial,sans-serif;padding:20px;background:#f7fafc}';
+  h += 'table{width:100%;border-collapse:collapse;font-size:12px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.1)}';
+  h += 'th{background:#0F2D5E;color:#fff;padding:8px;border:1px solid #ccc;text-align:left}';
+  h += 'td{padding:7px 8px;border:1px solid #ddd}';
+  h += '.delbtn{background:#fee2e2;border:1px solid #991b1b;color:#991b1b;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700}</style></head><body>';
+  h += '<h2 style="color:#0F2D5E">⚠️ Rekod LTJ Untuk Penternak BUKAN PPV=YA (' + issues.length + ' rekod)</h2>';
+  h += '<p style="color:#718096;font-size:13px">Ikut peraturan LTJ=PPV, penternak ni sepatutnya TIADA dalam LTJ (PPV bukan "YA" di LBL). Semak & padam jika perlu.</p>';
+  h += '<table><tr><th>Nama</th><th>PO</th><th>Jenis</th><th>PPV (LBL)</th><th>Tindakan</th></tr>';
+  issues.forEach(function(it, ri){
+    var rowId = 'ppvrow_'+ri;
+    h += '<tr id="'+rowId+'"><td><b>'+it.nm+'</b></td><td>'+it.po+'</td><td>'+it.j+'</td><td style="color:#c53030;font-weight:700">'+it.pv+'</td>';
+    h += '<td><button class="delbtn" onclick="doDeleteLTJ2(\''+rowId+'\','+it.idx+')">Padam dari LTJ</button></td></tr>';
+  });
+  h += '</table>';
+  h += '<script>function doDeleteLTJ2(rowId, idx){';
+  h += 'if(!confirm("Padam rekod LTJ ni?")) return;';
+  h += 'if(!window.opener || window.opener.closed){ alert("Tab utama app tak dijumpai."); return; }';
+  h += 'var res = window.opener.deleteLTJByIndex(idx);';
+  h += 'if(res && res.ok){ document.getElementById(rowId).style.display="none"; } else { alert("Ralat: "+(res?res.msg:"tidak diketahui")); }';
+  h += '}</'+'script>';
+  h += '</body></html>';
+  var w = window.open('', '_blank');
+  if(w){ w.document.write(h); w.document.close(); }
+  else alert('Sila benarkan pop-up untuk lihat laporan ni.');
+}
+
+function auditDuplicateLTJ(){
+  if(!isMLAdmin()){ alert('Hanya admin boleh guna alat ini'); return; }
+  var ltjAll = getLTJ();
+  var groups = {};
+  ltjAll.forEach(function(r, idx){
+    var p = pt.find(function(x){ return x.rid===r.farmRid; });
+    var nm = p ? p.nm : (r.nm||'(pt tidak dijumpai — rid: '+r.farmRid+')');
+    var jenis = p ? (p.j||'-') : '-';
+    // Kumpul ikut NAMA + JENIS TERNAKAN (bukan nama sahaja) — penternak sah boleh ada >1 komoditi berbeza, itu BUKAN duplicate
+    var key = nm.toUpperCase().trim()+'|'+jenis.toUpperCase().trim();
+    if(!groups[key]) groups[key]=[];
+    groups[key].push({ r:r, p:p, idx:idx, nm:nm, jenis:jenis });
+  });
+  var dupes = [];
+  Object.keys(groups).forEach(function(key){
+    if(groups[key].length>1) dupes.push({key:key, nm:groups[key][0].nm, jenis:groups[key][0].jenis, items:groups[key]});
+  });
+  if(!dupes.length){
+    alert('✅ Tiada duplicate LTJ dijumpai (nama+jenis ternakan sama).');
+    return;
+  }
+  var h = '<html><head><meta charset="utf-8"><title>Semakan Duplicate LTJ</title>';
+  h += '<style>body{font-family:Arial,sans-serif;padding:20px;background:#f7fafc}';
+  h += 'table{width:100%;border-collapse:collapse;font-size:12px;background:#fff;margin-bottom:18px;box-shadow:0 1px 4px rgba(0,0,0,.1)}';
+  h += 'th{background:#0F2D5E;color:#fff;padding:8px;border:1px solid #ccc;text-align:left}';
+  h += 'td{padding:7px 8px;border:1px solid #ddd}';
+  h += '.grp{font-weight:800;color:#0F2D5E;margin:14px 0 4px;font-size:14px}';
+  h += '.delbtn{background:#fee2e2;border:1px solid #991b1b;color:#991b1b;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700}</style></head><body>';
+  h += '<h2 style="color:#0F2D5E">⚠️ Duplicate Rekod LTJ (' + dupes.length + ' penternak)</h2>';
+  h += '<p style="color:#718096;font-size:13px">Setiap penternak sepatutnya cuma ada SATU rekod LTJ. Semak & padam duplicate di bawah.</p>';
+  dupes.forEach(function(d, gi){
+    h += '<div class="grp">' + (gi+1) + '. ' + d.nm + ' — ' + d.jenis + '</div>';
+    h += '<table><tr><th>PO</th><th>Komoditi</th><th>Tarikh Dipilih (selectedDates)</th><th>farmRid</th><th>Status</th><th>Tindakan</th></tr>';
+    d.items.forEach(function(it, ri){
+      var rowId = 'ltjrow_'+gi+'_'+ri;
+      h += '<tr id="'+rowId+'"><td><b>'+(it.p?it.p.po:'-')+'</b></td><td>'+(it.p?it.p.j:'-')+'</td><td>'+((it.r.selectedDates||[]).join(', ')||'-')+'</td><td style="font-size:10px;color:#718096">'+it.r.farmRid+'</td><td>'+(it.r.isDropped?'DIKELUARKAN':'AKTIF')+'</td>';
+      h += '<td><button class="delbtn" onclick="doDeleteLTJ(\''+rowId+'\','+it.idx+')">Padam</button></td></tr>';
+    });
+    h += '</table>';
+  });
+  h += '<script>function doDeleteLTJ(rowId, idx){';
+  h += 'if(!confirm("Padam rekod LTJ ni?")) return;';
+  h += 'if(!window.opener || window.opener.closed){ alert("Tab utama app tak dijumpai."); return; }';
+  h += 'var res = window.opener.deleteLTJByIndex(idx);';
+  h += 'if(res && res.ok){ document.getElementById(rowId).style.display="none"; } else { alert("Ralat: "+(res?res.msg:"tidak diketahui")); }';
+  h += '}</'+'script>';
+  h += '</body></html>';
+  var w = window.open('', '_blank');
+  if(w){ w.document.write(h); w.document.close(); }
+  else alert('Sila benarkan pop-up untuk lihat laporan ni.');
+}
+
+// Padam SATU rekod LTJ ikut index dalam array getLTJ()
+function deleteLTJByIndex(idx){
+  if(!isMLAdmin()) return {ok:false, msg:'Hanya admin boleh guna alat ini'};
+  try{
+    var arr = getLTJ();
+    if(idx<0 || idx>=arr.length) return {ok:false, msg:'Index tidak sah'};
+    arr.splice(idx,1);
+    localStorage.setItem('vu_ltj', JSON.stringify(arr));
+    if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ltj', JSON.stringify(arr));
+    return {ok:true};
+  }catch(e){ return {ok:false, msg:e.message}; }
+}
+
 function auditPengeluaranNotInLBL(){
   if(!isMLAdmin()){ alert('Hanya admin boleh guna alat ini'); return; }
   if(typeof fixMlEmbIdPollution==='function') fixMlEmbIdPollution();
   if(typeof fixMlEmbIdPollutionV2==='function') fixMlEmbIdPollutionV2();
   if(typeof fixMohamadAsyrafPO==='function') fixMohamadAsyrafPO();
+  if(typeof fixGaneshNameTypo==='function') fixGaneshNameTypo();
+  if(typeof fixDuplicateLTJRecords==='function') fixDuplicateLTJRecords();
   if(typeof fixAlorSetarSpelling==='function') fixAlorSetarSpelling();
   var allPt = (typeof myPt==='function') ? myPt(null) : pt;
   var lblSet = {};
@@ -4834,6 +5059,8 @@ function renderKomoditiPage(){
   if(typeof fixMlEmbIdPollution==='function') fixMlEmbIdPollution();
   if(typeof fixMlEmbIdPollutionV2==='function') fixMlEmbIdPollutionV2();
   if(typeof fixMohamadAsyrafPO==='function') fixMohamadAsyrafPO();
+  if(typeof fixGaneshNameTypo==='function') fixGaneshNameTypo();
+  if(typeof fixDuplicateLTJRecords==='function') fixDuplicateLTJRecords();
   var k = getKomoditi();
   var c = document.getElementById('cKomoditi');
   if(!c) return;
@@ -4851,6 +5078,10 @@ function renderKomoditiPage(){
   h += '<button onclick="auditPengeluaranNotInLBL()" style="background:#f0fff4;border:1px solid #276749;color:#276749;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak Pengeluaran Tiada di LBL</button>';
   h += '<button onclick="addSpecificMissingFarmers2026()" style="background:#e6fffa;border:1px solid #0d9488;color:#0d9488;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#10133; Tambah Penternak Hilang ke Masterlist</button>';
   h += '<button onclick="if(confirm(\'Betulkan ejaan jenis ternakan (typo diketahui) merentasi Senarai Penternak, Masterlist, Pengeluaran RB/RK?\'))fixJenisTernakanTypos()" style="background:#eef2ff;border:1px solid #4338ca;color:#4338ca;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128221; Betulkan Ejaan Jenis Ternakan</button>';
+  h += '<button onclick="auditDuplicateLTJ()" style="background:#fff7ed;border:1px solid #c2410c;color:#c2410c;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak Duplicate LTJ</button>';
+  h += '<button onclick="diagnosticLTJFull()" style="background:#1e1b4b;border:1px solid #1e1b4b;color:#fff;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128300; Diagnostik LTJ Penuh</button>';
+  h += '<button onclick="auditLTJBukanPPV()" style="background:#fef2f2;border:1px solid #b91c1c;color:#b91c1c;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak LTJ Bukan PPV</button>';
+  h += '<button onclick="auditJenisNotClassified()" style="background:#fffbeb;border:1px solid #92400e;color:#92400e;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak Jenis Ternakan Tak Sepadan</button>';
   h += '<button onclick="if(confirm(\'Padam 6 rekod duplicate yang dah dikenal pasti (kekalkan rid p1783065125230 sahaja)?\'))cleanupSpecificDuplicates2026()" style="background:#fee2e2;border:1px solid #991b1b;color:#991b1b;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128465;&#65039; Padam Duplicate Yang Dikenal Pasti</button>';
   h += '</div>';
   
@@ -4947,6 +5178,40 @@ function fixAzielaAzilaTypo(){
       if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_p', JSON.stringify(ptAll));
       console.log('Fixed '+changed+' AZIELA/AZILA PO mismatch records');
     }
+    // Betulkan juga senarai pegawai BERDAFTAR (vu_g): SG BAKAP -> AZILA, KULIM -> AZIELA
+    try{
+      var gArr = JSON.parse(localStorage.getItem('vu_g')||'[]');
+      var changedG = 0;
+      gArr.forEach(function(g){
+        if(g.po==='SG BAKAP' && (g.nm||'').toUpperCase()==='AZIELA'){ g.nm='AZILA'; changedG++; }
+        if(g.po==='KULIM' && (g.nm||'').toUpperCase()==='AZILA'){ g.nm='AZIELA'; changedG++; }
+      });
+      if(changedG){
+        localStorage.setItem('vu_g', JSON.stringify(gArr));
+        if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_g', JSON.stringify(gArr));
+        console.log('Fixed '+changedG+' AZIELA/AZILA entries in vu_g (pegawai berdaftar)');
+      }
+    }catch(e){}
+    // Betulkan juga senarai pegawai CUSTOM (vu_officers): {po:[nama,...]}
+    try{
+      var off = JSON.parse(localStorage.getItem('vu_officers')||'null');
+      if(off){
+        var changedOff = false;
+        if(off['SG BAKAP']){
+          off['SG BAKAP'] = off['SG BAKAP'].map(function(n){ return (n||'').toUpperCase()==='AZIELA' ? 'AZILA' : n; });
+          changedOff = true;
+        }
+        if(off['KULIM']){
+          off['KULIM'] = off['KULIM'].map(function(n){ return (n||'').toUpperCase()==='AZILA' ? 'AZIELA' : n; });
+          changedOff = true;
+        }
+        if(changedOff){
+          localStorage.setItem('vu_officers', JSON.stringify(off));
+          if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_officers', JSON.stringify(off));
+          console.log('Fixed AZIELA/AZILA entries in vu_officers (senarai custom)');
+        }
+      }
+    }catch(e){}
   }catch(e){console.error(e);}
 }
 
@@ -5054,6 +5319,80 @@ function fixMlEmbIdPollutionV2(){
 }
 
 // Betulkan PO khusus untuk MOHAMAD ASYRAF BIN SAAD: rekod Pengeluaran UG tersalah PO (GURUN patutnya ALOR SETAR)
+// Betulkan ejaan nama GANESH A/L HAMBRAM -> GANESH A/L YAHAMBRAM (ejaan betul, dikenal pasti admin)
+// Bersihkan duplicate LTJ SEDIA ADA (farmRid+yr sama, tercipta akibat bug pid tak stabil).
+// Gabungkan selectedDates semua duplicate ke rekod yang dikekalkan, kemudian buang yang lain.
+function fixDuplicateLTJRecords(){
+  try{
+    if(localStorage.getItem('vu_ltjdupe_fixed_v2')==='1') return;
+    var ltj = JSON.parse(localStorage.getItem('vu_ltj')||'[]');
+    var groups = {};
+    ltj.forEach(function(r, idx){
+      var key = r.farmRid+'|'+r.yr;
+      if(!groups[key]) groups[key]=[];
+      groups[key].push(idx);
+    });
+    var toRemove = [];
+    Object.keys(groups).forEach(function(key){
+      var idxs = groups[key];
+      if(idxs.length<2) return;
+      // pilih rekod PALING LENGKAP: paling banyak selectedDates, atau isDropped=false diutamakan
+      var best = idxs[0];
+      idxs.forEach(function(idx){
+        var a = ltj[idx], b = ltj[best];
+        var aScore = (a.selectedDates||[]).length + (a.isDropped?0:1);
+        var bScore = (b.selectedDates||[]).length + (b.isDropped?0:1);
+        if(aScore > bScore) best = idx;
+      });
+      // gabungkan semua selectedDates unik ke rekod yang dikekalkan
+      var allDates = [];
+      idxs.forEach(function(idx){
+        (ltj[idx].selectedDates||[]).forEach(function(d){ if(allDates.indexOf(d)<0) allDates.push(d); });
+      });
+      ltj[best].selectedDates = allDates;
+      idxs.forEach(function(idx){ if(idx!==best) toRemove.push(idx); });
+    });
+    if(toRemove.length){
+      toRemove.sort(function(a,b){return b-a;});
+      toRemove.forEach(function(idx){ ltj.splice(idx,1); });
+      localStorage.setItem('vu_ltj', JSON.stringify(ltj));
+      if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ltj', JSON.stringify(ltj));
+      console.log('fixDuplicateLTJRecords: '+toRemove.length+' rekod LTJ duplicate dibuang');
+    }
+    localStorage.setItem('vu_ltjdupe_fixed_v2','1');
+  }catch(e){console.error('fixDuplicateLTJRecords error', e);}
+}
+
+function fixGaneshNameTypo(){
+  try{
+    if(localStorage.getItem('vu_ganesh_fixed')==='1') return;
+    var totalChanged = 0;
+    ['vu_p','vu_ml','vu_rb','vu_rk','vu_ug'].forEach(function(key){
+      try{
+        var arr = JSON.parse(localStorage.getItem(key)||'[]');
+        if(!Array.isArray(arr)) return;
+        var changed = 0;
+        arr.forEach(function(r){
+          if(r && (r.nm||'').toUpperCase().trim()==='GANESH A/L HAMBRAM'){
+            r.nm = 'GANESH A/L YAHAMBRAM';
+            changed++;
+          }
+        });
+        if(changed){
+          localStorage.setItem(key, JSON.stringify(arr));
+          if(window.GS_READY && typeof rtWrite === 'function') rtWrite(key, JSON.stringify(arr));
+          totalChanged += changed;
+        }
+      }catch(e){}
+    });
+    localStorage.setItem('vu_ganesh_fixed','1');
+    if(totalChanged>0){
+      if(typeof ld==='function') ld();
+      console.log('fixGaneshNameTypo: '+totalChanged+' rekod dibetulkan');
+    }
+  }catch(e){console.error('fixGaneshNameTypo error', e);}
+}
+
 function fixMohamadAsyrafPO(){
   try{
     if(localStorage.getItem('vu_asyraf_fixed2')==='1') return;
@@ -5185,6 +5524,8 @@ function renderSP(){
   if(typeof fixMlEmbIdPollution==='function') fixMlEmbIdPollution();
   if(typeof fixMlEmbIdPollutionV2==='function') fixMlEmbIdPollutionV2();
   if(typeof fixMohamadAsyrafPO==='function') fixMohamadAsyrafPO();
+  if(typeof fixGaneshNameTypo==='function') fixGaneshNameTypo();
+  if(typeof fixDuplicateLTJRecords==='function') fixDuplicateLTJRecords();
   var jf=document.getElementById('sp-jenis').value;
   var q=(document.getElementById('sp-q').value||'').toLowerCase();
   var list=myPt(jf||null).filter(function(p){return !q||p.nm.toLowerCase().indexOf(q)>=0;});
@@ -7706,7 +8047,27 @@ function renderLTJ(){
   var yr = parseInt(document.getElementById('ltj-yr').value);
   var moNames = ['Januari','Februari','Mac','April','Mei','Jun','Julai','Ogos','September','Oktober','November','Disember'];
   var ltjAll = getLTJ();
-  var myLTJ = ltjAll.filter(function(r){ return r.yr===yr && (isMLAdmin() || r.pegawaiId===CU.pid); });
+  var myLTJ = ltjAll.filter(function(r){
+    if(r.yr!==yr) return false;
+    if(isMLAdmin()) return true;
+    // Tapis ikut pegawai SEBENAR yang ditugaskan kepada PENTERNAK (LBL).
+    // Guna NAMA (stabil), bukan pid (boleh berubah antara sesi log masuk kerana padanan fuzzy semasa login).
+    var p = pt.find(function(x){ return x.rid===r.farmRid; });
+    if(!p) return false;
+    var myNmU = (CU.nm||'').toUpperCase().trim();
+    // 1) Kalau penternak ada nama pegawai (teks) tersimpan terus, padan ikut tu
+    if(p.pegawai){ return (p.pegawai||'').toUpperCase().trim()===myNmU; }
+    // 2) Cuba padan ikut pegawaiId/pid (jika kebetulan stabil/sepadan)
+    var pid = (p.pegawaiId!==undefined && p.pegawaiId!=='') ? p.pegawaiId : p.pid;
+    if(pid && pid===CU.pid) return true;
+    // 3) Fallback: guna carian pegawai berdasarkan PO (getOfficerNameForPt) — kalau nama kita
+    //    tergolong dalam senarai calon pegawai PO tu (termasuk kes gabungan sebab belum ditetapkan spesifik), tunjukkan.
+    if(typeof getOfficerNameForPt==='function'){
+      var candNm = getOfficerNameForPt(p);
+      if(candNm && candNm!=='-' && candNm.toUpperCase().indexOf(myNmU)>=0) return true;
+    }
+    return false;
+  });
   var tsd = getTSD();
   document.getElementById('ltj-cnt').textContent = myLTJ.length+' projek LTJ';
 
@@ -7819,8 +8180,12 @@ function renderLTJ(){
     var row = '<tr style="background:'+rowBg+'">';
     row += '<td style="border:1px solid #ccc;padding:7px 10px;text-align:center;color:#a0aec0;font-size:11px">'+bil+'</td>';
     row += '<td style="border:1px solid #ccc;padding:7px 10px">';
-    row += '<div style="font-weight:700;font-size:12px">'+getOfficerNameForPt(p)+'</div>';
+    var pegNmDisp = getOfficerNameForPt(p);
+    row += '<div style="font-weight:700;font-size:12px">'+pegNmDisp+'</div>';
     row += '<div style="font-size:10px;color:#718096">PO: '+(p.po||CU.po)+'</div>';
+    if(!isMLAdmin() && pegNmDisp.indexOf('/')>=0){
+      row += '<button onclick="claimFarmerAsOfficer(\''+p.rid+'\')" style="margin-top:4px;background:#ebf8ff;border:1px solid #2b6cb0;color:#2b6cb0;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:10px;font-weight:700">&#10003; Ini Penternak Saya</button>';
+    }
     row += '</td>';
     row += '<td style="border:1px solid #ccc;padding:7px 10px">';
     row += '<div style="font-weight:700;font-size:12px">'+p.nm+'</div>';
@@ -12447,8 +12812,17 @@ function mergePoData(pkg){
   if(d.ltj&&d.ltj.length){
     var ltj=getLTJ();
     d.ltj.forEach(function(nr){
-      var ei=ltj.findIndex(function(r){return r.id===nr.id;});
-      if(ei>=0) ltj[ei]=nr; else{ltj.push(nr);counts.ltjCount++;}
+      // PENTING: padan ikut farmRid+yr (bukan id, sebab id sentiasa unik/rawak setiap
+      // kali dicipta — guna id sebagai syarat sebabkan duplicate setiap kali import/approve)
+      var ei=ltj.findIndex(function(r){return r.farmRid===nr.farmRid && r.yr===nr.yr;});
+      if(ei>=0){
+        // gabungkan selectedDates unik dari kedua-dua rekod, jangan hilang tarikh sedia ada
+        var mergedDates = (ltj[ei].selectedDates||[]).slice();
+        (nr.selectedDates||[]).forEach(function(dt){ if(mergedDates.indexOf(dt)<0) mergedDates.push(dt); });
+        ltj[ei] = Object.assign({}, ltj[ei], nr, {selectedDates: mergedDates, id: ltj[ei].id});
+      } else {
+        ltj.push(nr);counts.ltjCount++;
+      }
     });
     saveLTJData(ltj);
   }
@@ -14108,7 +14482,16 @@ function mergeImportedData(payload){
   // Merge LTJ
   if(d.ltj&&d.ltj.length){
     var ltj=getLTJ();
-    d.ltj.forEach(function(r){var i=ltj.findIndex(function(x){return x.id===r.id;});if(i>=0)ltj[i]=r;else ltj.push(r);});
+    d.ltj.forEach(function(r){
+      var i=ltj.findIndex(function(x){return x.farmRid===r.farmRid && x.yr===r.yr;});
+      if(i>=0){
+        var mergedDates = (ltj[i].selectedDates||[]).slice();
+        (r.selectedDates||[]).forEach(function(dt){ if(mergedDates.indexOf(dt)<0) mergedDates.push(dt); });
+        ltj[i] = Object.assign({}, ltj[i], r, {selectedDates: mergedDates, id: ltj[i].id});
+      } else {
+        ltj.push(r);
+      }
+    });
     saveLTJData(ltj);
   }
   // Merge Latihan
@@ -15066,9 +15449,23 @@ function syncPPVtoLTJ(){
   var yr = new Date().getFullYear();
   var ltj = getLTJ();
   var changed = false;
-  myPt(null).forEach(function(p){
+  var allPt = myPt(null);
+  var pvYaRids = {};
+  allPt.forEach(function(p){ if(p.pv==='YA') pvYaRids[p.rid]=true; });
+  // Buang terus rekod LTJ (tahun semasa) untuk penternak yang PPV BUKAN/tidak lagi 'YA'
+  // (cth: PPV ditukar ke TIDAK selepas kelulusan admin) — bukan cuma tanda dropped, tapi bersih terus.
+  var before = ltj.length;
+  ltj = ltj.filter(function(r){
+    if(r.yr!==yr) return true; // kekal rekod tahun lain, tak sentuh
+    return !!pvYaRids[r.farmRid];
+  });
+  if(ltj.length !== before) changed = true;
+  allPt.forEach(function(p){
     if(p.pv !== 'YA') return;
-    var already = ltj.find(function(r){ return r.farmRid===p.rid && r.pegawaiId===CU.pid && r.yr===yr; });
+    // PENTING: semak "dah wujud" ikut farmRid+yr SAHAJA (bukan pegawaiId, sebab CU.pid
+    // tak stabil merentasi sesi log masuk — guna pegawaiId sebagai syarat sebabkan
+    // rekod LTJ duplicate dicipta setiap kali sesi log masuk berubah).
+    var already = ltj.find(function(r){ return r.farmRid===p.rid && r.yr===yr; });
     if(!already){
       ltj.push({
         id:'ltj'+Date.now()+'_'+Math.random().toString(36).substr(2,4),
