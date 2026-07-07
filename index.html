@@ -4549,6 +4549,62 @@ function auditDuplicateFarmers(){
 // Ini tindakan MEMADAM data — minta konfirmasi dulu.
 // Semak SEMUA rekod (pt + masterlist) yang masih guna PO 'KANGAR' (bukan 'KANGAR/PERLIS').
 // Papar senarai dulu dalam tab baru, dengan butang untuk tukar terus.
+// Semak nama dalam Pengeluaran RB/RK/UG yang TIADA di LBL/Senarai Penternak (allPt).
+// Padanan ikut NAMA+PO (nama sepatutnya wujud dalam senarai penternak PO yang sama).
+function auditPengeluaranNotInLBL(){
+  if(!isMLAdmin()){ alert('Hanya admin boleh guna alat ini'); return; }
+  var allPt = (typeof myPt==='function') ? myPt(null) : pt;
+  var lblSet = {};
+  allPt.forEach(function(p){
+    if(!p.nm) return;
+    var key = normPOForAudit(p.po)+'|'+p.nm.toUpperCase().trim();
+    lblSet[key] = true;
+  });
+  function normPOForAudit(po){
+    po = (po||'').toUpperCase().trim();
+    if(po==='ALOR STAR') return 'ALOR SETAR';
+    if(po==='KANGAR'||po==='KANGAR PERLIS'||po==='PERLIS') return 'KANGAR/PERLIS';
+    return po;
+  }
+  var missing = [];
+  var sources = [
+    {arr: (typeof rRB!=='undefined'?rRB:[]), label:'PENGELUARAN RB'},
+    {arr: (typeof rRK!=='undefined'?rRK:[]), label:'PENGELUARAN RK'},
+    {arr: (typeof rUG!=='undefined'?rUG:[]), label:'PENGELUARAN UG'}
+  ];
+  var seen = {};
+  sources.forEach(function(src){
+    (src.arr||[]).forEach(function(r){
+      if(!r.nm) return;
+      var key = normPOForAudit(r.po)+'|'+r.nm.toUpperCase().trim();
+      if(lblSet[key]) return; // ada dalam LBL, OK
+      var dedupeKey = key+'|'+src.label;
+      if(seen[dedupeKey]) return;
+      seen[dedupeKey] = true;
+      missing.push({ nm:r.nm, po:r.po, j:r.j||'-', bln:r.bln||'-', thn:r.thn||'-', src:src.label, id:r.idpremis||'-' });
+    });
+  });
+  if(!missing.length){
+    alert('✅ Semua nama dalam Pengeluaran RB/RK/UG wujud dalam LBL/Senarai Penternak.');
+    return;
+  }
+  var h = '<html><head><meta charset="utf-8"><title>Pengeluaran Tiada di LBL</title>';
+  h += '<style>body{font-family:Arial,sans-serif;padding:20px;background:#f7fafc}';
+  h += 'table{width:100%;border-collapse:collapse;font-size:12px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.1)}';
+  h += 'th{background:#0F2D5E;color:#fff;padding:8px;border:1px solid #ccc;text-align:left}';
+  h += 'td{padding:7px 8px;border:1px solid #ddd}</style></head><body>';
+  h += '<h2 style="color:#0F2D5E">⚠️ Nama Dalam Pengeluaran RB/RK/UG Yang TIADA Di LBL/Senarai Penternak (' + missing.length + ' rekod)</h2>';
+  h += '<p style="color:#718096;font-size:13px">Nama-nama ni ada rekod pengeluaran (RB/RK/UG) tapi tak dijumpai dalam Senarai Penternak/Masterlist bagi PO yang sama. Sila tambah penternak ni ke LBL, atau semak jika PO/nama tersalah taip.</p>';
+  h += '<table><tr><th>Nama</th><th>PO (Pengeluaran)</th><th>Jenis Ternakan</th><th>ID Premis</th><th>Bulan/Tahun</th><th>Sumber</th></tr>';
+  missing.forEach(function(m){
+    h += '<tr><td><b>'+m.nm+'</b></td><td>'+m.po+'</td><td>'+m.j+'</td><td>'+m.id+'</td><td>'+m.bln+' '+m.thn+'</td><td>'+m.src+'</td></tr>';
+  });
+  h += '</table></body></html>';
+  var w = window.open('', '_blank');
+  if(w){ w.document.write(h); w.document.close(); }
+  else alert('Sila benarkan pop-up untuk lihat laporan ni.');
+}
+
 function auditKangarRecords(){
   if(!isMLAdmin()){ alert('Hanya admin boleh guna alat ini'); return; }
   var found = [];
@@ -4707,6 +4763,61 @@ function cleanupSpecificDuplicates2026(){
   }catch(e){console.error('cleanupSpecificDuplicates2026 error', e);}
 }
 
+// Cari rekod Pengeluaran (RB/RK/UG) ikut nama+PO, dan bina entri masterlist penuh dari data tu.
+function buildMlEntryFromPengeluaran(nm, po, arr){
+  var nmU = nm.toUpperCase().trim();
+  var poU = po.toUpperCase().trim();
+  var matches = (arr||[]).filter(function(r){
+    return (r.nm||'').toUpperCase().trim()===nmU && (r.po||'').toUpperCase().trim()===poU;
+  });
+  if(!matches.length) return null;
+  var r = matches[0];
+  var allDates = [];
+  matches.forEach(function(m){
+    if(m.tr) m.tr.split(',').forEach(function(d){ d=d.trim(); if(d && allDates.indexOf(d)<0) allDates.push(d); });
+  });
+  return {
+    id: 'ml_add_'+Date.now()+'_'+Math.random().toString(36).substr(2,4),
+    nm: r.nm,
+    idPremis: r.idpremis||'',
+    po: po,
+    j: r.j||'',
+    tl: r.tl||'',
+    bn: r.bn||'',
+    pv: r.pv||'',
+    tr: allDates.join(', '),
+    ng: 'KEDAH'
+  };
+}
+
+// Tambah penternak KHUSUS yang dikenal pasti hilang dari LBL (MOHD RAZALI, MUHAMAD AIMAN) ke Masterlist,
+// tarik semua data (ID Premis, No.Tel, Bantuan, PPV, Tarikh Lawatan) dari rekod PENGELUARAN RK sedia ada.
+function addSpecificMissingFarmers2026(){
+  if(!isMLAdmin()){ alert('Hanya admin boleh guna alat ini'); return; }
+  var toAdd = [
+    {nm:'MOHD RAZALI MOHD RAZAK', po:'KUALA KETIL'},
+    {nm:'MUHAMAD AIMAN B MUSTAFA', po:'KUALA KETIL'},
+    {nm:'MUHAMMAD AIMAN BIN MUSTAFA', po:'KUALA KETIL'}
+  ];
+  var mlArr = JSON.parse(localStorage.getItem('vu_ml')||'[]');
+  var added = [];
+  var rkArr = (typeof rRK!=='undefined') ? rRK : [];
+  toAdd.forEach(function(t){
+    var entry = buildMlEntryFromPengeluaran(t.nm, t.po, rkArr);
+    if(!entry) return;
+    var exists = mlArr.some(function(m){
+      return (m.nm||'').toUpperCase().trim()===entry.nm.toUpperCase().trim() && m.po===entry.po && (m.j||'').toUpperCase()===(entry.j||'').toUpperCase();
+    });
+    if(!exists){ mlArr.push(entry); added.push(entry.nm+' ('+entry.j+', ID:'+(entry.idPremis||'-')+')'); }
+  });
+  if(added.length){
+    localStorage.setItem('vu_ml', JSON.stringify(mlArr));
+    if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ml', JSON.stringify(mlArr));
+    if(typeof ld==='function') ld();
+  }
+  alert(added.length ? ('✅ Ditambah ke Masterlist:\n'+added.join('\n')) : '⚠️ Tiada rekod Pengeluaran RK dijumpai untuk nama-nama ni. Sila semak ejaan nama tepat.');
+}
+
 function renderKomoditiPage(){
   if(!isMLAdmin()){
     alert('Hanya admin boleh akses halaman ini');
@@ -4726,6 +4837,8 @@ function renderKomoditiPage(){
   h += '<button onclick="auditDuplicateFarmers()" style="background:#fff5f5;border:1px solid #c53030;color:#c53030;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak Duplicate Penternak</button>';
   h += '<button onclick="mergeKangarPerlisDuplicates()" style="background:#fef3c7;border:1px solid #b45309;color:#b45309;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128260; Gabung KANGAR/PERLIS + Buang Duplicate</button>';
   h += '<button onclick="auditKangarRecords()" style="background:#e0f2fe;border:1px solid #0369a1;color:#0369a1;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak Rekod PO KANGAR</button>';
+  h += '<button onclick="auditPengeluaranNotInLBL()" style="background:#f0fff4;border:1px solid #276749;color:#276749;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak Pengeluaran Tiada di LBL</button>';
+  h += '<button onclick="addSpecificMissingFarmers2026()" style="background:#e6fffa;border:1px solid #0d9488;color:#0d9488;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#10133; Tambah Penternak Hilang ke Masterlist</button>';
   h += '<button onclick="if(confirm(\'Padam 6 rekod duplicate yang dah dikenal pasti (kekalkan rid p1783065125230 sahaja)?\'))cleanupSpecificDuplicates2026()" style="background:#fee2e2;border:1px solid #991b1b;color:#991b1b;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128465;&#65039; Padam Duplicate Yang Dikenal Pasti</button>';
   h += '</div>';
   
