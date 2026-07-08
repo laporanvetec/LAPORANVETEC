@@ -4896,6 +4896,88 @@ function auditLTJBukanPPV(){
 
 // Semak & bersihkan duplicate SP03 (po+nama+bulan+tahun+ketuaAktiviti sama).
 // Kekalkan rekod PALING LENGKAP (paling banyak medan berisi), buang yang lain.
+// Cari & betulkan medan PO / Ketua Aktiviti terus pada rekod SP03 (borang Edit SP03 tiada medan ni)
+function searchFixSP03(){
+  if(!isMLAdmin()){ alert('Hanya admin boleh guna alat ini'); return; }
+  var q = prompt('Cari rekod SP03 ikut nama penternak (atau sebahagian nama):');
+  if(!q) return;
+  var qU = q.toUpperCase().trim();
+  var sp03 = getSP03();
+  var matches = [];
+  sp03.forEach(function(r, idx){ if((r.namaPenternak||'').toUpperCase().indexOf(qU)>=0) matches.push(idx); });
+  if(!matches.length){ alert('Tiada rekod SP03 dijumpai untuk carian "'+q+'"'); return; }
+  var h = '<html><head><meta charset="utf-8"><title>Cari & Betulkan SP03</title>';
+  h += '<style>body{font-family:Arial,sans-serif;padding:20px;background:#f7fafc;font-size:12px}';
+  h += 'table{width:100%;border-collapse:collapse;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.1)}';
+  h += 'th{background:#0F2D5E;color:#fff;padding:8px;border:1px solid #ccc;text-align:left}';
+  h += 'td{padding:7px 8px;border:1px solid #ddd}';
+  h += 'input,select{padding:4px 6px;border:1px solid #ccc;border-radius:4px;font-size:12px;width:100%}';
+  h += '.savebtn{background:#276749;color:#fff;border:none;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700}</style></head><body>';
+  h += '<h2 style="color:#0F2D5E">🔧 Cari & Betulkan SP03 — "' + q + '" (' + matches.length + ' rekod)</h2>';
+  h += '<p style="color:#718096">Tukar PO / Ketua Aktiviti terus di sini (medan yang tiada dalam borang Edit SP03 biasa).</p>';
+  h += '<table><tr><th>Nama Penternak</th><th>PO</th><th>Bulan/Thn</th><th>Ketua Aktiviti</th><th>Tindakan</th></tr>';
+  var POS_LIST = ['GURUN','KULIM','SUNGAI PETANI','KUALA KETIL','ALOR SETAR','JITRA','KANGAR/PERLIS','SG BAKAP'];
+  matches.forEach(function(idx){
+    var r = sp03[idx];
+    var rowId = 'fixrow_'+idx;
+    h += '<tr id="'+rowId+'"><td><b>'+r.namaPenternak+'</b></td>';
+    h += '<td><select id="po_'+idx+'">';
+    POS_LIST.forEach(function(po){ h += '<option value="'+po+'"'+(po===r.po?' selected':'')+'>'+po+'</option>'; });
+    h += '</select></td>';
+    h += '<td>'+BLN_LTK[r.mo]+' '+r.yr+'</td>';
+    h += '<td><input id="ketua_'+idx+'" value="'+(r.ketuaAktiviti||'')+'"></td>';
+    h += '<td><button class="savebtn" onclick="doFixSP03Row(\''+rowId+'\','+idx+')">Simpan</button></td></tr>';
+  });
+  h += '</table>';
+  h += '<script>function doFixSP03Row(rowId, idx){';
+  h += 'var po = document.getElementById("po_"+idx).value;';
+  h += 'var ketua = document.getElementById("ketua_"+idx).value;';
+  h += 'if(!confirm("Simpan perubahan? PO="+po+", Ketua="+ketua)) return;';
+  h += 'if(!window.opener || window.opener.closed){ alert("Tab utama app tak dijumpai."); return; }';
+  h += 'var res = window.opener.fixSP03RowPOKetua(idx, po, ketua);';
+  h += 'if(res && res.ok){ alert("✅ Disimpan!"); document.getElementById(rowId).style.background="#d1fae5"; return; }';
+  h += 'if(res && res.duplicateWarning){';
+  h += '  var ch = confirm("⚠️ Pegawai PO \'"+po+"\' NAMPAKNYA DAH ADA rekod sendiri untuk penternak+bulan+ketua yang sama.\\n\\nKlik OK untuk PADAM rekod ni (elak duplicate).\\nKlik Cancel untuk BATALKAN.");';
+  h += '  if(ch){ var res2 = window.opener.deleteSP03ByIndex(idx); if(res2 && res2.ok){ alert("✅ Rekod duplicate ni dipadam."); document.getElementById(rowId).style.display="none"; } else { alert("Ralat padam: "+(res2?res2.msg:"?")); } }';
+  h += '  return;';
+  h += '}';
+  h += 'alert("Ralat: "+(res?res.msg:"tidak diketahui"));';
+  h += '}</'+'script>';
+  h += '</body></html>';
+  var w = window.open('', '_blank');
+  if(w){ w.document.write(h); w.document.close(); }
+  else alert('Sila benarkan pop-up untuk lihat laporan ni.');
+}
+
+function fixSP03RowPOKetua(idx, po, ketua, forceOverride){
+  if(!isMLAdmin()) return {ok:false, msg:'Hanya admin boleh guna alat ini'};
+  try{
+    var sp03 = getSP03();
+    if(idx<0 || idx>=sp03.length) return {ok:false, msg:'Index tidak sah'};
+    var r = sp03[idx];
+    var ketuaClean = (ketua||'').toUpperCase().trim();
+    // PENTING: semak dulu ada tak rekod SEDIA ADA (lain daripada rekod ni) untuk penternak+bulan+tahun+ketua
+    // yang SAMA di PO baru tu — elak jadi duplicate kalau pegawai PO tu dah pun tambah sendiri.
+    if(!forceOverride){
+      var dupeFound = sp03.some(function(other, i){
+        if(i===idx) return false; // jangan banding dengan diri sendiri
+        return (other.po||'').toUpperCase().trim()===po.toUpperCase().trim() &&
+               (other.namaPenternak||'').toUpperCase().trim()===(r.namaPenternak||'').toUpperCase().trim() &&
+               other.mo===r.mo && other.yr===r.yr &&
+               (other.ketuaAktiviti||'').toUpperCase().trim()===ketuaClean;
+      });
+      if(dupeFound){
+        return {ok:false, msg:'DUPLICATE_FOUND', duplicateWarning:true};
+      }
+    }
+    r.po = po;
+    r.pusat = po;
+    r.ketuaAktiviti = ketuaClean;
+    saveSP03Data(sp03);
+    return {ok:true};
+  }catch(e){ return {ok:false, msg:e.message}; }
+}
+
 function auditDuplicateSP03(){
   if(!isMLAdmin()){ alert('Hanya admin boleh guna alat ini'); return; }
   var sp03 = getSP03();
@@ -5709,6 +5791,7 @@ function renderKomoditiPage(){
   h += '<button onclick="if(confirm(\'Betulkan ejaan jenis ternakan (typo diketahui) merentasi Senarai Penternak, Masterlist, Pengeluaran RB/RK?\'))fixJenisTernakanTypos()" style="background:#eef2ff;border:1px solid #4338ca;color:#4338ca;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128221; Betulkan Ejaan Jenis Ternakan</button>';
   h += '<button onclick="auditDuplicateLTJ()" style="background:#fff7ed;border:1px solid #c2410c;color:#c2410c;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak Duplicate LTJ</button>';
   h += '<button onclick="auditDuplicateSP03()" style="background:#fef9c3;border:1px solid #a16207;color:#a16207;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak Duplicate SP03</button>';
+  h += '<button onclick="searchFixSP03()" style="background:#e0e7ff;border:1px solid #3730a3;color:#3730a3;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128295; Cari & Betulkan SP03 (PO/Ketua)</button>';
   h += '<button onclick="diagnosticLTJFull()" style="background:#1e1b4b;border:1px solid #1e1b4b;color:#fff;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128300; Diagnostik LTJ Penuh</button>';
   h += '<button onclick="diagnosticIdPremis()" style="background:#3730a3;border:1px solid #3730a3;color:#fff;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128300; Diagnostik ID Premis</button>';
   h += '<button onclick="auditLTJBukanPPV()" style="background:#fef2f2;border:1px solid #b91c1c;color:#b91c1c;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak LTJ Bukan PPV</button>';
@@ -5841,6 +5924,27 @@ function fixAzielaAzilaTypo(){
           if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_officers', JSON.stringify(off));
           console.log('Fixed AZIELA/AZILA entries in vu_officers (senarai custom)');
         }
+      }
+    }catch(e){}
+    // Betulkan juga rekod SP03 (ketuaAktiviti + pegawai1/2/3): guna PO SP03 (r.po) sebagai rujukan
+    try{
+      var sp03Arr = JSON.parse(localStorage.getItem('vu_sp03')||'[]');
+      var changedSp = 0;
+      function fixNm(nm, po){
+        if((nm||'').toUpperCase().trim()==='AZIELA' && po==='SG BAKAP') { changedSp++; return 'AZILA'; }
+        if((nm||'').toUpperCase().trim()==='AZILA' && po==='KULIM') { changedSp++; return 'AZIELA'; }
+        return nm;
+      }
+      sp03Arr.forEach(function(r){
+        r.ketuaAktiviti = fixNm(r.ketuaAktiviti, r.po);
+        r.pegawai1 = fixNm(r.pegawai1, r.po);
+        r.pegawai2 = fixNm(r.pegawai2, r.po);
+        r.pegawai3 = fixNm(r.pegawai3, r.po);
+      });
+      if(changedSp){
+        localStorage.setItem('vu_sp03', JSON.stringify(sp03Arr));
+        if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_sp03', JSON.stringify(sp03Arr));
+        console.log('Fixed '+changedSp+' AZIELA/AZILA entries dalam rekod SP03');
       }
     }catch(e){}
   }catch(e){console.error(e);}
@@ -11459,9 +11563,14 @@ function renderSP03(){
       if(!r) return;
       if(!confirm('Padam SP03 untuk '+r.namaPenternak+'? Tindakan ini tidak boleh dibatalkan.')) return;
       var idx = recs.findIndex(function(x){ return x.id===id; });
-      if(idx>=0){ recs.splice(idx,1); saveSP03Data(recs); }
-      renderSP03();
-      toast('SP03 dipadam: '+r.namaPenternak,'#c53030');
+      if(idx>=0){
+        recs.splice(idx,1);
+        toast('⏳ Memadam...', '#2b6cb0');
+        saveSP03Data(recs).then(function(){
+          renderSP03();
+          toast('✅ SP03 dipadam: '+r.namaPenternak,'#c53030');
+        });
+      }
     };
   });
 }
