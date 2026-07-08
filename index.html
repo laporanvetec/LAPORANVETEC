@@ -2244,12 +2244,18 @@ function getOfficers(po){
 function getOfficerNameForPt(p){
   if(!p) return '-';
   try{
+    // 1) UTAMAKAN medan teks 'pegawai' — paling stabil, tak bergantung pid sesi atau sync timing
+    if(p.pegawai && (p.pegawai||'').toUpperCase().trim()!=='ADMIN'){
+      return p.pegawai;
+    }
+    // 2) Cuba pegawaiId/pid (boleh gagal jika peg/vu_g belum sync sepenuhnya atau pid sesi berubah)
     var id = (p.pegawaiId!==undefined && p.pegawaiId!=='') ? p.pegawaiId : p.pid;
     if(id){
       var pegArr = safeParseArr('vu_g');
       var g = pegArr.find(function(x){ return x.id===id; });
       if(g && (g.nm||'').toUpperCase()!=='ADMIN') return g.nm;
     }
+    // 3) Fallback: gabungan semua calon pegawai PO (penternak belum ditetapkan spesifik)
     var officers = getOfficers(p.po).filter(function(nm){ return (nm||'').toUpperCase()!=='ADMIN'; });
     if(officers.length===1) return officers[0];
     if(officers.length>1) return officers.join(' / ');
@@ -4157,6 +4163,12 @@ function myPt(t){
           if(officer.bn) merged.bn = officer.bn;
           if(officer.pv) merged.pv = officer.pv;
           if(officer.ng) merged.ng = officer.ng;
+          // PENTING: salin juga pegawai/pegawaiId/pid/rid — tanpa ni, paparan admin
+          // akan hilang nama pegawai yang dah ditetapkan khusus (fallback ke gabungan PO)
+          if(officer.pegawai) merged.pegawai = officer.pegawai;
+          if(officer.pegawaiId) merged.pegawaiId = officer.pegawaiId;
+          if(officer.pid) merged.pid = officer.pid;
+          if(officer.rid) merged.rid = officer.rid;
           // Preserve rid from masterlist for delete operations
           ptByKey[key] = null;
           return merged;
@@ -4774,6 +4786,57 @@ function deleteLTJByIndex(idx){
   }catch(e){ return {ok:false, msg:e.message}; }
 }
 
+// Semak penternak LBL yang TIADA di Pengeluaran RB/RK/UG — tunjuk sebab (jenis tak sepadan / tiada rekod pengeluaran langsung)
+function auditLBLNotInPengeluaran(){
+  if(!isMLAdmin()){ alert('Hanya admin boleh guna alat ini'); return; }
+  var allPt = (typeof myPt==='function') ? myPt(null) : pt;
+  function key(nm,po){ return normPO2(po)+'|'+(nm||'').toUpperCase().trim(); }
+  function normPO2(po){
+    po=(po||'').toUpperCase().trim();
+    if(po==='ALOR STAR') return 'ALOR SETAR';
+    if(po==='KANGAR'||po==='KANGAR PERLIS'||po==='PERLIS') return 'KANGAR/PERLIS';
+    return po;
+  }
+  var rbKeys={}, rkKeys={}, ugKeys={};
+  (typeof rRB!=='undefined'?rRB:[]).forEach(function(r){ rbKeys[key(r.nm,r.po)]=true; });
+  (typeof rRK!=='undefined'?rRK:[]).forEach(function(r){ rkKeys[key(r.nm,r.po)]=true; });
+  (typeof rUG!=='undefined'?rUG:[]).forEach(function(r){ ugKeys[key(r.nm,r.po)]=true; });
+  var issues = [];
+  allPt.forEach(function(p){
+    if(!p.nm) return;
+    var isRb = isT(p.j,'rb'), isRk = isT(p.j,'rk'), isUg = isT(p.j,'ug');
+    var k = key(p.nm, p.po);
+    if(!isRb && !isRk && !isUg){
+      issues.push({ nm:p.nm, po:p.po, j:p.j||'(KOSONG)', sebab:'JENIS TERNAKAN TAK SEPADAN (bukan LEMBU/KERBAU/KAMBING/BEBIRI/AYAM dll)' });
+      return;
+    }
+    var adaRekod = (isRb && rbKeys[k]) || (isRk && rkKeys[k]) || (isUg && ugKeys[k]);
+    if(!adaRekod){
+      var sheetName = isRb?'PENGELUARAN RB':(isRk?'PENGELUARAN RK':'PENGELUARAN UG');
+      issues.push({ nm:p.nm, po:p.po, j:p.j||'-', sebab:'TIADA rekod langsung di '+sheetName+' (belum pernah disubmit)' });
+    }
+  });
+  if(!issues.length){
+    alert('✅ Semua penternak LBL ada rekod di Pengeluaran RB/RK/UG. Tiada isu.');
+    return;
+  }
+  var h = '<html><head><meta charset="utf-8"><title>LBL Tiada di Pengeluaran</title>';
+  h += '<style>body{font-family:Arial,sans-serif;padding:20px;background:#f7fafc}';
+  h += 'table{width:100%;border-collapse:collapse;font-size:12px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.1)}';
+  h += 'th{background:#0F2D5E;color:#fff;padding:8px;border:1px solid #ccc;text-align:left}';
+  h += 'td{padding:7px 8px;border:1px solid #ddd}</style></head><body>';
+  h += '<h2 style="color:#0F2D5E">⚠️ Penternak LBL TIADA di Pengeluaran RB/RK/UG (' + issues.length + ' rekod)</h2>';
+  h += '<p style="color:#718096;font-size:13px">Ini sebabkan jumlah LBL tak sepadan dengan jumlah Pengeluaran (RB+RK+UG). Sila semak & betulkan Jenis Ternakan di Senarai Penternak, atau tambah rekod pengeluaran yang belum disubmit.</p>';
+  h += '<table><tr><th>Nama</th><th>PO</th><th>Jenis Ternakan</th><th>Sebab</th></tr>';
+  issues.forEach(function(it){
+    h += '<tr><td><b>'+it.nm+'</b></td><td>'+it.po+'</td><td style="color:#c53030;font-weight:700">'+it.j+'</td><td>'+it.sebab+'</td></tr>';
+  });
+  h += '</table></body></html>';
+  var w = window.open('', '_blank');
+  if(w){ w.document.write(h); w.document.close(); }
+  else alert('Sila benarkan pop-up untuk lihat laporan ni.');
+}
+
 function auditPengeluaranNotInLBL(){
   if(!isMLAdmin()){ alert('Hanya admin boleh guna alat ini'); return; }
   if(typeof fixMlEmbIdPollution==='function') fixMlEmbIdPollution();
@@ -5076,6 +5139,7 @@ function renderKomoditiPage(){
   h += '<button onclick="mergeKangarPerlisDuplicates()" style="background:#fef3c7;border:1px solid #b45309;color:#b45309;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128260; Gabung KANGAR/PERLIS + Buang Duplicate</button>';
   h += '<button onclick="auditKangarRecords()" style="background:#e0f2fe;border:1px solid #0369a1;color:#0369a1;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak Rekod PO KANGAR</button>';
   h += '<button onclick="auditPengeluaranNotInLBL()" style="background:#f0fff4;border:1px solid #276749;color:#276749;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak Pengeluaran Tiada di LBL</button>';
+  h += '<button onclick="auditLBLNotInPengeluaran()" style="background:#eff6ff;border:1px solid #1d4ed8;color:#1d4ed8;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak LBL Tiada di Pengeluaran</button>';
   h += '<button onclick="addSpecificMissingFarmers2026()" style="background:#e6fffa;border:1px solid #0d9488;color:#0d9488;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#10133; Tambah Penternak Hilang ke Masterlist</button>';
   h += '<button onclick="if(confirm(\'Betulkan ejaan jenis ternakan (typo diketahui) merentasi Senarai Penternak, Masterlist, Pengeluaran RB/RK?\'))fixJenisTernakanTypos()" style="background:#eef2ff;border:1px solid #4338ca;color:#4338ca;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128221; Betulkan Ejaan Jenis Ternakan</button>';
   h += '<button onclick="auditDuplicateLTJ()" style="background:#fff7ed;border:1px solid #c2410c;color:#c2410c;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak Duplicate LTJ</button>';
@@ -13305,6 +13369,7 @@ function _exportKompExcelGabunganCore(yr){
     }
   }catch(e){}
   function pegNameForRec(r, poFallback){
+    if(r.pegawai && (r.pegawai||'').toUpperCase().trim()!=='ADMIN') return r.pegawai;
     var id = r.pegawaiId!==undefined?r.pegawaiId:r.pid;
     if(id!==undefined && pegById[id]) return pegById[id];
     var po = normPO(r.po||poFallback||'');
