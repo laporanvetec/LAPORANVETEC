@@ -1134,13 +1134,15 @@ function approveSP03Clearance(){
 function checkPengeluaranUpdate(typeCode){
   // typeCode: 'rb', 'rk', or 'ug'
   if(!CU) return;
-  var now = new Date();
-  var curMo = now.getMonth();
-  var curYr = now.getFullYear();
+  var curMo = CM; // guna bulan pelaporan terlaras (ikut peraturan <=8hb), bukan bulan kalendar mentah
+  var curYr = CY;
   
-  // Get visited farms this month for this type
+  // Get visited farms this month for this type — HANYA penternak yang ditugaskan kepada pegawai ni
+  var cuNmChk = (CU.nm||'').toUpperCase().trim();
   var visited = pt.filter(function(p){
     if(!p.tr) return false;
+    if((p.po||'').toUpperCase().trim()!==(CU.po||'').toUpperCase().trim()) return false;
+    if(!isMLAdmin() && (!p.pegawai || p.pegawai.toUpperCase().trim()!==cuNmChk)) return false;
     if(typeCode==='rb' && !isT(p.j,'rb')) return false;
     if(typeCode==='rk' && !isT(p.j,'rk')) return false;
     if(typeCode==='ug' && !isT(p.j,'ug')) return false;
@@ -1156,18 +1158,22 @@ function checkPengeluaranUpdate(typeCode){
   var keyMap = {rb:'vu_rb', rk:'vu_rk', ug:'vu_ug'};
   var allPeng = [];
   try{ allPeng = JSON.parse(localStorage.getItem(keyMap[typeCode])||'[]'); }catch(e){}
+  // PENTING: rekod pengeluaran guna medan 'bln' (teks cth 'JUN') & 'thn', BUKAN 'mo'/'yr' — dan TIADA medan 'rid'.
+  // Padan ikut nama+PO (normalisasi) supaya semakan betul-betul jumpa rekod yang dah disimpan.
+  var curBlnName = (typeof BLN!=='undefined') ? BLN[curMo] : '';
   var thisMonth = allPeng.filter(function(r){
-    return r.mo===curMo && r.yr===curYr && r.po===CU.po;
+    var rBln = (typeof normalizeBulan==='function') ? normalizeBulan(r.bln) : (r.bln||'').toUpperCase().trim();
+    return rBln===curBlnName && String(r.thn)===String(curYr) && (r.po||'').toUpperCase().trim()===(CU.po||'').toUpperCase().trim();
   });
-  var existRids = thisMonth.map(function(r){return r.rid;});
+  var existKeys = thisMonth.map(function(r){ return (r.nm||'').toUpperCase().trim(); });
   
   // Get keep-as-is acknowledgments
   var keepLog = JSON.parse(localStorage.getItem('vu_peng_keep')||'{}');
   
   // Find farms visited but not yet updated AND not acknowledged
   var pending = visited.filter(function(p){
-    if(existRids.indexOf(p.rid) >= 0) return false;
-    var keepKey = typeCode+'_'+CU.pid+'_'+curYr+'_'+curMo+'_'+p.rid;
+    if(existKeys.indexOf((p.nm||'').toUpperCase().trim()) >= 0) return false;
+    var keepKey = typeCode+'_'+(CU.nm||'').toUpperCase().trim()+'_'+curYr+'_'+curMo+'_'+p.rid;
     if(keepLog[keepKey]) return false;
     return true;
   });
@@ -1217,9 +1223,10 @@ function pengEditNow(rid, typeCode){
 function pengKeepNoChange(rid, typeCode){
   var p = pt.find(function(x){return x.rid===rid;});
   if(!confirm('Sahkan TIADA PERUBAHAN untuk pengeluaran '+(p?p.nm:'')+' bulan ini?')) return;
-  var now = new Date();
   var keepLog = JSON.parse(localStorage.getItem('vu_peng_keep')||'{}');
-  var keepKey = typeCode+'_'+CU.pid+'_'+now.getFullYear()+'_'+now.getMonth()+'_'+rid;
+  // PENTING: guna CM/CY (bulan pelaporan terlaras ikut peraturan <=8hb) & CU.nm (stabil) —
+  // bukan bulan kalendar mentah atau CU.pid (boleh berubah antara sesi log masuk)
+  var keepKey = typeCode+'_'+(CU.nm||'').toUpperCase().trim()+'_'+CY+'_'+CM+'_'+rid;
   keepLog[keepKey] = {ackBy:CU.nm, ackAt:new Date().toISOString()};
   localStorage.setItem('vu_peng_keep', JSON.stringify(keepLog));
   if(window.GS_READY && typeof rtWrite==='function') rtWrite('vu_peng_keep', JSON.stringify(keepLog));
@@ -1274,6 +1281,8 @@ function openSP03Download(){
     document.getElementById('dl-po').value = CU.po || 'ALL';
     updateDLPegawaiList();
     document.getElementById('dl-po').onchange = updateDLPegawaiList;
+    var msWrap = document.getElementById('sp03-admin-multisheet');
+    if(msWrap) msWrap.style.display = 'block';
   } else {
     poWrap.style.display = 'none';
   }
@@ -1356,6 +1365,74 @@ function getSP03DataForDownload(){
   return {records: filtered, mo: mo, yr: yr, poFilter: poFilter, pegFilter: pegFilter};
 }
 
+// Versi berparameter getSP03DataForDownload (tak bergantung DOM) - guna utk jana laporan pelbagai pegawai
+function getSP03DataFilteredParams(mo, yr, poFilter, pegFilter){
+  var allSP03 = JSON.parse(localStorage.getItem('vu_sp03')||'[]');
+  allSP03.sort(function(a,b){
+    var da = a.tarikhAktiviti ? pd((a.tarikhAktiviti.split(',')[0]||'').trim()) : null;
+    var db = b.tarikhAktiviti ? pd((b.tarikhAktiviti.split(',')[0]||'').trim()) : null;
+    if(da && db && da.getTime() !== db.getTime()) return da - db;
+    if(!da && db) return 1;
+    if(da && !db) return -1;
+    var na = (a.namaPenternak||'').toString();
+    var nb = (b.namaPenternak||'').toString();
+    return na.localeCompare(nb, undefined, {numeric:true, sensitivity:'base'});
+  });
+  var filtered = allSP03.filter(function(r){
+    if(r.mo !== mo || r.yr !== yr) return false;
+    if(poFilter !== 'ALL' && r.po !== poFilter) return false;
+    if(pegFilter !== 'ALL'){
+      var pgName = (pegFilter.indexOf('_')>0 ? pegFilter.split('_')[0] : pegFilter).toUpperCase().trim();
+      var isKetua2 = r.ketuaAktiviti && r.ketuaAktiviti.toUpperCase().trim() === pgName;
+      var pegList2 = [];
+      if(r.pegawaiLain) pegList2 = r.pegawaiLain.split(',').map(function(x){return x.trim().toUpperCase();});
+      else pegList2 = [r.pegawai1,r.pegawai2,r.pegawai3].filter(Boolean).map(function(x){return x.toUpperCase().trim();});
+      var isPeg2 = pegList2.indexOf(pgName) >= 0;
+      if(!isKetua2 && !isPeg2) return false;
+    }
+    return true;
+  });
+  return {records: filtered, mo: mo, yr: yr, poFilter: poFilter, pegFilter: pegFilter};
+}
+
+// Laporan SP03 GABUNGAN — 1 SHEET SETIAP PEGAWAI (semua PO, admin sahaja)
+function exportSP03AllOfficersExcel(){
+  if(!isMLAdmin()){ alert('Hanya admin boleh guna alat ini'); return; }
+  if(typeof XLSX === 'undefined'){ alert('Library XLSX tidak dimuat. Refresh halaman.'); return; }
+  var mo = parseInt(document.getElementById('dl-mo') ? document.getElementById('dl-mo').value : CM);
+  var yr = parseInt(document.getElementById('dl-yr') ? document.getElementById('dl-yr').value : CY);
+  if(isNaN(mo)) mo = CM;
+  if(isNaN(yr)) yr = CY;
+
+  // Kumpul semua PO yang ada rekod SP03 utk bulan/tahun ni
+  var sp03All = JSON.parse(localStorage.getItem('vu_sp03')||'[]').filter(function(r){ return r.mo===mo && r.yr===yr; });
+  if(!sp03All.length){ alert('Tiada rekod SP03 untuk bulan/tahun ni.'); return; }
+  var posWithData = [];
+  sp03All.forEach(function(r){ if(posWithData.indexOf(r.po)<0) posWithData.push(r.po); });
+  posWithData.sort();
+
+  var wb = XLSX.utils.book_new();
+  var sheetsAdded = 0;
+  posWithData.forEach(function(po){
+    var officers = (typeof getAllOfficerNamesForPO==='function') ? getAllOfficerNamesForPO(po) : [];
+    if(!officers.length) officers = ['(TIADA PEGAWAI BERDAFTAR)'];
+    officers.forEach(function(off){
+      var data = getSP03DataFilteredParams(mo, yr, po, off);
+      if(!data.records.length) return; // pegawai ni tiada rekod utk PO/bulan ni - skip
+      var sheetLabel = off+' - '+po;
+      exportSP03Excel(data, wb, sheetLabel);
+      sheetsAdded++;
+    });
+  });
+
+  if(!sheetsAdded){ alert('Tiada rekod SP03 dijumpai bagi mana-mana pegawai.'); return; }
+
+  var bln = BLN_SP_FULL[mo];
+  XLSX.writeFile(wb, 'SP03_Semua_Pegawai_'+bln+'_'+yr+'.xlsx');
+  toast('✅ Laporan SP03 ('+sheetsAdded+' sheet pegawai) berjaya dimuat turun','#276749');
+}
+
+
 function doSP03Download(){
   var format = document.getElementById('dl-format').value;
   var data = getSP03DataForDownload();
@@ -1380,7 +1457,7 @@ function doSP03Download(){
   }
 }
 
-function exportSP03Excel(data){
+function exportSP03Excel(data, sharedWb, sheetLabel){
   if(typeof XLSX === 'undefined'){ alert('Library XLSX tidak dimuat. Refresh halaman.'); return; }
   var recs = data.records;
   var bln = BLN_SP_FULL[data.mo];
@@ -1618,9 +1695,15 @@ function exportSP03Excel(data){
   // Set row heights
   ws['!rows'] = [{hpt:24},{hpt:30},{hpt:60}];
   
-  // Create workbook
-  var wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'SP03 '+bln+' '+data.yr);
+  // Create workbook (atau guna workbook kongsi jika diberi — utk laporan pelbagai sheet)
+  var wb = sharedWb || XLSX.utils.book_new();
+  var mainSheetName = (sheetLabel || ('SP03 '+bln+' '+data.yr)).substring(0,31);
+  XLSX.utils.book_append_sheet(wb, ws, mainSheetName);
+  
+  if(sharedWb){
+    // Mod workbook kongsi: lompat sheet Ringkasan berasingan & jangan writeFile (caller akan uruskan)
+    return;
+  }
   
   // Add summary sheet
   var summaryData = [
@@ -2266,6 +2349,13 @@ function getOfficerNameForPt(p){
 // Tetapkan pegawai yang SEDANG LOG MASUK sebagai pegawai rasmi bagi penternak (rid) ini.
 // Guna medan teks 'pegawai' (stabil, tak bergantung pid sesi) supaya paparan & penapisan LTJ terus tepat.
 // Senaraikan SEMUA nama pegawai sah bagi satu PO (gabungan vu_g berdaftar + DEFAULT_OFFICERS + vu_officers custom)
+// Standardkan ejaan bulan (JUN/June/Jun dll -> JUN) — versi global, guna oleh renderRB/RK/UG utk status.
+var _BLN_MAP_G = {'JAN':'JAN','FEB':'FEB','MAC':'MAC','MAR':'MAC','APR':'APR','APRIL':'APR','MEI':'MEI','MAY':'MEI','JUN':'JUN','JUNE':'JUN','JUL':'JUL','JULY':'JUL','JULAI':'JUL','OGO':'OGO','OGOS':'OGO','AUG':'OGO','SEP':'SEP','SEPT':'SEP','OKT':'OKT','OCT':'OKT','NOV':'NOV','DIS':'DIS','DEC':'DIS'};
+function normalizeBulan2(rawBln){
+  var s = (rawBln||'').toString().trim().toUpperCase();
+  return _BLN_MAP_G[s] || s;
+}
+
 function getAllOfficerNamesForPO(po){
   var names = [];
   try{
@@ -3330,6 +3420,10 @@ window.addEventListener('load',function(){
         <div style="background:#f0fff4;border-left:3px solid #276749;padding:8px 10px;font-size:10px;color:#22543d;border-radius:3px;margin-bottom:10px">
           <span id="dl-info">Pilih format dan tarikh untuk download laporan</span>
         </div>
+        <div id="sp03-admin-multisheet" style="display:none;background:#f5f3ff;border-left:3px solid #6d28d9;padding:8px 10px;font-size:10px;color:#4c1d95;border-radius:3px;margin-bottom:10px">
+          <b>ADMIN:</b> Nak laporan SEMUA pegawai sekali gus (1 sheet = 1 pegawai)?
+          <button class="btn bn" style="background:#6d28d9;padding:4px 10px;font-size:10px;margin-left:6px" onclick="exportSP03AllOfficersExcel()">&#128229; Jana Laporan Semua Pegawai</button>
+        </div>
       </div>
       <div class="mft" style="padding:10px 14px;background:#f7fafc;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:8px">
         <button class="btn bgh" onclick="closeM('mSP03DL')">Batal</button>
@@ -4135,15 +4229,14 @@ function myLBL(t){
   if(isMLAdmin()){
     return myPt(t); // Admin sees all
   }
-  // Officer: their own vu_p entries (pid match OR pegawai name match)
+  // Officer: HANYA penternak yang secara EKSPLISIT ditugaskan kepada pegawai ni (padan nama, stabil)
+  // TIDAK guna pid (boleh berubah antara sesi log masuk, punca penternak pegawai lain tersalah muncul)
   var cuNm = (CU.nm||'').toUpperCase().trim();
   return pt.filter(function(p){
     if(!p) return false;
-    // Match by pid OR by pegawai name (for admin-assigned entries)
-    var pidMatch = (p.pid === CU.pid);
-    // pegMatch requires BOTH name match AND same PO (prevents cross-PO name collision e.g. AZIELA/AZILA)
-    var pegMatch = (p.pegawai && p.pegawai.toUpperCase().trim() === cuNm && p.po === CU.po);
-    if(!pidMatch && !pegMatch) return false;
+    if((p.po||'').toUpperCase().trim() !== (CU.po||'').toUpperCase().trim()) return false;
+    var pegMatch = (p.pegawai && p.pegawai.toUpperCase().trim() === cuNm);
+    if(!pegMatch) return false;
     if(t && !isT(p.j||'', t)) return false;
     return true;
   });
@@ -5267,6 +5360,7 @@ function renderKomoditiPage(){
   h += '<button onclick="auditLBLNotInPengeluaran()" style="background:#eff6ff;border:1px solid #1d4ed8;color:#1d4ed8;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak LBL Tiada di Pengeluaran</button>';
   h += '<button onclick="addSpecificMissingFarmers2026()" style="background:#e6fffa;border:1px solid #0d9488;color:#0d9488;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#10133; Tambah Penternak Hilang ke Masterlist</button>';
   h += '<button onclick="importUpdatedDataJun2026()" style="background:#f5f3ff;border:1px solid #6d28d9;color:#6d28d9;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128229; Import Data JUN26 Dikemaskini</button>';
+  h += '<button onclick="exportSP03AllOfficersExcel()" style="background:#fdf4ff;border:1px solid #a21caf;color:#a21caf;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128229; Laporan SP03 Semua Pegawai (1 Sheet/Pegawai)</button>';
   h += '<button onclick="if(confirm(\'Betulkan ejaan jenis ternakan (typo diketahui) merentasi Senarai Penternak, Masterlist, Pengeluaran RB/RK?\'))fixJenisTernakanTypos()" style="background:#eef2ff;border:1px solid #4338ca;color:#4338ca;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128221; Betulkan Ejaan Jenis Ternakan</button>';
   h += '<button onclick="auditDuplicateLTJ()" style="background:#fff7ed;border:1px solid #c2410c;color:#c2410c;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak Duplicate LTJ</button>';
   h += '<button onclick="diagnosticLTJFull()" style="background:#1e1b4b;border:1px solid #1e1b4b;color:#fff;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128300; Diagnostik LTJ Penuh</button>';
@@ -6926,7 +7020,15 @@ function renderRB(){
   ld();
   var bln=document.getElementById('rb-bln').value,thn=document.getElementById('rb-thn').value;
   var mp=myLBL('rb');
-  var f=rRB.filter(function(r){return r.pid===CU.pid&&(!bln||r.bln===bln)&&(!thn||r.thn===thn);});
+  // PENTING: jadual rekod (bawah) MESTI selaras dgn Senarai Penternak (atas) — hanya papar rekod
+  // untuk penternak yang ADA dalam mp (bukan admin/isMLAdmin, atau semua PO), elak dua sumber berlainan.
+  var mpNameSet = {};
+  if(!isMLAdmin()){ mp.forEach(function(p){ mpNameSet[(p.nm||'').toUpperCase().trim()] = true; }); }
+  var f=rRB.filter(function(r){
+    var poOk = (r.po||'').toUpperCase().trim()===(CU.po||'').toUpperCase().trim();
+    var nmOk = isMLAdmin() || mpNameSet[(r.nm||'').toUpperCase().trim()];
+    return poOk && nmOk && (!bln||normalizeBulan2(r.bln)===bln)&&(!thn||r.thn===thn);
+  });
   document.getElementById('rb-cnt').textContent=mp.length+' penternak | '+f.length+' rekod';
   // Penternak section
   var ps=document.getElementById('rb-p');
@@ -6941,16 +7043,22 @@ function renderRB(){
   ph+='<span style="color:#fff;font-weight:700;font-size:13px">Senarai Penternak RB ('+mp.length+')</span>';
   ph+='<button class="btn bg" style="padding:5px 12px;font-size:11px" id="add-rb-btn">+ Tambah Rekod RB</button></div>';
   ph+='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#fffbeb">';
-  ['#','Nama','Jenis','Tarikh Lawatan','Status Bulan Ini','Rekod Cepat'].forEach(function(c){ph+='<th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900;text-align:left">'+c+'</th>';});
+  ['#','Nama','Jenis','Tarikh Lawatan','Status Data RB','Status Bulan Ini','Rekod Cepat'].forEach(function(c){ph+='<th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900;text-align:left">'+c+'</th>';});
   ph+='</tr></thead><tbody>';
   mp.forEach(function(p,i){
     var pi=pt.indexOf(p);
-    var hR=rRB.some(function(r){return r.pid===CU.pid&&r.nm===p.nm&&r.bln===BLN[CM]&&r.thn===''+CY;});
+    var poNorm=(p.po||'').toUpperCase().trim();
+    var nmNorm=(p.nm||'').toUpperCase().trim();
+    // STATUS DATA RB: ada tarikh lawatan DAN ada sebarang rekod pengeluaran (mana-mana bulan) untuk penternak ni
+    var hasAnyData = !!p.tr && rRB.some(function(r){ return (r.po||'').toUpperCase().trim()===poNorm && (r.nm||'').toUpperCase().trim()===nmNorm; });
+    // STATUS BULAN NI: ada rekod pengeluaran khusus untuk bulan pelaporan semasa (CM/CY, ikut peraturan <=8hb)
+    var hR=rRB.some(function(r){ return (r.po||'').toUpperCase().trim()===poNorm && (r.nm||'').toUpperCase().trim()===nmNorm && normalizeBulan2(r.bln)===BLN[CM] && String(r.thn)===String(CY); });
     ph+='<tr style="background:'+(i%2?'#fafafa':'#fff')+';border-bottom:1px solid #f0f0f0">';
     ph+='<td style="padding:8px 12px;color:#a0aec0">'+(i+1)+'</td>';
     ph+='<td style="padding:8px 12px;font-weight:700">'+p.nm+'</td>';
     ph+='<td style="padding:8px 12px"><span class="bj">'+p.j+'</span></td>';
     ph+='<td style="padding:8px 12px;font-size:11px;color:'+(p.tr?'#276749':'#c53030')+'">'+(p.tr||'Belum ada')+'</td>';
+    ph+='<td style="padding:8px 12px;text-align:center"><span class="'+(hasAnyData?'s1':'s0')+'">'+(hasAnyData?'Sudah diisi':'Belum diisi')+'</span></td>';
     ph+='<td style="padding:8px 12px;text-align:center"><span class="'+(hR?'s1':'s0')+'">'+(hR?'Sudah diisi':'Belum diisi')+'</span></td>';
     ph+='<td style="padding:8px 12px;text-align:center"><button class="btn bg" style="padding:4px 12px;font-size:11px" data-pi="'+pi+'" id="qrb-'+i+'">+ Rekod</button></td>';
     ph+='</tr>';
@@ -7004,21 +7112,34 @@ function renderRK(){
   ld();
   var bln=document.getElementById('rk-bln').value,thn=document.getElementById('rk-thn').value;
   var mp=myLBL('rk');
-  var f=rRK.filter(function(r){return r.pid===CU.pid&&(!bln||r.bln===bln)&&(!thn||r.thn===thn);});
+  var mpNameSetRk = {};
+  if(!isMLAdmin()){ mp.forEach(function(p){ mpNameSetRk[(p.nm||'').toUpperCase().trim()] = true; }); }
+  var f=rRK.filter(function(r){
+    var poOk = (r.po||'').toUpperCase().trim()===(CU.po||'').toUpperCase().trim();
+    var nmOk = isMLAdmin() || mpNameSetRk[(r.nm||'').toUpperCase().trim()];
+    return poOk && nmOk && (!bln||normalizeBulan2(r.bln)===bln)&&(!thn||r.thn===thn);
+  });
   document.getElementById('rk-cnt').textContent=mp.length+' penternak | '+f.length+' rekod';
   var w=document.getElementById('rk-w');
   var h='';
   if(!mp.length){w.innerHTML='<div class="wb"><div style="font-size:22px;margin-bottom:8px">&#9888;</div><div style="font-weight:700;color:#c53030">Tiada penternak RK</div><div style="color:#718096;font-size:12px;margin:6px 0">Tambah penternak jenis Kambing/Bebiri di Senarai Penternak.</div><button class="btn bg" id="sp-rk" style="margin-top:8px">Pergi ke Senarai Penternak</button></div>';document.getElementById('sp-rk').onclick=function(){showPg('sp');};return;}
   h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:14px;overflow:hidden"><div style="background:#0f2d5e;padding:10px 16px;display:flex;align-items:center;justify-content:space-between"><span style="color:#fff;font-weight:700">Senarai Penternak RK ('+mp.length+')</span><button class="btn bg" style="padding:5px 12px;font-size:11px" id="add-rk">+ Tambah Rekod RK</button></div>';
-  h+='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#fffbeb"><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">#</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Nama</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Jenis</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Tarikh Lawatan</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Tindakan</th></tr></thead><tbody>';
-  mp.forEach(function(p,i){var pi=pt.indexOf(p);h+='<tr style="background:'+(i%2?'#fafafa':'#fff')+';border-bottom:1px solid #f0f0f0"><td style="padding:8px 12px;color:#a0aec0">'+(i+1)+'</td><td style="padding:8px 12px;font-weight:700">'+p.nm+'</td><td style="padding:8px 12px"><span class="bj">'+p.j+'</span></td><td style="padding:8px 12px;font-size:11px;color:'+(p.tr?'#276749':'#c53030')+'">'+(p.tr||'Belum ada')+'</td><td style="padding:8px 12px;text-align:center"><button class="btn bg" style="padding:4px 12px;font-size:11px" data-pi="'+pi+'" id="qrk-'+i+'">+ Rekod</button></td></tr>';});
+  h+='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#fffbeb"><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">#</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Nama</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Jenis</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Tarikh Lawatan</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900;text-align:center">Status Data RK</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900;text-align:center">Status Bulan Ini</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Tindakan</th></tr></thead><tbody>';
+  mp.forEach(function(p,i){
+    var pi=pt.indexOf(p);
+    var poNorm=(p.po||'').toUpperCase().trim();
+    var nmNorm=(p.nm||'').toUpperCase().trim();
+    var hasAnyData = !!p.tr && rRK.some(function(r){ return (r.po||'').toUpperCase().trim()===poNorm && (r.nm||'').toUpperCase().trim()===nmNorm; });
+    var hR=rRK.some(function(r){ return (r.po||'').toUpperCase().trim()===poNorm && (r.nm||'').toUpperCase().trim()===nmNorm && normalizeBulan2(r.bln)===BLN[CM] && String(r.thn)===String(CY); });
+    h+='<tr style="background:'+(i%2?'#fafafa':'#fff')+';border-bottom:1px solid #f0f0f0"><td style="padding:8px 12px;color:#a0aec0">'+(i+1)+'</td><td style="padding:8px 12px;font-weight:700">'+p.nm+'</td><td style="padding:8px 12px"><span class="bj">'+p.j+'</span></td><td style="padding:8px 12px;font-size:11px;color:'+(p.tr?'#276749':'#c53030')+'">'+(p.tr||'Belum ada')+'</td><td style="padding:8px 12px;text-align:center"><span class="'+(hasAnyData?'s1':'s0')+'">'+(hasAnyData?'Sudah diisi':'Belum diisi')+'</span></td><td style="padding:8px 12px;text-align:center"><span class="'+(hR?'s1':'s0')+'">'+(hR?'Sudah diisi':'Belum diisi')+'</span></td><td style="padding:8px 12px;text-align:center"><button class="btn bg" style="padding:4px 12px;font-size:11px" data-pi="'+pi+'" id="qrk-'+i+'">+ Rekod</button></td></tr>';
+  });
   h+='</tbody></table></div>';
   if(f.length){
-    h+='<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:11px;white-space:nowrap"><thead><tr>';
-    ['Nama','PO','Bulan','Tarikh','Jenis','Bantuan','PPV','Stok P','<1J','<1B','1-2J','1-2B','>2J','>2B','Perah','Kering','Kel','NM','AI','Mati DJ','Mati DB','Mati A','Jml Mati','Jualan','Susu','Stok Akhir'].forEach(function(c){h+='<th style="background:#F9C000;border:1px solid #000;padding:5px 6px;font-size:10px;font-weight:700">'+c+'</th>';});
-    h+='<th style="background:#ddd;border:1px solid #aaa;padding:5px">TINDAKAN</th></tr></thead><tbody>';
-    f.forEach(function(r,i){var ri=rRK.indexOf(r);h+='<tr style="background:'+(i%2?'#FAFFF7':'#fff')+'">';[r.nm,r.po,r.bln,r.tr||'-',r.j,r.bn||'-',r.pv,nv(r.sP),nv(r.l1J),nv(r.l1B),nv(r.s12J),nv(r.s12B),nv(r.g2J),nv(r.g2B),nv(r.pr),nv(r.kr),nv(r.kS),nv(r.kNM),nv(r.kAI),nv(r.mDJ),nv(r.mDB),nv(r.mA),nv(r.mAJ),nv(r.jl),nv(r.su),nv(r.sA)].forEach(function(v,j){h+='<td style="border:1px solid #ccc;padding:4px 6px;'+(j===0?'font-weight:700':j>6?'text-align:center':'')+'">'+v+'</td>';});h+='<td style="border:1px solid #ccc;padding:3px;text-align:center"><div style="display:flex;gap:2px;justify-content:center"><button class="bsm be" data-ri="'+ri+'" id="erk-'+ri+'">&#9999;&#65039;</button><button class="bsm bd" data-ri="'+ri+'" id="drk-'+ri+'">&#128465;&#65039;</button></div></td></tr>';});
-    h+='</tbody></table></div>';
+    h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden"><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap"><thead><tr>';
+    ['Nama','PO','Bulan','Tarikh','Jenis','Bantuan','PPV','Stok P','<1J','<1B','1-2J','1-2B','>2J','>2B','Perah','Kering','Kel','NM','AI','Mati DJ','Mati DB','Mati A','Jml Mati','Jualan','Susu','Stok Akhir'].forEach(function(c){h+='<th style="background:#F9C000;border:1px solid #000;padding:8px 10px;font-size:11px;font-weight:700">'+c+'</th>';});
+    h+='<th style="background:#ddd;border:1px solid #aaa;padding:8px 10px;font-size:11px;font-weight:700">TINDAKAN</th></tr></thead><tbody>';
+    f.forEach(function(r,i){var ri=rRK.indexOf(r);h+='<tr style="background:'+(i%2?'#FAFFF7':'#fff')+'">';[r.nm,r.po,r.bln,r.tr||'-',r.j,r.bn||'-',r.pv,nv(r.sP),nv(r.l1J),nv(r.l1B),nv(r.s12J),nv(r.s12B),nv(r.g2J),nv(r.g2B),nv(r.pr),nv(r.kr),nv(r.kS),nv(r.kNM),nv(r.kAI),nv(r.mDJ),nv(r.mDB),nv(r.mA),nv(r.mAJ),nv(r.jl),nv(r.su),nv(r.sA)].forEach(function(v,j){h+='<td style="border:1px solid #ccc;padding:7px 10px;font-size:12px;'+(j===0?'font-weight:700':j>6?'text-align:center':'')+'">'+v+'</td>';});h+='<td style="border:1px solid #ccc;padding:6px;text-align:center"><div style="display:flex;gap:3px;justify-content:center"><button class="bsm be" data-ri="'+ri+'" id="erk-'+ri+'">&#9999;&#65039;</button><button class="bsm bd" data-ri="'+ri+'" id="drk-'+ri+'">&#128465;&#65039;</button></div></td></tr>';});
+    h+='</tbody></table></div></div>';
   } else {
     h+='<p style="text-align:center;color:#a0aec0;padding:12px 0;font-size:12px">Belum ada rekod.</p>';
   }
@@ -7034,21 +7155,34 @@ function renderUG(){
   ld();
   var bln=document.getElementById('ug-bln').value,thn=document.getElementById('ug-thn').value;
   var mp=myLBL('ug');
-  var f=rUG.filter(function(r){return r.pid===CU.pid&&(!bln||r.bln===bln)&&(!thn||r.thn===thn);});
+  var mpNameSetUg = {};
+  if(!isMLAdmin()){ mp.forEach(function(p){ mpNameSetUg[(p.nm||'').toUpperCase().trim()] = true; }); }
+  var f=rUG.filter(function(r){
+    var poOk = (r.po||'').toUpperCase().trim()===(CU.po||'').toUpperCase().trim();
+    var nmOk = isMLAdmin() || mpNameSetUg[(r.nm||'').toUpperCase().trim()];
+    return poOk && nmOk && (!bln||normalizeBulan2(r.bln)===bln)&&(!thn||r.thn===thn);
+  });
   document.getElementById('ug-cnt').textContent=mp.length+' penternak | '+f.length+' rekod';
   var w=document.getElementById('ug-w');
   var h='';
   if(!mp.length){w.innerHTML='<div class="wb"><div style="font-size:22px;margin-bottom:8px">&#9888;</div><div style="font-weight:700;color:#c53030">Tiada penternak UG</div><div style="color:#718096;font-size:12px;margin:6px 0">Tambah penternak jenis Unggas di Senarai Penternak.</div><button class="btn bg" id="sp-ug" style="margin-top:8px">Pergi ke Senarai Penternak</button></div>';document.getElementById('sp-ug').onclick=function(){showPg('sp');};return;}
   h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:14px;overflow:hidden"><div style="background:#0f2d5e;padding:10px 16px;display:flex;align-items:center;justify-content:space-between"><span style="color:#fff;font-weight:700">Senarai Penternak UG ('+mp.length+')</span><button class="btn bg" style="padding:5px 12px;font-size:11px" id="add-ug">+ Tambah Rekod UG</button></div>';
-  h+='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#fffbeb"><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">#</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Nama</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Jenis</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Tarikh Lawatan</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Tindakan</th></tr></thead><tbody>';
-  mp.forEach(function(p,i){var pi=pt.indexOf(p);h+='<tr style="background:'+(i%2?'#fafafa':'#fff')+';border-bottom:1px solid #f0f0f0"><td style="padding:8px 12px;color:#a0aec0">'+(i+1)+'</td><td style="padding:8px 12px;font-weight:700">'+p.nm+'</td><td style="padding:8px 12px"><span class="bj">'+p.j+'</span></td><td style="padding:8px 12px;font-size:11px;color:'+(p.tr?'#276749':'#c53030')+'">'+(p.tr||'Belum ada')+'</td><td style="padding:8px 12px;text-align:center"><button class="btn bg" style="padding:4px 12px;font-size:11px" data-pi="'+pi+'" id="qug-'+i+'">+ Rekod</button></td></tr>';});
+  h+='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#fffbeb"><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">#</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Nama</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Jenis</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Tarikh Lawatan</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900;text-align:center">Status Data UG</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900;text-align:center">Status Bulan Ini</th><th style="padding:8px 12px;font-size:11px;font-weight:700;color:#744210;border-bottom:2px solid #e8a900">Tindakan</th></tr></thead><tbody>';
+  mp.forEach(function(p,i){
+    var pi=pt.indexOf(p);
+    var poNorm=(p.po||'').toUpperCase().trim();
+    var nmNorm=(p.nm||'').toUpperCase().trim();
+    var hasAnyData = !!p.tr && rUG.some(function(r){ return (r.po||'').toUpperCase().trim()===poNorm && (r.nm||'').toUpperCase().trim()===nmNorm; });
+    var hR=rUG.some(function(r){ return (r.po||'').toUpperCase().trim()===poNorm && (r.nm||'').toUpperCase().trim()===nmNorm && normalizeBulan2(r.bln)===BLN[CM] && String(r.thn)===String(CY); });
+    h+='<tr style="background:'+(i%2?'#fafafa':'#fff')+';border-bottom:1px solid #f0f0f0"><td style="padding:8px 12px;color:#a0aec0">'+(i+1)+'</td><td style="padding:8px 12px;font-weight:700">'+p.nm+'</td><td style="padding:8px 12px"><span class="bj">'+p.j+'</span></td><td style="padding:8px 12px;font-size:11px;color:'+(p.tr?'#276749':'#c53030')+'">'+(p.tr||'Belum ada')+'</td><td style="padding:8px 12px;text-align:center"><span class="'+(hasAnyData?'s1':'s0')+'">'+(hasAnyData?'Sudah diisi':'Belum diisi')+'</span></td><td style="padding:8px 12px;text-align:center"><span class="'+(hR?'s1':'s0')+'">'+(hR?'Sudah diisi':'Belum diisi')+'</span></td><td style="padding:8px 12px;text-align:center"><button class="btn bg" style="padding:4px 12px;font-size:11px" data-pi="'+pi+'" id="qug-'+i+'">+ Rekod</button></td></tr>';
+  });
   h+='</tbody></table></div>';
   if(f.length){
-    h+='<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:11px;white-space:nowrap"><thead><tr>';
-    ['Nama','PO','Bulan','Tarikh','Jenis','Bantuan','PPV','Populasi','Kapasiti','Bil Reban','Kematian','Pusingan/Thn','Jualan'].forEach(function(c){h+='<th style="background:#F9C000;border:1px solid #000;padding:5px 6px;font-size:10px;font-weight:700">'+c+'</th>';});
-    h+='<th style="background:#ddd;border:1px solid #aaa;padding:5px">TINDAKAN</th></tr></thead><tbody>';
-    f.forEach(function(r,i){var ri=rUG.indexOf(r);h+='<tr style="background:'+(i%2?'#FAFFF7':'#fff')+'">';[r.nm,r.po,r.bln,r.tr||'-',r.j,r.bn||'-',r.pv,nv(r.pp),nv(r.kp),nv(r.rb2),nv(r.km),nv(r.pu),nv(r.jl)].forEach(function(v,j){h+='<td style="border:1px solid #ccc;padding:4px 6px;'+(j===0?'font-weight:700':j>6?'text-align:center':'')+'">'+v+'</td>';});h+='<td style="border:1px solid #ccc;padding:3px;text-align:center"><div style="display:flex;gap:2px;justify-content:center"><button class="bsm be" data-ri="'+ri+'" id="eug-'+ri+'">&#9999;&#65039;</button><button class="bsm bd" data-ri="'+ri+'" id="dug-'+ri+'">&#128465;&#65039;</button></div></td></tr>';});
-    h+='</tbody></table></div>';
+    h+='<div style="background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden"><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap"><thead><tr>';
+    ['Nama','PO','Bulan','Tarikh','Jenis','Bantuan','PPV','Populasi','Kapasiti','Bil Reban','Kematian','Pusingan/Thn','Jualan'].forEach(function(c){h+='<th style="background:#F9C000;border:1px solid #000;padding:8px 10px;font-size:11px;font-weight:700">'+c+'</th>';});
+    h+='<th style="background:#ddd;border:1px solid #aaa;padding:8px 10px;font-size:11px;font-weight:700">TINDAKAN</th></tr></thead><tbody>';
+    f.forEach(function(r,i){var ri=rUG.indexOf(r);h+='<tr style="background:'+(i%2?'#FAFFF7':'#fff')+'">';[r.nm,r.po,r.bln,r.tr||'-',r.j,r.bn||'-',r.pv,nv(r.pp),nv(r.kp),nv(r.rb2),nv(r.km),nv(r.pu),nv(r.jl)].forEach(function(v,j){h+='<td style="border:1px solid #ccc;padding:7px 10px;font-size:12px;'+(j===0?'font-weight:700':j>6?'text-align:center':'')+'">'+v+'</td>';});h+='<td style="border:1px solid #ccc;padding:6px;text-align:center"><div style="display:flex;gap:3px;justify-content:center"><button class="bsm be" data-ri="'+ri+'" id="eug-'+ri+'">&#9999;&#65039;</button><button class="bsm bd" data-ri="'+ri+'" id="dug-'+ri+'">&#128465;&#65039;</button></div></td></tr>';});
+    h+='</tbody></table></div></div>';
   } else {
     h+='<p style="text-align:center;color:#a0aec0;padding:12px 0;font-size:12px">Belum ada rekod.</p>';
   }
@@ -7062,16 +7196,16 @@ function renderUG(){
 
 function calcRB(){
   var v=function(id){return +(document.getElementById(id)||{value:0}).value||0;};
-  var sp=v('nL1J')+v('nL1B')+v('n12J')+v('n12B')+v('nG2J')+v('nG2B');
+  var jml=v('nL1J')+v('nL1B')+v('n12J')+v('n12B')+v('nG2J')+v('nG2B');
   var km=v('nMDJ')+v('nMDB')+v('nMA');
-  var sa=Math.max(0,sp-km-v('nJl'));
+  var sa=Math.max(0,jml-km-v('nJl'));
   var setVal=function(id,val){var e=document.getElementById(id);if(e)e.value=val;};
-  setVal('nSP',sp);
+  setVal('nJmlTernak',jml);
   setVal('nMAJ',km);
   setVal('nSA',sa);
 }
 
-function rbFld(){return '<div class=\"sec\"><div class=\"seh\" style=\"background:#1a56a4\">SISTEM PENTERNAKAN</div><div class=\"seb\" style=\"border:1px solid #1a56a4\"><div class=\"g3\"><div class=\"cbg\" style=\"background:#ebf8ff\"><div class=\"cbt\" style=\"color:#2b6cb0\">INTENSIF</div><label class=\"cbi\"><input type=\"checkbox\" id=\"cIF\"> Fidlot</label><label class=\"cbi\"><input type=\"checkbox\" id=\"cIB\"> Breedlot</label><label class=\"cbi\"><input type=\"checkbox\" id=\"cIG\"> Greenlot</label></div><div class=\"cbg\" style=\"background:#e8f5e9\"><div class=\"cbt\" style=\"color:#276749\">SEMI INTENSIF</div><label class=\"cbi\"><input type=\"checkbox\" id=\"cSB\"> Breedlot</label><label class=\"cbi\"><input type=\"checkbox\" id=\"cSG\"> Greenlot</label></div><div class=\"cbg\" style=\"background:#fffbeb\"><div class=\"cbt\" style=\"color:#744210\">EKSTENSIF</div><label class=\"cbi\"><input type=\"checkbox\" id=\"cEL\"> Lepas Bebas</label><label class=\"cbi\"><input type=\"checkbox\" id=\"cEI\"> Integrasi</label></div></div></div></div>'+'<div class=\"sec\"><div class=\"seh\" style=\"background:#744210\">SKALA</div><div class=\"seb\" style=\"border:1px solid #744210\"><div class=\"g3\"><div class=\"cbg\" style=\"background:#fffbeb\"><label class=\"cbi\"><input type=\"checkbox\" id=\"cKom\"> Komersil</label></div><div class=\"cbg\" style=\"background:#fffbeb\"><label class=\"cbi\"><input type=\"checkbox\" id=\"cSK\"> Semi Komersil</label></div><div class=\"cbg\" style=\"background:#fffbeb\"><label class=\"cbi\"><input type=\"checkbox\" id=\"cKec\"> Kecil</label></div></div></div></div>'+'<div class=\"sec\"><div class=\"seh\" style=\"background:#276749\">STRUKTUR TERNAKAN</div><div class=\"seb\" style=\"border:1px solid #276749\"><div class=\"nr\"><div class=\"nf\"><span>STOK PEMBUKA</span><input type=\"number\" min=\"0\" id=\"nSP\" value=\"0\" readonly style=\"background:#f7fafc;font-weight:700\"></div><div class=\"ng\" style=\"background:#ebf8ff\"><div class=\"ngt\" style=\"color:#2b6cb0\">&lt;1 THN</div><div class=\"ngr\"><div class=\"nf\"><span>J</span><input type=\"number\" min=\"0\" id=\"nL1J\" value=\"0\" oninput=\"calcRB()\"></div><div class=\"nf\"><span>B</span><input type=\"number\" min=\"0\" id=\"nL1B\" value=\"0\" oninput=\"calcRB()\"></div></div></div><div class=\"ng\" style=\"background:#e8f5e9\"><div class=\"ngt\" style=\"color:#276749\">1-2 THN</div><div class=\"ngr\"><div class=\"nf\"><span>J</span><input type=\"number\" min=\"0\" id=\"n12J\" value=\"0\" oninput=\"calcRB()\"></div><div class=\"nf\"><span>B</span><input type=\"number\" min=\"0\" id=\"n12B\" value=\"0\" oninput=\"calcRB()\"></div></div></div><div class=\"ng\" style=\"background:#fffbeb\"><div class=\"ngt\" style=\"color:#744210\">&gt;2 THN</div><div class=\"ngr\"><div class=\"nf\"><span>J</span><input type=\"number\" min=\"0\" id=\"nG2J\" value=\"0\" oninput=\"calcRB()\"></div><div class=\"nf\"><span>B</span><input type=\"number\" min=\"0\" id=\"nG2B\" value=\"0\" oninput=\"calcRB()\"></div></div></div></div></div></div>'+'<div class=\"g2\"><div class=\"sec\"><div class=\"seh\" style=\"background:#553c9a\">INDUK TENUSU</div><div class=\"seb\" style=\"border:1px solid #553c9a\"><div class=\"nr\"><div class=\"nf\"><span>PERAH</span><input type=\"number\" min=\"0\" id=\"nPr\" value=\"0\"></div><div class=\"nf\"><span>KERING</span><input type=\"number\" min=\"0\" id=\"nKr\" value=\"0\"></div></div></div></div><div class=\"sec\"><div class=\"seh\" style=\"background:#0987a0\">KELAHIRAN</div><div class=\"seb\" style=\"border:1px solid #0987a0\"><div class=\"nr\"><div class=\"nf\"><span>Sehingga Kini</span><input type=\"number\" min=\"0\" id=\"nKS\" value=\"0\"></div><div class=\"nf\"><span>Natural Mating</span><input type=\"number\" min=\"0\" id=\"nKNM\" value=\"0\"></div><div class=\"nf\"><span>AI</span><input type=\"number\" min=\"0\" id=\"nKAI\" value=\"0\"></div></div></div></div></div>'+'<div class=\"sec\"><div class=\"seh\" style=\"background:#c53030\">KEMATIAN</div><div class=\"seb\" style=\"border:1px solid #c53030\"><div class=\"nr\"><div class=\"ng\" style=\"background:#fff5f5\"><div class=\"ngt\" style=\"color:#c53030\">DEWASA</div><div class=\"ngr\"><div class=\"nf\"><span>J</span><input type=\"number\" min=\"0\" id=\"nMDJ\" value=\"0\" oninput=\"calcRB()\"></div><div class=\"nf\"><span>B</span><input type=\"number\" min=\"0\" id=\"nMDB\" value=\"0\" oninput=\"calcRB()\"></div></div></div><div class=\"ng\" style=\"background:#fff5f5\"><div class=\"ngt\" style=\"color:#c53030\">ANAK</div><div class=\"ngr\"><div class=\"nf\"><span>&lt;6bln</span><input type=\"number\" min=\"0\" id=\"nMA\" value=\"0\" oninput=\"calcRB()\"></div></div></div><div class=\"nf\"><span>JUMLAH KEMATIAN</span><input type=\"number\" min=\"0\" id=\"nMAJ\" value=\"0\" readonly style=\"background:#fed7d7;font-weight:700;color:#c53030\"></div></div></div></div>'+'<div class=\"sec\"><div class=\"seh\" style=\"background:#276749\">PENGELUARAN</div><div class=\"seb\" style=\"border:1px solid #276749\"><div class=\"nr\"><div class=\"nf\"><span>JUALAN (ekor)</span><input type=\"number\" min=\"0\" id=\"nJl\" value=\"0\" oninput=\"calcRB()\"></div><div class=\"nf\"><span>SUSU (liter)</span><input type=\"number\" min=\"0\" id=\"nSu\" value=\"0\"></div><div class=\"nf\"><span>STOK AKHIR</span><input type=\"number\" min=\"0\" id=\"nSA\" value=\"0\" readonly style=\"background:#c6f6d5;font-weight:700;color:#276749\"></div></div></div></div>';}
+function rbFld(){return '<div class=\"sec\"><div class=\"seh\" style=\"background:#1a56a4\">SISTEM PENTERNAKAN</div><div class=\"seb\" style=\"border:1px solid #1a56a4\"><div class=\"g3\"><div class=\"cbg\" style=\"background:#ebf8ff\"><div class=\"cbt\" style=\"color:#2b6cb0\">INTENSIF</div><label class=\"cbi\"><input type=\"checkbox\" id=\"cIF\"> Fidlot</label><label class=\"cbi\"><input type=\"checkbox\" id=\"cIB\"> Breedlot</label><label class=\"cbi\"><input type=\"checkbox\" id=\"cIG\"> Greenlot</label></div><div class=\"cbg\" style=\"background:#e8f5e9\"><div class=\"cbt\" style=\"color:#276749\">SEMI INTENSIF</div><label class=\"cbi\"><input type=\"checkbox\" id=\"cSB\"> Breedlot</label><label class=\"cbi\"><input type=\"checkbox\" id=\"cSG\"> Greenlot</label></div><div class=\"cbg\" style=\"background:#fffbeb\"><div class=\"cbt\" style=\"color:#744210\">EKSTENSIF</div><label class=\"cbi\"><input type=\"checkbox\" id=\"cEL\"> Lepas Bebas</label><label class=\"cbi\"><input type=\"checkbox\" id=\"cEI\"> Integrasi</label></div></div></div></div>'+'<div class=\"sec\"><div class=\"seh\" style=\"background:#744210\">SKALA</div><div class=\"seb\" style=\"border:1px solid #744210\"><div class=\"g3\"><div class=\"cbg\" style=\"background:#fffbeb\"><label class=\"cbi\"><input type=\"checkbox\" id=\"cKom\"> Komersil</label></div><div class=\"cbg\" style=\"background:#fffbeb\"><label class=\"cbi\"><input type=\"checkbox\" id=\"cSK\"> Semi Komersil</label></div><div class=\"cbg\" style=\"background:#fffbeb\"><label class=\"cbi\"><input type=\"checkbox\" id=\"cKec\"> Kecil</label></div></div></div></div>'+'<div class=\"sec\"><div class=\"seh\" style=\"background:#276749\">STRUKTUR TERNAKAN</div><div class=\"seb\" style=\"border:1px solid #276749\"><div class=\"nr\"><div class=\"nf\"><span>STOK PEMBUKA</span><input type=\"number\" min=\"0\" id=\"nSP\" value=\"0\"></div><div class=\"ng\" style=\"background:#ebf8ff\"><div class=\"ngt\" style=\"color:#2b6cb0\">&lt;1 THN</div><div class=\"ngr\"><div class=\"nf\"><span>J</span><input type=\"number\" min=\"0\" id=\"nL1J\" value=\"0\" oninput=\"calcRB()\"></div><div class=\"nf\"><span>B</span><input type=\"number\" min=\"0\" id=\"nL1B\" value=\"0\" oninput=\"calcRB()\"></div></div></div><div class=\"ng\" style=\"background:#e8f5e9\"><div class=\"ngt\" style=\"color:#276749\">1-2 THN</div><div class=\"ngr\"><div class=\"nf\"><span>J</span><input type=\"number\" min=\"0\" id=\"n12J\" value=\"0\" oninput=\"calcRB()\"></div><div class=\"nf\"><span>B</span><input type=\"number\" min=\"0\" id=\"n12B\" value=\"0\" oninput=\"calcRB()\"></div></div></div><div class=\"ng\" style=\"background:#fffbeb\"><div class=\"ngt\" style=\"color:#744210\">&gt;2 THN</div><div class=\"ngr\"><div class=\"nf\"><span>J</span><input type=\"number\" min=\"0\" id=\"nG2J\" value=\"0\" oninput=\"calcRB()\"></div><div class=\"nf\"><span>B</span><input type=\"number\" min=\"0\" id=\"nG2B\" value=\"0\" oninput=\"calcRB()\"></div></div></div><div class=\"nf\"><span>JUMLAH</span><input type=\"number\" min=\"0\" id=\"nJmlTernak\" value=\"0\" readonly style=\"background:#c6f6d5;font-weight:700;color:#276749\"></div></div></div></div>'+'<div class=\"g2\"><div class=\"sec\"><div class=\"seh\" style=\"background:#553c9a\">INDUK TENUSU</div><div class=\"seb\" style=\"border:1px solid #553c9a\"><div class=\"nr\"><div class=\"nf\"><span>PERAH</span><input type=\"number\" min=\"0\" id=\"nPr\" value=\"0\"></div><div class=\"nf\"><span>KERING</span><input type=\"number\" min=\"0\" id=\"nKr\" value=\"0\"></div></div></div></div><div class=\"sec\"><div class=\"seh\" style=\"background:#0987a0\">KELAHIRAN</div><div class=\"seb\" style=\"border:1px solid #0987a0\"><div class=\"nr\"><div class=\"nf\"><span>Sehingga Kini</span><input type=\"number\" min=\"0\" id=\"nKS\" value=\"0\"></div><div class=\"nf\"><span>Natural Mating</span><input type=\"number\" min=\"0\" id=\"nKNM\" value=\"0\"></div><div class=\"nf\"><span>AI</span><input type=\"number\" min=\"0\" id=\"nKAI\" value=\"0\"></div></div></div></div></div>'+'<div class=\"sec\"><div class=\"seh\" style=\"background:#c53030\">KEMATIAN</div><div class=\"seb\" style=\"border:1px solid #c53030\"><div class=\"nr\"><div class=\"ng\" style=\"background:#fff5f5\"><div class=\"ngt\" style=\"color:#c53030\">DEWASA</div><div class=\"ngr\"><div class=\"nf\"><span>J</span><input type=\"number\" min=\"0\" id=\"nMDJ\" value=\"0\" oninput=\"calcRB()\"></div><div class=\"nf\"><span>B</span><input type=\"number\" min=\"0\" id=\"nMDB\" value=\"0\" oninput=\"calcRB()\"></div></div></div><div class=\"ng\" style=\"background:#fff5f5\"><div class=\"ngt\" style=\"color:#c53030\">ANAK</div><div class=\"ngr\"><div class=\"nf\"><span>&lt;6bln</span><input type=\"number\" min=\"0\" id=\"nMA\" value=\"0\" oninput=\"calcRB()\"></div></div></div><div class=\"nf\"><span>JUMLAH KEMATIAN</span><input type=\"number\" min=\"0\" id=\"nMAJ\" value=\"0\" readonly style=\"background:#fed7d7;font-weight:700;color:#c53030\"></div></div></div></div>'+'<div class=\"sec\"><div class=\"seh\" style=\"background:#276749\">PENGELUARAN</div><div class=\"seb\" style=\"border:1px solid #276749\"><div class=\"nr\"><div class=\"nf\"><span>JUALAN (ekor)</span><input type=\"number\" min=\"0\" id=\"nJl\" value=\"0\" oninput=\"calcRB()\"></div><div class=\"nf\"><span>SUSU (liter)</span><input type=\"number\" min=\"0\" id=\"nSu\" value=\"0\"></div><div class=\"nf\"><span>STOK AKHIR</span><input type=\"number\" min=\"0\" id=\"nSA\" value=\"0\" readonly style=\"background:#c6f6d5;font-weight:700;color:#276749\"></div></div></div></div>';}
 
 function rkFld(){return rbFld().replace('Fidlot</label>','Fidlot</label>').replace('>FIDLOT<','>');}
 function ugFld(){return '<div class=\"sec\"><div class=\"seh\" style=\"background:#1a56a4\">SISTEM PENTERNAKAN</div><div class=\"seb\" style=\"border:1px solid #1a56a4\"><div class=\"g2\"><div class=\"cbg\" style=\"background:#ebf8ff\"><label class=\"cbi\"><input type=\"radio\" name=\"ugSP\" id=\"cRT\" value=\"Terbuka\"> Terbuka</label></div><div class=\"cbg\" style=\"background:#e8f5e9\"><label class=\"cbi\"><input type=\"radio\" name=\"ugSP\" id=\"cRTt\" value=\"Tertutup\"> Tertutup</label></div></div></div></div>'+'<div class=\"g2\"><div class=\"sec\"><div class=\"seh\" style=\"background:#276749\">JENIS OPERASI</div><div class=\"seb\" style=\"border:1px solid #276749\"><label class=\"cbi\"><input type=\"radio\" name=\"ugJO\" id=\"cBk\" value=\"Baka\"> Baka</label><label class=\"cbi\"><input type=\"radio\" name=\"ugJO\" id=\"cPl\" value=\"Penelur\"> Penelur</label><label class=\"cbi\"><input type=\"radio\" name=\"ugJO\" id=\"cPd\" value=\"Pedaging\"> Pedaging</label></div></div><div class=\"sec\"><div class=\"seh\" style=\"background:#744210\">SKALA PENTERNAKAN</div><div class=\"seb\" style=\"border:1px solid #744210\"><label class=\"cbi\"><input type=\"radio\" name=\"ugSK\" id=\"cKom\" value=\"Komersil\"> Komersil</label><label class=\"cbi\"><input type=\"radio\" name=\"ugSK\" id=\"cSK\" value=\"Semi Komersil\"> Semi Komersil</label><label class=\"cbi\"><input type=\"radio\" name=\"ugSK\" id=\"cKec\" value=\"Kecil\"> Kecil</label></div></div></div>'+'<div class=\"sec\"><div class=\"seh\" style=\"background:#553c9a\">DATA PENGELUARAN</div><div class=\"seb\" style=\"border:1px solid #553c9a\"><div class=\"nr\"><div class=\"nf\"><span>POPULASI TERKINI (ekor)</span><input type=\"number\" min=\"0\" id=\"nPp\" value=\"0\"></div><div class=\"nf\"><span>KAPASITI LADANG (ekor)</span><input type=\"number\" min=\"0\" id=\"nKp\" value=\"0\"></div><div class=\"nf\"><span>BILANGAN REBAN (unit)</span><input type=\"number\" min=\"0\" id=\"nRb\" value=\"0\"></div><div class=\"nf\"><span>KEMATIAN SEHINGGA KINI (ekor)</span><input type=\"number\" min=\"0\" id=\"nKm\" value=\"0\"></div><div class=\"nf\"><span>BILANGAN PUSINGAN (unit)</span><input type=\"number\" min=\"0\" id=\"nPu\" value=\"0\"></div></div></div></div>';}
