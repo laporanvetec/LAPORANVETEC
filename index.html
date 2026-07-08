@@ -2312,7 +2312,8 @@ window.GS_READY=false;
 window.FB_READY=false;
 
 function rtWrite(k,v){
-  fetch(RTDB+'/vetec/'+encodeURIComponent(k)+'.json',{
+  _lastSyncTime = Date.now(); // elak auto-sync tarik balik SEBAIK sahaja kita baru tulis (race condition)
+  return fetch(RTDB+'/vetec/'+encodeURIComponent(k)+'.json',{
     method:'PUT',
     body:JSON.stringify(v)
   }).catch(function(){});
@@ -5116,9 +5117,15 @@ function importUpdatedDataJun2026(){
   if(!isMLAdmin()){ alert('Hanya admin boleh guna alat ini'); return; }
   if(!confirm('Import & kemaskini data dari fail JUN26_dikemaskini.xlsx?\n\nIni akan:\n- Kemaskini '+IMPORT_JUN26_LBL.length+' rekod Senarai Penternak (LBL)\n- Kemaskini '+IMPORT_JUN26_RB.length+' rekod Pengeluaran RB\n- Kemaskini '+IMPORT_JUN26_RK.length+' rekod Pengeluaran RK\n- Kemaskini '+IMPORT_JUN26_UG.length+' rekod Pengeluaran UG\n\nRekod sedia ada akan DIKEMASKINI (bukan dipadam). Teruskan?')) return;
 
+  // PENTING: jeda auto-sync (setiap 30 saat) semasa proses import supaya ia TAK tarik data lama
+  // dari Firebase dan timpa balik tulisan baru kita sebelum selesai sampai ke server.
+  if(typeof _autoSyncInterval!=='undefined' && _autoSyncInterval){ clearInterval(_autoSyncInterval); }
+  toast('⏳ Import sedang berjalan, sila tunggu...', '#2b6cb0');
+
   function keyOf(po,nm){ return (po||'').toUpperCase().trim()+'|'+(nm||'').toUpperCase().trim(); }
 
   var stats = {lblUpdated:0, lblAdded:0, rbUpdated:0, rbAdded:0, rkUpdated:0, rkAdded:0, ugUpdated:0, ugAdded:0};
+  var writePromises = [];
 
   // ── 1) SENARAI LBL (vu_p) — upsert ──
   try{
@@ -5149,7 +5156,7 @@ function importUpdatedDataJun2026(){
     });
     localStorage.setItem('vu_p', JSON.stringify(ptArr));
     pt = ptArr;
-    if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_p', JSON.stringify(ptArr));
+    if(window.GS_READY && typeof rtWrite === 'function') writePromises.push(rtWrite('vu_p', JSON.stringify(ptArr)));
   }catch(e){ console.error('LBL import error', e); }
 
   // ── 2) PENGELUARAN RB/RK/UG — upsert (padan po+nama+bulan+tahun) ──
@@ -5172,7 +5179,7 @@ function importUpdatedDataJun2026(){
       if(storageKey==='vu_rb') rRB = arr;
       if(storageKey==='vu_rk') rRK = arr;
       if(storageKey==='vu_ug') rUG = arr;
-      if(window.GS_READY && typeof rtWrite === 'function') rtWrite(storageKey, JSON.stringify(arr));
+      if(window.GS_READY && typeof rtWrite === 'function') writePromises.push(rtWrite(storageKey, JSON.stringify(arr)));
     }catch(e){ console.error(storageKey+' import error', e); }
   }
   upsertProd('vu_rb', IMPORT_JUN26_RB, 'rbUpdated', 'rbAdded');
@@ -5181,11 +5188,24 @@ function importUpdatedDataJun2026(){
 
   if(typeof ld==='function') ld();
 
+  // TUNGGU semua tulisan Firebase selesai betul-betul sebelum papar mesej & sambung semula auto-sync
+  Promise.all(writePromises).then(function(){
+    _lastSyncTime = Date.now(); // pastikan auto-sync tak terus tarik balik sebaik sahaja disambung
+    if(typeof startAutoSync==='function') startAutoSync();
+    finishImportAlert();
+  }).catch(function(){
+    _lastSyncTime = Date.now();
+    if(typeof startAutoSync==='function') startAutoSync();
+    finishImportAlert();
+  });
+
+  function finishImportAlert(){
   alert('✅ Import selesai!\n\n'+
     'LBL: '+stats.lblUpdated+' dikemaskini, '+stats.lblAdded+' ditambah\n'+
     'RB: '+stats.rbUpdated+' dikemaskini, '+stats.rbAdded+' ditambah\n'+
     'RK: '+stats.rkUpdated+' dikemaskini, '+stats.rkAdded+' ditambah\n'+
     'UG: '+stats.ugUpdated+' dikemaskini, '+stats.ugAdded+' ditambah');
+  }
 }
 
 
