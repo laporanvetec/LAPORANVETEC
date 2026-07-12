@@ -2451,9 +2451,14 @@ function sanitizeCloudValue(k, newVal){
     if(k==='vu_sp03' && typeof getSP03DeletedIds==='function'){
       getSP03DeletedIds().forEach(function(id){ delIds[id]=true; });
     }
+    var delRids = {};
+    if(k==='vu_p' && typeof getPtDeletedRids==='function'){
+      getPtDeletedRids().forEach(function(rid){ delRids[rid]=true; });
+    }
     var before = arr.length;
     arr = arr.filter(function(r){
       if(k==='vu_sp03' && r && r.id && delIds[r.id]) return false;
+      if(k==='vu_p' && r && r.rid && delRids[r.rid]) return false;
       var nm = ((r&&r[nameField])||'').toString().toUpperCase().trim();
       if(!nm) return true;
       return !(typeof GARBAGE_FARMER_NAME_RE!=='undefined' && GARBAGE_FARMER_NAME_RE.test(nm));
@@ -5197,6 +5202,99 @@ function deleteLTJByIndex(idx){
 // (B) penternak duplicate dalam LBL (PO+nama sama >1), (C) nama sampah/mencurigakan,
 // (D) jenis ternakan tak sepadan antara LBL dan rekod pengeluaran.
 // ═══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+// AUTO-BERSIH PENDUA PENTERNAK (semua PO/pegawai sekaligus)
+// Kunci: normPO+NAMA+JENIS. PENTING: jika kedua-dua rekod ada ID Premis BERBEZA (bukan kosong),
+// ia dianggap 2 premis BERASINGAN (sah) — TIDAK digabung. Rekod dipadam direkod dlm tombstone
+// (vu_p_del) supaya tak "hidup semula" dari peranti lain yang masih pegang data lama.
+// ═══════════════════════════════════════════════════
+function getPtDeletedRids(){
+  try{ var a = JSON.parse(localStorage.getItem('vu_p_del')||'[]'); return Array.isArray(a)?a:[]; }catch(e){ return []; }
+}
+function markPtDeleted(rids){
+  try{
+    var log = getPtDeletedRids();
+    (Array.isArray(rids)?rids:[rids]).forEach(function(id){ if(id && log.indexOf(id)<0) log.push(id); });
+    if(log.length>1000) log = log.slice(log.length-1000);
+    localStorage.setItem('vu_p_del', JSON.stringify(log));
+    if(window.GS_READY && typeof rtWrite==='function') rtWrite('vu_p_del', JSON.stringify(log));
+  }catch(e){}
+}
+function autoCleanDuplicatePenternak(){
+  if(!isMLAdmin()){ alert('Hanya admin boleh guna alat ini'); return; }
+  var arr = JSON.parse(localStorage.getItem('vu_p')||'[]');
+  function normPO4(po){
+    po=(po||'').toUpperCase().trim();
+    if(po==='ALOR STAR') return 'ALOR SETAR';
+    if(po==='KANGAR'||po==='KANGAR PERLIS'||po==='PERLIS') return 'KANGAR/PERLIS';
+    if(po==='SUNGAI BAKAP') return 'SG BAKAP';
+    return po;
+  }
+  var groups = {};
+  arr.forEach(function(p, idx){
+    var key = normPO4(p.po)+'|'+(p.nm||'').toUpperCase().trim()+'|'+(p.j||'').toUpperCase().trim();
+    if(!groups[key]) groups[key]=[];
+    groups[key].push(idx);
+  });
+  function score(p){
+    var s=0;
+    if(p.id) s+=3;
+    if(p.tr) s+=2+(p.tr.split(',').length);
+    if(p.pegawai) s+=2;
+    if(p.tl) s+=1;
+    if(p.al) s+=1;
+    if(p.pv==='YA') s+=1;
+    return s;
+  }
+  var toRemoveRids = [], mergedCount = 0;
+  Object.keys(groups).forEach(function(key){
+    var idxs = groups[key];
+    if(idxs.length<2) return;
+    // Asingkan ikut ID Premis: rekod dgn ID berbeza (bukan kosong) = premis berasingan, JANGAN gabung
+    var byId = {};
+    idxs.forEach(function(idx){
+      var idp = ((arr[idx].id||'')+'').toUpperCase().trim() || '_KOSONG_';
+      if(!byId[idp]) byId[idp]=[];
+      byId[idp].push(idx);
+    });
+    // Gabungkan kumpulan _KOSONG_ ke dalam kumpulan ber-ID jika hanya ADA SATU kumpulan ber-ID
+    var idKeys = Object.keys(byId).filter(function(k){return k!=='_KOSONG_';});
+    if(idKeys.length===1 && byId['_KOSONG_']){
+      byId[idKeys[0]] = byId[idKeys[0]].concat(byId['_KOSONG_']);
+      delete byId['_KOSONG_'];
+    }
+    Object.keys(byId).forEach(function(idp){
+      var g = byId[idp];
+      if(g.length<2) return;
+      var best = g[0];
+      g.forEach(function(idx){ if(score(arr[idx])>score(arr[best])) best = idx; });
+      // gabung tarikh lawatan & kekalkan maklumat terbaik
+      var allTr = [];
+      g.forEach(function(idx){
+        ((arr[idx].tr||'').split(',')).forEach(function(d){ d=d.trim(); if(d && allTr.indexOf(d)<0) allTr.push(d); });
+        if(arr[idx].pv==='YA') arr[best].pv='YA';
+        if(!arr[best].id && arr[idx].id) arr[best].id=arr[idx].id;
+        if(!arr[best].tl && arr[idx].tl) arr[best].tl=arr[idx].tl;
+        if(!arr[best].pegawai && arr[idx].pegawai) arr[best].pegawai=arr[idx].pegawai;
+      });
+      arr[best].tr = allTr.join(', ');
+      g.forEach(function(idx){ if(idx!==best && arr[idx].rid) toRemoveRids.push(arr[idx].rid); });
+      mergedCount++;
+    });
+  });
+  if(!toRemoveRids.length){ alert('✅ Tiada pendua penternak dijumpai (nama+jenis+ID sama).'); return; }
+  if(!confirm('Jumpa '+mergedCount+' kumpulan pendua penternak ('+toRemoveRids.length+' rekod berlebihan akan dipadam).\n\nRekod TERBAIK dikekalkan, tarikh lawatan digabung, dan padaman direkod (tombstone) supaya tak hidup semula.\n\nTeruskan?')) return;
+  var removeSet = {};
+  toRemoveRids.forEach(function(rid){ removeSet[rid]=true; });
+  arr = arr.filter(function(p){ return !(p.rid && removeSet[p.rid]); });
+  markPtDeleted(toRemoveRids);
+  localStorage.setItem('vu_p', JSON.stringify(arr));
+  pt = arr;
+  if(typeof ld==='function') ld();
+  toast('&#129529; '+toRemoveRids.length+' pendua penternak dibuang & direkod','#276749');
+  alert('✅ Selesai! '+toRemoveRids.length+' rekod pendua dibuang.\n\nSila buka Lawatan LTJ untuk pembersihan LTJ automatik, dan semak semula jumlah di Senarai Penternak.');
+}
+
 function auditTallyLBLPengeluaran(){
   if(!isMLAdmin()){ alert('Hanya admin boleh guna alat ini'); return; }
   ld();
@@ -5872,7 +5970,13 @@ function importUpdatedDataJun2026(){
   if(typeof _autoSyncInterval!=='undefined' && _autoSyncInterval){ clearInterval(_autoSyncInterval); }
   toast('⏳ Import sedang berjalan, sila tunggu...', '#2b6cb0');
 
-  function keyOf(po,nm){ return (po||'').toUpperCase().trim()+'|'+(nm||'').toUpperCase().trim(); }
+  function keyOf(po,nm){
+    po=(po||'').toUpperCase().trim();
+    if(po==='ALOR STAR') po='ALOR SETAR';
+    if(po==='KANGAR'||po==='KANGAR PERLIS'||po==='PERLIS') po='KANGAR/PERLIS';
+    if(po==='SUNGAI BAKAP') po='SG BAKAP';
+    return po+'|'+(nm||'').toUpperCase().trim();
+  }
 
   var stats = {lblUpdated:0, lblAdded:0, rbUpdated:0, rbAdded:0, rkUpdated:0, rkAdded:0, ugUpdated:0, ugAdded:0};
   var writePromises = [];
@@ -6026,6 +6130,7 @@ function renderKomoditiPage(){
   h += '<button onclick="searchFixSP03()" style="background:#e0e7ff;border:1px solid #3730a3;color:#3730a3;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128295; Cari & Betulkan SP03 (PO/Ketua)</button>';
   h += '<button onclick="localStorage.removeItem(\'vu_garbage_rows_fixed\');fixGarbageHeaderRows();" style="background:#fef2f2;border:1px solid #b91c1c;color:#b91c1c;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#129529; Buang Baris Sampah (Teks Header)</button>';
   h += '<button onclick="auditTallyLBLPengeluaran()" style="background:#0F2D5E;border:1px solid #0F2D5E;color:#fff;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128270; Semak Tally LBL vs Pengeluaran (PENUH)</button>';
+  h += '<button onclick="autoCleanDuplicatePenternak()" style="background:#7c2d12;border:1px solid #7c2d12;color:#fff;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#129529; Auto-Bersih Pendua Penternak (Semua PO)</button>';
   h += '<button onclick="diagnosticLTJFull()" style="background:#1e1b4b;border:1px solid #1e1b4b;color:#fff;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128300; Diagnostik LTJ Penuh</button>';
   h += '<button onclick="diagnosticIdPremis()" style="background:#3730a3;border:1px solid #3730a3;color:#fff;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128300; Diagnostik ID Premis</button>';
   h += '<button onclick="auditLTJBukanPPV()" style="background:#fef2f2;border:1px solid #b91c1c;color:#b91c1c;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak LTJ Bukan PPV</button>';
@@ -6341,11 +6446,25 @@ function fixMlEmbIdPollutionV2(){
 // Gabungkan selectedDates semua duplicate ke rekod yang dikekalkan, kemudian buang yang lain.
 function fixDuplicateLTJRecords(){
   try{
-    if(localStorage.getItem('vu_ltjdupe_fixed_v2')==='1') return;
+    // Jalan SETIAP kali (bukan one-time) — duplicate boleh muncul semula dari pelbagai punca.
     var ltj = JSON.parse(localStorage.getItem('vu_ltj')||'[]');
+    if(!Array.isArray(ltj) || !ltj.length) return;
+    var allPtLTJ = [];
+    try{ allPtLTJ = (typeof myPt==='function' && CU) ? myPt(null) : (pt||[]); }catch(e){ allPtLTJ = pt||[]; }
+    var ptByRid = {};
+    allPtLTJ.forEach(function(p){ if(p && p.rid) ptByRid[p.rid] = p; });
+    // Kunci dedup: PO+NAMA+JENIS penternak + tahun — supaya 2 rekod penternak PENDUA
+    // (rid berbeza, nama sama) tetap dikesan sebagai LTJ duplicate.
+    function ltjKeyOf(r){
+      var p = ptByRid[r.farmRid];
+      if(p){
+        return (p.po||'').toUpperCase().trim()+'|'+(p.nm||'').toUpperCase().trim()+'|'+(p.j||'').toUpperCase().trim()+'|'+r.yr;
+      }
+      return 'RID|'+r.farmRid+'|'+r.yr; // fallback: penternak tak dijumpai, dedup ikut rid
+    }
     var groups = {};
     ltj.forEach(function(r, idx){
-      var key = r.farmRid+'|'+r.yr;
+      var key = ltjKeyOf(r);
       if(!groups[key]) groups[key]=[];
       groups[key].push(idx);
     });
@@ -6353,12 +6472,12 @@ function fixDuplicateLTJRecords(){
     Object.keys(groups).forEach(function(key){
       var idxs = groups[key];
       if(idxs.length<2) return;
-      // pilih rekod PALING LENGKAP: paling banyak selectedDates, atau isDropped=false diutamakan
+      // pilih rekod PALING LENGKAP: farmRid wujud dalam pt diutamakan, paling banyak selectedDates, isDropped=false
       var best = idxs[0];
       idxs.forEach(function(idx){
         var a = ltj[idx], b = ltj[best];
-        var aScore = (a.selectedDates||[]).length + (a.isDropped?0:1);
-        var bScore = (b.selectedDates||[]).length + (b.isDropped?0:1);
+        var aScore = (a.selectedDates||[]).length + (a.isDropped?0:1) + (ptByRid[a.farmRid]?2:0);
+        var bScore = (b.selectedDates||[]).length + (b.isDropped?0:1) + (ptByRid[b.farmRid]?2:0);
         if(aScore > bScore) best = idx;
       });
       // gabungkan semua selectedDates unik ke rekod yang dikekalkan
@@ -6374,9 +6493,8 @@ function fixDuplicateLTJRecords(){
       toRemove.forEach(function(idx){ ltj.splice(idx,1); });
       localStorage.setItem('vu_ltj', JSON.stringify(ltj));
       if(window.GS_READY && typeof rtWrite === 'function') rtWrite('vu_ltj', JSON.stringify(ltj));
-      console.log('fixDuplicateLTJRecords: '+toRemove.length+' rekod LTJ duplicate dibuang');
+      console.log('fixDuplicateLTJRecords: '+toRemove.length+' rekod LTJ duplicate dibuang (dedup ikut PO+nama+jenis)');
     }
-    localStorage.setItem('vu_ltjdupe_fixed_v2','1');
   }catch(e){console.error('fixDuplicateLTJRecords error', e);}
 }
 
@@ -16702,12 +16820,21 @@ function syncPPVtoLTJ(){
     return !!pvYaRids[r.farmRid];
   });
   if(ltj.length !== before) changed = true;
+  // Peta rid -> penternak untuk kunci nama+jenis (elak duplicate bila penternak PENDUA dlm LBL dgn rid berbeza)
+  var ptByRidSync = {};
+  allPt.forEach(function(p){ if(p && p.rid) ptByRidSync[p.rid] = p; });
+  function nmKeyOf(p){ return (p.po||'').toUpperCase().trim()+'|'+(p.nm||'').toUpperCase().trim()+'|'+(p.j||'').toUpperCase().trim(); }
   allPt.forEach(function(p){
     if(p.pv !== 'YA') return;
-    // PENTING: semak "dah wujud" ikut farmRid+yr SAHAJA (bukan pegawaiId, sebab CU.pid
-    // tak stabil merentasi sesi log masuk — guna pegawaiId sebagai syarat sebabkan
-    // rekod LTJ duplicate dicipta setiap kali sesi log masuk berubah).
-    var already = ltj.find(function(r){ return r.farmRid===p.rid && r.yr===yr; });
+    // Semak "dah wujud" ikut farmRid ATAU PO+nama+jenis penternak (2 rid berbeza utk penternak
+    // pendua tetap dikira SATU — elak LTJ duplicate spt kes RAJENDRAN).
+    var pKey = nmKeyOf(p);
+    var already = ltj.find(function(r){
+      if(r.yr!==yr) return false;
+      if(r.farmRid===p.rid) return true;
+      var rp = ptByRidSync[r.farmRid];
+      return !!(rp && nmKeyOf(rp)===pKey);
+    });
     if(!already){
       ltj.push({
         id:'ltj'+Date.now()+'_'+Math.random().toString(36).substr(2,4),
