@@ -6108,34 +6108,59 @@ function renderKomoditiPage(){
   var c = document.getElementById('cKomoditi');
   if(!c) return;
   
-  var h = '<div style="padding:20px;max-width:900px">';
+  var h = '<div style="padding:20px;max-width:1100px">';
   h += '<div style="background:#fff;border-radius:10px;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,.06)">';
   h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">';
   h += '<div><div style="font-size:17px;font-weight:800;color:#0f2d5e">&#129516; Urus Jenis Komoditi</div>';
   h += '<div style="font-size:12px;color:#718096">Tambah / Padam jenis ternakan. Akan auto-sync ke semua dropdown.</div></div>';
-  h += '<button onclick="resetKomoditiDefault()" style="background:#fff5f5;border:1px solid #c53030;color:#c53030;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-right:6px">&#8635; Reset Default</button>';
-  h += '<button onclick="auditPOPegawaiMismatch()" style="background:#fffaf0;border:1px solid #dd6b20;color:#dd6b20;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700">&#128269; Semak PO/Pegawai Tidak Sepadan</button>';
-  h += '<button onclick="auditDuplicateFarmers()" style="background:#fff5f5;border:1px solid #c53030;color:#c53030;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak Duplicate Penternak</button>';
-  h += '<button onclick="mergeKangarPerlisDuplicates()" style="background:#fef3c7;border:1px solid #b45309;color:#b45309;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128260; Gabung KANGAR/PERLIS + Buang Duplicate</button>';
-  h += '<button onclick="auditKangarRecords()" style="background:#e0f2fe;border:1px solid #0369a1;color:#0369a1;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak Rekod PO KANGAR</button>';
-  h += '<button onclick="auditPengeluaranNotInLBL()" style="background:#f0fff4;border:1px solid #276749;color:#276749;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak Pengeluaran Tiada di LBL</button>';
-  h += '<button onclick="auditLBLNotInPengeluaran()" style="background:#eff6ff;border:1px solid #1d4ed8;color:#1d4ed8;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak LBL Tiada di Pengeluaran</button>';
-  h += '<button onclick="addSpecificMissingFarmers2026()" style="background:#e6fffa;border:1px solid #0d9488;color:#0d9488;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#10133; Tambah Penternak Hilang ke Masterlist</button>';
-  h += '<button onclick="importUpdatedDataJun2026()" style="background:#f5f3ff;border:1px solid #6d28d9;color:#6d28d9;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128229; Import Data JUN26 Dikemaskini</button>';
-  h += '<button onclick="exportSP03AllOfficersExcel()" style="background:#fdf4ff;border:1px solid #a21caf;color:#a21caf;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128229; Laporan SP03 Semua Pegawai (1 Sheet/Pegawai)</button>';
-  h += '<button onclick="triggerImportSP03Excel()" style="background:#ecfdf5;border:1px solid #047857;color:#047857;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128228; Import SP03 dari Excel</button>';
-  h += '<button onclick="if(confirm(\'Betulkan ejaan jenis ternakan (typo diketahui) merentasi Senarai Penternak, Masterlist, Pengeluaran RB/RK?\'))fixJenisTernakanTypos()" style="background:#eef2ff;border:1px solid #4338ca;color:#4338ca;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128221; Betulkan Ejaan Jenis Ternakan</button>';
-  h += '<button onclick="auditDuplicateLTJ()" style="background:#fff7ed;border:1px solid #c2410c;color:#c2410c;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak Duplicate LTJ</button>';
-  h += '<button onclick="auditDuplicateSP03()" style="background:#fef9c3;border:1px solid #a16207;color:#a16207;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak Duplicate SP03</button>';
-  h += '<button onclick="searchFixSP03()" style="background:#e0e7ff;border:1px solid #3730a3;color:#3730a3;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128295; Cari & Betulkan SP03 (PO/Ketua)</button>';
-  h += '<button onclick="localStorage.removeItem(\'vu_garbage_rows_fixed\');fixGarbageHeaderRows();" style="background:#fef2f2;border:1px solid #b91c1c;color:#b91c1c;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#129529; Buang Baris Sampah (Teks Header)</button>';
-  h += '<button onclick="auditTallyLBLPengeluaran()" style="background:#0F2D5E;border:1px solid #0F2D5E;color:#fff;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128270; Semak Tally LBL vs Pengeluaran (PENUH)</button>';
-  h += '<button onclick="autoCleanDuplicatePenternak()" style="background:#7c2d12;border:1px solid #7c2d12;color:#fff;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#129529; Auto-Bersih Pendua Penternak (Semua PO)</button>';
-  h += '<button onclick="diagnosticLTJFull()" style="background:#1e1b4b;border:1px solid #1e1b4b;color:#fff;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128300; Diagnostik LTJ Penuh</button>';
-  h += '<button onclick="diagnosticIdPremis()" style="background:#3730a3;border:1px solid #3730a3;color:#fff;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128300; Diagnostik ID Premis</button>';
-  h += '<button onclick="auditLTJBukanPPV()" style="background:#fef2f2;border:1px solid #b91c1c;color:#b91c1c;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak LTJ Bukan PPV</button>';
-  h += '<button onclick="auditJenisNotClassified()" style="background:#fffbeb;border:1px solid #92400e;color:#92400e;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128269; Semak Jenis Ternakan Tak Sepadan</button>';
-  h += '<button onclick="if(confirm(\'Padam 6 rekod duplicate yang dah dikenal pasti (kekalkan rid p1783065125230 sahaja)?\'))cleanupSpecificDuplicates2026()" style="background:#fee2e2;border:1px solid #991b1b;color:#991b1b;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;margin-left:6px">&#128465;&#65039; Padam Duplicate Yang Dikenal Pasti</button>';
+  h += '<button onclick="resetKomoditiDefault()" style="background:#fff5f5;border:1px solid #c53030;color:#c53030;padding:6px 12px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700">&#8635; Reset Default</button>';
+  h += '</div>';
+
+  // ── PANEL ALAT ADMIN (berkumpulan, flex-wrap — tak melimpah) ──
+  function toolBtn(onclick, icon, label, bg, border, color){
+    return '<button onclick="'+onclick+'" style="background:'+bg+';border:1px solid '+border+';color:'+color+';padding:7px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;white-space:nowrap">'+icon+' '+label+'</button>';
+  }
+  function toolGroup(title, btns){
+    return '<div style="margin-bottom:10px"><div style="font-size:11px;font-weight:800;color:#718096;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">'+title+'</div>'+
+           '<div style="display:flex;flex-wrap:wrap;gap:6px">'+btns.join('')+'</div></div>';
+  }
+  h += '<div style="border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px;margin-bottom:14px;background:#fafbfc">';
+  h += '<div style="font-size:13px;font-weight:800;color:#0f2d5e;margin-bottom:10px">&#128736;&#65039; Alat Admin</div>';
+
+  h += toolGroup('&#128269; Semakan &amp; Audit', [
+    toolBtn('auditTallyLBLPengeluaran()','&#128270;','Semak Tally LBL vs Pengeluaran (PENUH)','#0F2D5E','#0F2D5E','#fff'),
+    toolBtn('auditPOPegawaiMismatch()','&#128269;','Semak PO/Pegawai Tidak Sepadan','#fffaf0','#dd6b20','#dd6b20'),
+    toolBtn('auditDuplicateFarmers()','&#128269;','Semak Duplicate Penternak','#fff5f5','#c53030','#c53030'),
+    toolBtn('auditDuplicateLTJ()','&#128269;','Semak Duplicate LTJ','#fff7ed','#c2410c','#c2410c'),
+    toolBtn('auditDuplicateSP03()','&#128269;','Semak Duplicate SP03','#fef9c3','#a16207','#a16207'),
+    toolBtn('auditPengeluaranNotInLBL()','&#128269;','Semak Pengeluaran Tiada di LBL','#f0fff4','#276749','#276749'),
+    toolBtn('auditLBLNotInPengeluaran()','&#128269;','Semak LBL Tiada di Pengeluaran','#eff6ff','#1d4ed8','#1d4ed8'),
+    toolBtn('auditLTJBukanPPV()','&#128269;','Semak LTJ Bukan PPV','#fef2f2','#b91c1c','#b91c1c'),
+    toolBtn('auditJenisNotClassified()','&#128269;','Semak Jenis Ternakan Tak Sepadan','#fffbeb','#92400e','#92400e'),
+    toolBtn('auditKangarRecords()','&#128269;','Semak Rekod PO KANGAR','#e0f2fe','#0369a1','#0369a1')
+  ]);
+
+  h += toolGroup('&#129529; Pembersihan &amp; Pembetulan', [
+    toolBtn('autoCleanDuplicatePenternak()','&#129529;','Auto-Bersih Pendua Penternak (Semua PO)','#7c2d12','#7c2d12','#fff'),
+    toolBtn('localStorage.removeItem(\'vu_garbage_rows_fixed\');fixGarbageHeaderRows();','&#129529;','Buang Baris Sampah (Teks Header)','#fef2f2','#b91c1c','#b91c1c'),
+    toolBtn('searchFixSP03()','&#128295;','Cari &amp; Betulkan SP03 (PO/Ketua)','#e0e7ff','#3730a3','#3730a3'),
+    toolBtn('if(confirm(\'Betulkan ejaan jenis ternakan (typo diketahui) merentasi Senarai Penternak, Masterlist, Pengeluaran RB/RK?\'))fixJenisTernakanTypos()','&#128221;','Betulkan Ejaan Jenis Ternakan','#eef2ff','#4338ca','#4338ca'),
+    toolBtn('mergeKangarPerlisDuplicates()','&#128260;','Gabung KANGAR/PERLIS + Buang Duplicate','#fef3c7','#b45309','#b45309'),
+    toolBtn('addSpecificMissingFarmers2026()','&#10133;','Tambah Penternak Hilang ke Masterlist','#e6fffa','#0d9488','#0d9488'),
+    toolBtn('if(confirm(\'Padam 6 rekod duplicate yang dah dikenal pasti (kekalkan rid p1783065125230 sahaja)?\'))cleanupSpecificDuplicates2026()','&#128465;&#65039;','Padam Duplicate Yang Dikenal Pasti','#fee2e2','#991b1b','#991b1b')
+  ]);
+
+  h += toolGroup('&#128229; Import &amp; Laporan', [
+    toolBtn('triggerImportSP03Excel()','&#128228;','Import SP03 dari Excel','#ecfdf5','#047857','#047857'),
+    toolBtn('importUpdatedDataJun2026()','&#128229;','Import Data JUN26 Dikemaskini','#f5f3ff','#6d28d9','#6d28d9'),
+    toolBtn('exportSP03AllOfficersExcel()','&#128229;','Laporan SP03 Semua Pegawai (1 Sheet/Pegawai)','#fdf4ff','#a21caf','#a21caf')
+  ]);
+
+  h += toolGroup('&#128300; Diagnostik', [
+    toolBtn('diagnosticLTJFull()','&#128300;','Diagnostik LTJ Penuh','#1e1b4b','#1e1b4b','#fff'),
+    toolBtn('diagnosticIdPremis()','&#128300;','Diagnostik ID Premis','#3730a3','#3730a3','#fff')
+  ]);
+
   h += '</div>';
   
   Object.keys(k).forEach(function(grp){
