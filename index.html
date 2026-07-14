@@ -6701,7 +6701,7 @@ function renderSP(){
     '<div class="sc" style="border-left-color:#744210"><div class="sl">UG (Unggas)</div><div class="sv" style="color:#744210">'+ug+'</div><div style="font-size:10px;color:#718096">&#8594; Pengeluaran UG</div></div>';
   var c=document.getElementById('sp-content');
   if(!tot){c.innerHTML='<div class="wb"><div style="font-size:30px;margin-bottom:10px">&#9888;&#65039;</div><div style="font-weight:700;color:#c53030;font-size:14px">Senarai penternak kosong</div><div style="color:#718096;font-size:12px;margin:8px 0">Tambah penternak terlebih dahulu.</div><button class="btn bg" onclick="openAddP()" style="margin-top:10px">+ Tambah Penternak</button></div>';return;}
-  var h='<div style="background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden"><table class="spt"><thead><tr><th>#</th><th>Nama</th><th>Jenis</th><th>Pengeluaran</th><th>Bantuan</th><th>ID Premis</th><th>Tel</th><th>PPV</th><th>Tarikh Lawatan</th><th>Status</th><th>Tindakan</th></tr></thead><tbody>';
+  var h='<div style="background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow-x:auto"><table class="spt"><thead><tr><th>#</th><th>Nama</th><th>Jenis</th><th>Pengeluaran</th><th>Bantuan</th><th>ID Premis</th><th>Tel</th><th>PPV</th><th>Tarikh Lawatan</th><th>Status</th><th>Tindakan</th></tr></thead><tbody>';
   // Get pending requests for current user (cache once per render)
   var _myPendingReqs = [];
   if(typeof getMLReq === 'function' && CU){
@@ -7658,7 +7658,7 @@ function renderLD(){
   ['BIL','NEGERI','ZON KTS','DAERAH (PO)','NAMA SYARIKAT/PENTERNAK','ALAMAT','BANTUAN','JENIS TERNAKAN','LAWATAN BULAN SEMASA','TARIKH LAWATAN','STATUS DATA CLEANING '+CY,'GPS','TINDAKAN'].forEach(function(c){
     var extra='';
     if(c==='BIL') extra=' style="position:sticky;left:0;z-index:3"';
-    else if(c==='NAMA SYARIKAT/PENTERNAK') extra=' style="position:sticky;left:246px;z-index:3"';
+    else if(c==='NAMA SYARIKAT/PENTERNAK') extra=' style="position:sticky;left:36px;z-index:3"';
     h+='<th class="lh"'+extra+'>'+c+'</th>';
   });
   h+='</tr></thead><tbody>';
@@ -7670,7 +7670,7 @@ function renderLD(){
     h+='<td style="text-align:center;color:#a0aec0;position:sticky;left:0;z-index:2;background:'+(i%2?'#FAFFF7':'#fff')+';border-bottom:1px solid #eee">'+(i+1)+'</td>';
     h+='<td>'+(p.ng||'Kedah')+'</td><td style="text-align:center">UTARA</td>';
     h+='<td><span style="background:#0f2d5e;color:#fff;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:700">'+p.po+'</span></td>';
-    h+='<td style="position:sticky;left:246px;z-index:2;background:'+(i%2?'#FAFFF7':'#fff')+';border-bottom:1px solid #eee"><b>'+p.nm+'</b></td>';
+    h+='<td style="position:sticky;left:36px;z-index:2;background:'+(i%2?'#FAFFF7':'#fff')+';border-bottom:1px solid #eee"><b>'+p.nm+'</b></td>';
     h+='<td style="font-size:10px;color:#718096">'+(p.al||'-')+'</td>';
     h+='<td><span class="bb">'+(p.bn||'-')+'</span></td>';
     h+='<td><span class="bj">'+p.j+'</span></td>';
@@ -10410,11 +10410,12 @@ function renderLT(){
   var yr = parseInt(document.getElementById('lt-yr').value)||2026;
   var q  = (document.getElementById('lt-q').value||'').toLowerCase();
   var all = getLT().filter(function(r){
-    if(r.po !== CU.po) return false;
+    if(!isMLAdmin() && r.po !== CU.po) return false; // ADMIN nampak SEMUA PO; pegawai PO sendiri sahaja
     if(r.tahun !== yr) return false;
     if(q && r.nama.toLowerCase().indexOf(q)<0 && r.kursus.toLowerCase().indexOf(q)<0) return false;
     return true;
   });
+  if(isMLAdmin()){ all.sort(function(a,b){ return (a.po||'').localeCompare(b.po||'') || (a.nama||'').localeCompare(b.nama||''); }); }
   document.getElementById('lt-cnt').textContent = all.length+' rekod';
 
   // Stats
@@ -10430,7 +10431,7 @@ function renderLT(){
   if(!all.length){
     document.getElementById('lt-wrap').innerHTML =
       '<div class="wb" style="margin:0"><div style="font-size:36px;margin-bottom:10px">&#127979;</div>'+
-      '<div style="font-weight:700;color:#c53030;font-size:14px">Tiada rekod latihan untuk PO '+CU.po+' tahun '+yr+'</div>'+
+      '<div style="font-weight:700;color:#c53030;font-size:14px">Tiada rekod latihan untuk '+(isMLAdmin()?'SEMUA PO':'PO '+CU.po)+' tahun '+yr+'</div>'+
       '<div style="color:#718096;font-size:12px;margin:8px 0">Klik + Tambah Latihan untuk mula.</div>'+
       '<button class="btn bg" onclick="openAddLT()" style="margin-top:10px">+ Tambah Rekod Latihan</button></div>';
     return;
@@ -10442,6 +10443,7 @@ function renderLT(){
   h += '<tr style="background:#F9C000">';
   h += '<th style="border:2px solid #000;padding:7px 8px;color:#000;font-weight:800;font-size:11px;text-align:center;min-width:36px" rowspan="2">BIL</th>';
   h += '<th style="border:2px solid #000;padding:7px 8px;color:#000;font-weight:800;font-size:11px;text-align:center;min-width:60px" rowspan="2">VETEC</th>';
+  if(isMLAdmin()) h += '<th style="border:2px solid #000;padding:7px 8px;color:#000;font-weight:800;font-size:11px;text-align:center;min-width:90px" rowspan="2">PO</th>';
   h += '<th style="border:2px solid #000;padding:7px 8px;color:#000;font-weight:800;font-size:11px;text-align:center;min-width:180px" rowspan="2">NAMA</th>';
   h += '<th style="border:2px solid #000;padding:7px 8px;color:#000;font-weight:800;font-size:11px;text-align:center;min-width:55px" rowspan="2">Gred</th>';
   h += '<th style="border:2px solid #000;padding:7px 8px;color:#000;font-weight:800;font-size:11px;text-align:center;min-width:80px" rowspan="2">TAHAP KEMAHIRAN</th>';
@@ -10451,7 +10453,7 @@ function renderLT(){
   h += '<th style="border:2px solid #000;padding:7px 8px;color:#000;font-weight:800;font-size:11px;text-align:center;min-width:90px" rowspan="2">Anjuran</th>';
   h += '<th style="border:2px solid #000;padding:7px 8px;color:#000;font-weight:800;font-size:11px;text-align:center" colspan="2">TARIKH LATIHAN</th>';
   h += '<th style="border:2px solid #000;padding:7px 8px;color:#000;font-weight:800;font-size:11px;text-align:center;min-width:55px" rowspan="2">Bil Hari</th>';
-  h += '<th style="border:2px solid #000;padding:7px 8px;color:#000;font-weight:800;font-size:11px;text-align:center;min-width:70px>Tindakan</th>';
+  h += '<th style="border:2px solid #000;padding:7px 8px;color:#000;font-weight:800;font-size:11px;text-align:center;min-width:70px" rowspan="2">Tindakan</th>';
   h += '</tr>';
   h += '<tr style="background:#FFD740">';
   h += '<th style="border:2px solid #000;padding:5px 7px;color:#000;font-weight:700;font-size:11px;text-align:center;min-width:90px">Tarikh mula</th>';
@@ -10465,6 +10467,7 @@ function renderLT(){
     h += '<tr style="background:'+bg+'">';
     h += '<td style="border:1px solid #e2e8f0;padding:7px 8px;text-align:center;color:#a0aec0">'+(i+1)+'</td>';
     h += '<td style="border:1px solid #e2e8f0;padding:7px 8px;text-align:center;font-weight:700;color:#0f2d5e">'+(r.vetec||'UTARA')+'</td>';
+    if(isMLAdmin()) h += '<td style="border:1px solid #e2e8f0;padding:7px 8px;text-align:center"><span style="background:#0f2d5e;color:#fff;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:700">'+(r.po||'-')+'</span></td>';
     h += '<td style="border:1px solid #e2e8f0;padding:7px 10px;font-weight:700">'+r.nama+'</td>';
     h += '<td style="border:1px solid #e2e8f0;padding:7px 8px;text-align:center">'+(r.gred||'')+'</td>';
     h += '<td style="border:1px solid #e2e8f0;padding:7px 8px;text-align:center"><span class="bj">'+(r.tahap||'-')+'</span></td>';
@@ -11929,7 +11932,9 @@ function renderSP03(){
   // Row 1 - Main sections (3-row header)
   h += '<tr>';
   h += '<th style="border:1px solid #000;padding:5px 6px;font-weight:800;font-size:10px;text-align:center;vertical-align:middle;background:#F9C000;color:#000;min-width:36px;position:sticky;left:0;z-index:3" rowspan="3">BIL</th>';
-  h += th('MAKLUMAT ASAS',2,11,'#F9C000');  // C1-C11 (R1+R2 merged)
+  h += th('MAKLUMAT ASAS',2,5,'#F9C000');  // VETEC..TARIKH (5 lajur)
+  h += '<th style="border:1px solid #000;padding:5px 6px;font-weight:800;font-size:10px;text-align:center;vertical-align:middle;background:#FFFF99;color:#000;min-width:160px;position:sticky;left:36px;z-index:3" rowspan="3">NAMA PENTERNAK</th>';
+  h += th('MAKLUMAT ASAS',2,5,'#F9C000');  // ID PREMIS..MASA SELESAI (5 lajur)
   h += th('BILANGAN POPULASI TERNAKAN (EKOR)',1,19,'#7EC8E3');
   h += th('HAIWAN KESAYANGAN',2,3,'#77DD77');  // R1+R2 merged
   h += th('AMALAN SISTEM PENTERNAKAN',2,5,'#FFB347');
@@ -11977,11 +11982,8 @@ function renderSP03(){
 
   h += '<tr>';
   moA.forEach(function(c,ci){
-    if(c==='NAMA PENTERNAK'){
-      h+='<th style="border:1px solid #000;padding:5px 6px;font-weight:800;font-size:10px;text-align:center;vertical-align:middle;background:#FFFF99;color:#000;min-width:160px;position:sticky;left:36px;z-index:3">'+c+'</th>';
-    } else {
-      h+=th(c,1,1,'#FFFF99',80);
-    }
+    if(c==='NAMA PENTERNAK') return; // sudah dirender sebagai sel rowspan-3 sticky di baris 1
+    h+=th(c,1,1,'#FFFF99',80);
   });
   koA.forEach(function(c){ h+=th(c.length>12?c.substring(0,12)+'..':c,1,1,'#A8D8E8',55); });
   hkA.forEach(function(c){ h+=th(c+' (ekor)',1,1,'#90EE90',55); });
